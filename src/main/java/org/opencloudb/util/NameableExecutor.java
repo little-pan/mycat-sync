@@ -33,10 +33,18 @@ import java.util.concurrent.TimeUnit;
  */
 public class NameableExecutor extends ThreadPoolExecutor {
 
+    private static final String KEEP_ALIVE_TIME_PROP = "org.opencloudb.util.executor.keepAliveTime";
+    private static final long KEEP_ALIVE_TIME = Long.getLong(KEEP_ALIVE_TIME_PROP, 60000L);
+
     protected String name;
 
     public NameableExecutor(String name, int size, BlockingQueue<Runnable> queue, ThreadFactory factory) {
-        super(size, size, Long.MAX_VALUE, TimeUnit.NANOSECONDS, queue, factory);
+        this(name, size, size, queue, factory);
+    }
+
+    public NameableExecutor(String name, int coreSize, int maxSize,
+                            BlockingQueue<Runnable> queue, ThreadFactory factory) {
+        super(coreSize, maxSize, KEEP_ALIVE_TIME, TimeUnit.MILLISECONDS, queue, factory);
         this.name = name;
     }
 

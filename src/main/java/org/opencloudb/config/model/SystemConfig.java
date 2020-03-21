@@ -42,9 +42,9 @@ public final class SystemConfig {
 
 	private static final String DEFAULT_SQL_PARSER = "fdbparser";// druidparser
 	private static final int DEFAULT_BUFFER_CHUNK_SIZE = 4096;
-	private int processorBufferLocalPercent;
-	private static final int DEFAULT_PROCESSORS = Runtime.getRuntime()
-			.availableProcessors();
+	private static final int DEFAULT_PROCESSORS = 100;
+
+    private int processorBufferLocalPercent;
 	private int frontSocketSoRcvbuf = 1024 * 1024;
 	private int frontSocketSoSndbuf = 4 * 1024 * 1024;
 	private int backSocketSoRcvbuf = 4 * 1024 * 1024;// mysql 5.6
@@ -129,13 +129,14 @@ public final class SystemConfig {
 		this.charset = DEFAULT_CHARSET;
 		this.processors = DEFAULT_PROCESSORS;
 
-		processorBufferChunk = DEFAULT_BUFFER_CHUNK_SIZE;
-		this.processorExecutor = (DEFAULT_PROCESSORS != 1) ? DEFAULT_PROCESSORS * 2
-				: 4;
+		this.processorBufferChunk = DEFAULT_BUFFER_CHUNK_SIZE;
+		this.processorBufferPool = DEFAULT_BUFFER_CHUNK_SIZE *  this.processors * 1000;
+		this.processorBufferLocalPercent = 2;
+
+		this.processorExecutor = this.processors * 4;
 		this.managerExecutor = 2;
-		processorBufferPool = DEFAULT_BUFFER_CHUNK_SIZE * processors * 1000;
-		this.processorBufferLocalPercent = 100;
 		this.timerExecutor = 2;
+
 		this.idleTimeout = DEFAULT_IDLE_TIMEOUT;
 		this.processorCheckPeriod = DEFAULT_PROCESSOR_CHECK_PERIOD;
 		this.dataNodeIdleCheckPeriod = DEFAULT_DATANODE_IDLE_CHECK_PERIOD;
@@ -148,7 +149,6 @@ public final class SystemConfig {
 		this.txIsolation = Isolations.REPEATED_READ;
 		this.parserCommentVersion = DEFAULT_PARSER_COMMENT_VERSION;
 		this.sqlRecordCount = DEFAULT_SQL_RECORD_COUNT;
-
 	}
 
 	public String getSqlInterceptor() {

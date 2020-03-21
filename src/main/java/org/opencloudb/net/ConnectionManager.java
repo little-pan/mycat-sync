@@ -23,13 +23,14 @@
  */
 package org.opencloudb.net;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.buffer.BufferPool;
 import org.opencloudb.statistic.CommandCount;
 import org.opencloudb.util.NameableExecutor;
 import org.opencloudb.util.TimeUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -44,7 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class ConnectionManager {
 
-    static final Logger log = Logger.getLogger(ConnectionManager.class);
+    static final Logger log = LoggerFactory.getLogger(ConnectionManager.class);
 
     protected final String name;
     protected final BufferPool bufferPool;
@@ -153,7 +154,7 @@ public class ConnectionManager {
 
             // Close the connection when SQL execution timeout in it
             if (c.isBorrowed() && c.getLastTime() < TimeUtil.currentTimeMillis() - sqlTimeout) {
-                log.warn("Found backend connection SQL timeout, close it " + c);
+                log.warn("Found backend connection SQL timeout, close it {}", c);
                 c.close("sql timeout");
             }
 

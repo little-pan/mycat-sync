@@ -46,6 +46,4 @@ public abstract class FrontendConnectionFactory {
 		return c;
 	}
 
-	
-
 }

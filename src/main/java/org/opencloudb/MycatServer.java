@@ -51,6 +51,7 @@ import org.opencloudb.route.RouteService;
 import org.opencloudb.server.ServerConnectionFactory;
 import org.opencloudb.statistic.SQLRecorder;
 import org.opencloudb.util.ExecutorUtil;
+import org.opencloudb.util.IoUtil;
 import org.opencloudb.util.NameableExecutor;
 import org.opencloudb.util.TimeUtil;
 
@@ -89,6 +90,7 @@ public class MycatServer {
 	private final long startupTime;
 	private ConnectionManager connectionManager;
 	private SocketConnector connector;
+	private BioProcessorPool processorPool;
 	private NameableExecutor businessExecutor;
 	private NameableExecutor timerExecutor;
 	private ListeningExecutorService listeningExecutorService;
@@ -181,90 +183,88 @@ public class MycatServer {
 	}
 
 	public void startup() throws IOException {
+        int initExecutor = Runtime.getRuntime().availableProcessors() * 2;
+        initExecutor = Math.min(initExecutor, 10);
+
 		SystemConfig system = config.getSystem();
 		final int processorCount = system.getProcessors();
+        initExecutor = Math.min(initExecutor, processorCount);
 
 		// server startup
         log.info("===============================================");
         log.info(NAME + " is ready to startup ...");
 		String inf = "Startup processors ...,total processors:"
-				+ system.getProcessors() + ",aio thread pool size:"
+				+ system.getProcessors() + ", business executor:"
 				+ system.getProcessorExecutor()
-				+ "    \r\n each process allocated socket buffer pool "
-				+ " bytes ,buffer chunk size:"
+				+ "    \r\n buffer chunk size:"
 				+ system.getProcessorBufferChunk()
-				+ "  buffer pool's capacity(buferPool/bufferChunk) is:"
-				+ system.getProcessorBufferPool()
-				/ system.getProcessorBufferChunk();
+				+ "  buffer pool capacity(bufferPool / bufferChunk) is:"
+				+ system.getProcessorBufferPool() / system.getProcessorBufferChunk();
         log.info(inf);
-        log.info("sysconfig params:" + system.toString());
-
-		// startup manager
-		ManagerConnectionFactory mf = new ManagerConnectionFactory();
-		ServerConnectionFactory sf = new ServerConnectionFactory();
-		SocketAcceptor manager = null;
-		SocketAcceptor server = null;
+        log.info("Sysconfig params:" + system.toString());
 
 		// startup processors
-		int threadPoolSize = system.getProcessorExecutor();
+		final int threadPoolSize = system.getProcessorExecutor();
 		long processBuferPool = system.getProcessorBufferPool();
 		int processBufferChunk = system.getProcessorBufferChunk();
 		int socketBufferLocalPercent = system.getProcessorBufferLocalPercent();
         this.bufferPool = new BufferPool(processBuferPool, processBufferChunk,
-				socketBufferLocalPercent / processorCount);
-        this.businessExecutor = ExecutorUtil.create("BusinessExecutor", threadPoolSize);
+				        socketBufferLocalPercent / processorCount);
+        this.businessExecutor = ExecutorUtil.create("BusinessExecutor", initExecutor, threadPoolSize);
         this.connectionManager = new ConnectionManager("ConnectionMgr",
                                                 this.bufferPool, this.businessExecutor);
-		timerExecutor = ExecutorUtil.create("Timer", system.getTimerExecutor());
-		listeningExecutorService = MoreExecutors.listeningDecorator(businessExecutor);
+        this.timerExecutor = ExecutorUtil.create("Timer", system.getTimerExecutor());
+        this.listeningExecutorService = MoreExecutors.listeningDecorator(businessExecutor);
 
 		if (this.aio = (system.getUsingAIO() == 1)) {
             log.warn("aio network handler deprecated and ignore");
 		}
         log.info("using bio network handler");
-        NIOReactorPool reactorPool = new NIOReactorPool(
-                BufferPool.LOCAL_BUF_THREAD_PREX + "NIOREACTOR", processorCount);
-        connector = new NIOConnector(BufferPool.LOCAL_BUF_THREAD_PREX
-                + "NIOConnector", reactorPool);
-        ((NIOConnector) connector).start();
+        // startup manager and server
+        ManagerConnectionFactory mf = new ManagerConnectionFactory();
+        ServerConnectionFactory sf = new ServerConnectionFactory();
+        BioAcceptor manager = null, server = null;
+        this.connector = new BioConnector( this.businessExecutor);
+		String prefix = BufferPool.LOCAL_BUF_THREAD_PREX + "BioProcessorPool";
+        this.processorPool = new BioProcessorPool(prefix, initExecutor, processorCount, false);
+        boolean failed = true;
+        try {
+            manager = new BioAcceptor(NAME + "Manager", system.getBindIp(), system.getManagerPort(),
+                    mf, this.processorPool);
+            server  = new BioAcceptor(NAME + "Server",  system.getBindIp(), system.getServerPort(),
+                    sf, this.processorPool);
+            manager.start();
+            server.start();
+            log.info("===============================================");
 
-        manager = new NIOAcceptor(BufferPool.LOCAL_BUF_THREAD_PREX + NAME
-                + "Manager", system.getBindIp(), system.getManagerPort(),
-                mf, reactorPool);
-
-        server = new NIOAcceptor(BufferPool.LOCAL_BUF_THREAD_PREX + NAME
-                + "Server", system.getBindIp(), system.getServerPort(), sf,
-                reactorPool);
-
-		// manager start
-		manager.start();
-        log.info(manager.getName() + " is started and listening on " + manager.getPort());
-		server.start();
-		// server started
-        log.info(server.getName() + " is started and listening on "
-				+ server.getPort());
-        log.info("===============================================");
-		// init datahost
-		Map<String, PhysicalDBPool> dataHosts = config.getDataHosts();
-        log.info("Initialize dataHost ...");
-		for (PhysicalDBPool node : dataHosts.values()) {
-			String index = dnIndexProperties.getProperty(node.getHostName(),
-					"0");
-			if (!"0".equals(index)) {
-                log.info("init datahost: " + node.getHostName()
-						+ "  to use datasource index:" + index);
-			}
-			node.init(Integer.valueOf(index));
-			node.startHeartbeat();
-		}
-		long dataNodeIldeCheckPeriod = system.getDataNodeIdleCheckPeriod();
-		timer.schedule(updateTime(), 0L, TIME_UPDATE_PERIOD);
-		timer.schedule(createConnectionCheckTask(), 0L, system.getProcessorCheckPeriod());
-		timer.schedule(dataNodeConHeartBeatCheck(dataNodeIldeCheckPeriod), 0L,
-				dataNodeIldeCheckPeriod);
-		timer.schedule(dataNodeHeartbeat(), 0L,
-				system.getDataNodeHeartbeatPeriod());
-		timer.schedule(catletClassClear(), 30000);
+            // init datahost
+            Map<String, PhysicalDBPool> dataHosts = config.getDataHosts();
+            log.info("Initialize dataHost ...");
+            for (PhysicalDBPool node : dataHosts.values()) {
+                String index = dnIndexProperties.getProperty(node.getHostName(),
+                        "0");
+                if (!"0".equals(index)) {
+                    log.info("init datahost: " + node.getHostName()
+                            + "  to use datasource index:" + index);
+                }
+                node.init(Integer.valueOf(index));
+                node.startHeartbeat();
+            }
+            long dataNodeIldeCheckPeriod = system.getDataNodeIdleCheckPeriod();
+            this.timer.schedule(updateTime(), 0L, TIME_UPDATE_PERIOD);
+            this.timer.schedule(createConnectionCheckTask(), 0L, system.getProcessorCheckPeriod());
+            this.timer.schedule(dataNodeConHeartBeatCheck(dataNodeIldeCheckPeriod), 0L, dataNodeIldeCheckPeriod);
+            this.timer.schedule(dataNodeHeartbeat(), 0L, system.getDataNodeHeartbeatPeriod());
+            this.timer.schedule(catletClassClear(), 30000);
+            failed = false;
+        } finally {
+            if (failed) {
+                IoUtil.close(manager);
+                IoUtil.close(server);
+                IoUtil.close(this.processorPool);
+                this.processorPool.join();
+            }
+        }
 	}
 
 	private TimerTask catletClassClear() {

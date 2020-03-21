@@ -35,7 +35,7 @@ import java.util.List;
  */
 public final class BufferQueue {
 	private final long total;
-	private final LinkedList<ByteBuffer> items = new LinkedList<ByteBuffer>();
+	private final LinkedList<ByteBuffer> items = new LinkedList<>();
 
 	public BufferQueue(long capacity) {
 		this.total = capacity;
@@ -51,12 +51,11 @@ public final class BufferQueue {
 	}
 
 	public Collection<ByteBuffer> removeItems(long count) {
-
-		List<ByteBuffer> removed = new ArrayList<ByteBuffer>();
-		Iterator<ByteBuffer> itor = items.iterator();
-		while (itor.hasNext()) {
-			removed.add(itor.next());
-			itor.remove();
+		List<ByteBuffer> removed = new ArrayList<>();
+		Iterator<ByteBuffer> it = items.iterator();
+		while (it.hasNext()) {
+			removed.add(it.next());
+			it.remove();
 			if (removed.size() >= count) {
 				break;
 			}
@@ -71,10 +70,10 @@ public final class BufferQueue {
 	 */
 	public void put(ByteBuffer buffer) {
 		this.items.offer(buffer);
-		if (items.size() > total) {
+		if (this.items.size() > this.total) {
 			throw new java.lang.RuntimeException(
-					"bufferQueue size exceeded ,maybe sql returned too many records ,cursize:"
-							+ items.size());
+					"bufferQueue size exceeded, maybe sql returned too many records, cursize:"
+							+ this.items.size());
 
 		}
 	}

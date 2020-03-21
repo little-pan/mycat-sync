@@ -7,7 +7,9 @@ public class ThreadLocalBufferPool extends ThreadLocal<BufferQueue> {
 		this.size = size;
 	}
 
+	@Override
 	protected synchronized BufferQueue initialValue() {
 		return new BufferQueue(size);
 	}
+
 }

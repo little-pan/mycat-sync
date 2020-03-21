@@ -23,6 +23,8 @@
  */
 package org.opencloudb.util;
 
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedTransferQueue;
 
 /**
@@ -34,10 +36,25 @@ public class ExecutorUtil {
         return create(name, size, true);
     }
 
-    private static final NameableExecutor create(String name, int size, boolean isDaemon) {
+    public static final NameableExecutor create(String name, int size, boolean isDaemon) {
         NameableThreadFactory factory = new NameableThreadFactory(name, isDaemon);
         return new NameableExecutor(name, size, new LinkedTransferQueue<Runnable>(), factory);
     }
 
+    public static final NameableExecutor create(String name, int coreSize, int maxSize) {
+        return create(name, coreSize, maxSize, true);
+    }
+
+    public static final NameableExecutor create(String name, int coreSize, int maxSize, boolean isDaemon) {
+        final BlockingQueue<Runnable> queue;
+        if (maxSize > coreSize) {
+            queue = new ArrayBlockingQueue<>(0);
+        } else {
+            queue = new LinkedTransferQueue<>();
+        }
+
+        NameableThreadFactory factory = new NameableThreadFactory(name, isDaemon);
+        return new NameableExecutor(name, coreSize, maxSize, queue, factory);
+    }
    
 }

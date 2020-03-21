@@ -35,7 +35,10 @@ import org.apache.log4j.Logger;
  * @author mycat
  */
 public final class BufferPool {
-	// this value not changed ,isLocalCacheThread use it
+
+    static final boolean DIRECT = Boolean.getBoolean("org.opencloudb.buffer.direct");
+
+	// This value not changed ,isLocalCacheThread use it
 	public static final String LOCAL_BUF_THREAD_PREX = "$_";
 	private  final ThreadLocalBufferPool localBufferPool;
 	private static final Logger LOGGER = Logger.getLogger(BufferPool.class);
@@ -43,7 +46,7 @@ public final class BufferPool {
 	private final ConcurrentLinkedQueue<ByteBuffer> items = new ConcurrentLinkedQueue<ByteBuffer>();
 	private long sharedOptsCount;
 	//private volatile int newCreated;
-        private AtomicInteger newCreated = new AtomicInteger(0);
+    private AtomicInteger newCreated = new AtomicInteger();
 	private final long threadLocalCount;
 	private final long capactiy;
 	private long totalBytes = 0;
@@ -54,19 +57,13 @@ public final class BufferPool {
 		long size = bufferSize / chunkSize;
 		size = (bufferSize % chunkSize == 0) ? size : size + 1;
 		this.capactiy = size;
-		threadLocalCount = threadLocalPercent * capactiy / 100;
-		for (long i = 0; i < capactiy; i++) {
-			items.offer(createDirectBuffer(chunkSize));
-		}
-		localBufferPool = new ThreadLocalBufferPool(
-				threadLocalCount);
+		this.threadLocalCount = threadLocalPercent * this.capactiy / 100;
+		this.localBufferPool = new ThreadLocalBufferPool(this.threadLocalCount);
 	}
 
 	private static final boolean isLocalCacheThread() {
-		final String thname = Thread.currentThread().getName();
-		return (thname.length() < LOCAL_BUF_THREAD_PREX.length()) ? false
-				: (thname.charAt(0) == '$' && thname.charAt(1) == '_');
-
+		final String threadName = Thread.currentThread().getName();
+		return (threadName.startsWith(LOCAL_BUF_THREAD_PREX));
 	}
 
 	public int getChunkSize() {
@@ -89,32 +86,35 @@ public final class BufferPool {
 		ByteBuffer node = null;
 		if (isLocalCacheThread()) {
 			// allocate from threadlocal
-			node = localBufferPool.get().poll();
+			node = this.localBufferPool.get().poll();
 			if (node != null) {
 				return node;
 			}
 		}
-		node = items.poll();
+		node = this.items.poll();
 		if (node == null) {
 			//newCreated++;
-			newCreated.incrementAndGet();
-			node = this.createDirectBuffer(chunkSize);
+			final int size = this.chunkSize;
+			node = DIRECT? createDirectBuffer(size):createHeapBuffer(size);
+            this.newCreated.incrementAndGet();
 		}
+
 		return node;
 	}
 
 	private boolean checkValidBuffer(ByteBuffer buffer) {
 		// 拒绝回收null和容量大于chunkSize的缓存
-		if (buffer == null || !buffer.isDirect()) {
+		if (buffer == null || DIRECT != buffer.isDirect()) {
 			return false;
-		} else if (buffer.capacity() > chunkSize) {
+		} else if (buffer.capacity() > this.chunkSize) {
 			LOGGER.warn("cant' recycle  a buffer large than my pool chunksize "
 					+ buffer.capacity());
 			return false;
 		}
-		totalCounts++;
-		totalBytes += buffer.limit();
+        this.totalCounts++;
+        this.totalBytes += buffer.limit();
 		buffer.clear();
+
 		return true;
 	}
 
@@ -122,21 +122,21 @@ public final class BufferPool {
 		if (!checkValidBuffer(buffer)) {
 			return;
 		}
+
 		if (isLocalCacheThread()) {
-			BufferQueue localQueue = localBufferPool.get();
-			if (localQueue.snapshotSize() < threadLocalCount) {
+			BufferQueue localQueue = this.localBufferPool.get();
+			if (localQueue.snapshotSize() < this.threadLocalCount) {
 				localQueue.put(buffer);
 			} else {
 				// recyle 3/4 thread local buffer
-				items.addAll(localQueue.removeItems(threadLocalCount * 3 / 4));
-				items.offer(buffer);
-				sharedOptsCount++;
+                this.items.addAll(localQueue.removeItems(this.threadLocalCount * 3 / 4));
+                this.items.offer(buffer);
+                this.sharedOptsCount++;
 			}
 		} else {
-			sharedOptsCount++;
-			items.offer(buffer);
+            this.sharedOptsCount++;
+            this.items.offer(buffer);
 		}
-
 	}
 
 	public int getAvgBufSize() {
@@ -156,15 +156,14 @@ public final class BufferPool {
 			}
 		}
 		return false;
-
 	}
 
-	private ByteBuffer createTempBuffer(int size) {
+	private ByteBuffer createHeapBuffer(int size) {
 		return ByteBuffer.allocate(size);
 	}
 
 	private ByteBuffer createDirectBuffer(int size) {
-		// for performance
+		// For performance
 		return ByteBuffer.allocateDirect(size);
 	}
 
@@ -174,7 +173,7 @@ public final class BufferPool {
 		} else {
 			LOGGER.warn("allocate buffer size large than default chunksize:"
 					+ this.chunkSize + " he want " + size);
-			return createTempBuffer(size);
+			return createHeapBuffer(size);
 		}
 	}
 
@@ -190,4 +189,5 @@ public final class BufferPool {
 		}
 		LOGGER.info(pool.size());
 	}
+
 }
