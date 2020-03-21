@@ -24,15 +24,14 @@
 package org.opencloudb.net;
 
 public interface ClosableConnection {
+
 	String getCharset();
-	/**
-	 * 关闭连接
-	 */
+
 	void close(String reason);
 
 	boolean isClosed();
 
-	public void idleCheck();
+	void idleCheck();
 
 	long getStartupTime();
 
@@ -45,4 +44,5 @@ public interface ClosableConnection {
 	long getNetInBytes();
 
 	long getNetOutBytes();
+
 }

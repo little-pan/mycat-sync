@@ -1,6 +1,6 @@
 # [Mycat-sync](https://github.com/little-pan/mycat-sync)
 
-A branch of [MyCAT](http://mycat.io/). Mycat sync server is based on synchronized IO(BIO) for simplity and the most
+A branch of [MyCAT](http://mycat.io/). Mycat sync server is based on blocking IO(BIO) for simplity and the most
 important goal of database shard and read/write separation instead of complicated and error-prone non-blocking IO(NIO).
 
 NIO is very complex and obscure, not very useful for databaes middlewares such as mycat. For product of database, too

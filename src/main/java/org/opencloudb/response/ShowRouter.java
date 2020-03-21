@@ -31,7 +31,7 @@ import org.opencloudb.MycatServer;
 import org.opencloudb.config.Fields;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
-import org.opencloudb.net.NIOProcessor;
+import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
@@ -85,11 +85,10 @@ public final class ShowRouter {
 
         // write rows
         byte packetId = eof.packetId;
-        for (NIOProcessor p : MycatServer.getInstance().getProcessors()) {
-            RowDataPacket row = getRow(p, c.getCharset());
-            row.packetId = ++packetId;
-            buffer = row.write(buffer, c,true);
-        }
+        ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
+        RowDataPacket row = getRow(manager, c.getCharset());
+        row.packetId = ++packetId;
+        buffer = row.write(buffer, c,true);
 
         // write last eof
         EOFPacket lastEof = new EOFPacket();
@@ -105,9 +104,9 @@ public final class ShowRouter {
         nf.setMaximumFractionDigits(3);
     }
 
-    private static RowDataPacket getRow(NIOProcessor processor, String charset) {
+    private static RowDataPacket getRow(ConnectionManager manager, String charset) {
         RowDataPacket row = new RowDataPacket(FIELD_COUNT);
-        row.add(processor.getName().getBytes());
+        row.add(manager.getName().getBytes());
         row.add(null);
         row.add(null);
         row.add(null);

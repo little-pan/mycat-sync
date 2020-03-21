@@ -43,23 +43,21 @@ public final class MycatStartup {
         try {
             String home = SystemConfig.getHomePath();
             if (home == null) {
-                System.out.println(SystemConfig.SYS_HOME + "  is not set.");
+                System.out.println(String.format("%s is not set.", SystemConfig.SYS_HOME));
                 System.exit(-1);
             }
+
             // init
             MycatServer server = MycatServer.getInstance();
             server.beforeStart();
-
             // startup
             server.startup();
-            System.out.println("MyCAT Server startup successfully. see logs in logs/mycat.log");
-            while (true) {
-                Thread.sleep(300 * 1000);
-            }
+            System.out.println(MycatServer.NAME + " startup successfully. See logs in logs/mycat.log");
         } catch (Exception e) {
-            SimpleDateFormat sdf = new SimpleDateFormat(dateFormat);
-            LogLog.error(sdf.format(new Date()) + " startup error", e);
+            SimpleDateFormat df = new SimpleDateFormat(dateFormat);
+            LogLog.error(String.format("%s startup error", df.format(new Date())), e);
             System.exit(-1);
         }
     }
+
 }

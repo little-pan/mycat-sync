@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -43,18 +42,10 @@ import org.opencloudb.backend.PhysicalDBPool;
 import org.opencloudb.buffer.BufferPool;
 import org.opencloudb.cache.CacheService;
 import org.opencloudb.classloader.DynaClassLoader;
-import org.opencloudb.config.ZkConfig;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.interceptor.SQLInterceptor;
 import org.opencloudb.manager.ManagerConnectionFactory;
-import org.opencloudb.net.AIOAcceptor;
-import org.opencloudb.net.AIOConnector;
-import org.opencloudb.net.NIOAcceptor;
-import org.opencloudb.net.NIOConnector;
-import org.opencloudb.net.NIOProcessor;
-import org.opencloudb.net.NIOReactorPool;
-import org.opencloudb.net.SocketAcceptor;
-import org.opencloudb.net.SocketConnector;
+import org.opencloudb.net.*;
 import org.opencloudb.route.MyCATSequnceProcessor;
 import org.opencloudb.route.RouteService;
 import org.opencloudb.server.ServerConnectionFactory;
@@ -67,11 +58,13 @@ import org.opencloudb.util.TimeUtil;
  * @author mycat
  */
 public class MycatServer {
+	private static final Logger log = Logger.getLogger(MycatServer.class);
+
 	public static final String NAME = "MyCat";
 	private static final long LOG_WATCH_DELAY = 60000L;
 	private static final long TIME_UPDATE_PERIOD = 20L;
 	private static final MycatServer INSTANCE = new MycatServer();
-	private static final Logger LOGGER = Logger.getLogger("MycatServer");
+
 	private final RouteService routerService;
 	private final CacheService cacheService;
 	private Properties dnIndexProperties;
@@ -94,7 +87,7 @@ public class MycatServer {
 	private final SQLRecorder sqlRecorder;
 	private final AtomicBoolean isOnline;
 	private final long startupTime;
-	private NIOProcessor[] processors;
+	private ConnectionManager connectionManager;
 	private SocketConnector connector;
 	private NameableExecutor businessExecutor;
 	private NameableExecutor timerExecutor;
@@ -103,8 +96,7 @@ public class MycatServer {
 	public MycatServer() {
 		this.config = new MycatConfig();
 		this.timer = new Timer(NAME + "Timer", true);
-		this.sqlRecorder = new SQLRecorder(config.getSystem()
-				.getSqlRecordCount());
+		this.sqlRecorder = new SQLRecorder(config.getSystem().getSqlRecordCount());
 		this.isOnline = new AtomicBoolean(true);
 		cacheService = new CacheService();
 		routerService = new RouteService(cacheService);
@@ -189,13 +181,12 @@ public class MycatServer {
 	}
 
 	public void startup() throws IOException {
-
 		SystemConfig system = config.getSystem();
-		int processorCount = system.getProcessors();
+		final int processorCount = system.getProcessors();
 
 		// server startup
-		LOGGER.info("===============================================");
-		LOGGER.info(NAME + " is ready to startup ...");
+        log.info("===============================================");
+        log.info(NAME + " is ready to startup ...");
 		String inf = "Startup processors ...,total processors:"
 				+ system.getProcessors() + ",aio thread pool size:"
 				+ system.getProcessorExecutor()
@@ -205,99 +196,62 @@ public class MycatServer {
 				+ "  buffer pool's capacity(buferPool/bufferChunk) is:"
 				+ system.getProcessorBufferPool()
 				/ system.getProcessorBufferChunk();
-		LOGGER.info(inf);
-		LOGGER.info("sysconfig params:" + system.toString());
+        log.info(inf);
+        log.info("sysconfig params:" + system.toString());
 
 		// startup manager
 		ManagerConnectionFactory mf = new ManagerConnectionFactory();
 		ServerConnectionFactory sf = new ServerConnectionFactory();
 		SocketAcceptor manager = null;
 		SocketAcceptor server = null;
-		aio = (system.getUsingAIO() == 1);
 
 		// startup processors
 		int threadPoolSize = system.getProcessorExecutor();
-		processors = new NIOProcessor[processorCount];
 		long processBuferPool = system.getProcessorBufferPool();
 		int processBufferChunk = system.getProcessorBufferChunk();
 		int socketBufferLocalPercent = system.getProcessorBufferLocalPercent();
-		bufferPool = new BufferPool(processBuferPool, processBufferChunk,
+        this.bufferPool = new BufferPool(processBuferPool, processBufferChunk,
 				socketBufferLocalPercent / processorCount);
-		businessExecutor = ExecutorUtil.create("BusinessExecutor",
-				threadPoolSize);
+        this.businessExecutor = ExecutorUtil.create("BusinessExecutor", threadPoolSize);
+        this.connectionManager = new ConnectionManager("ConnectionMgr",
+                                                this.bufferPool, this.businessExecutor);
 		timerExecutor = ExecutorUtil.create("Timer", system.getTimerExecutor());
 		listeningExecutorService = MoreExecutors.listeningDecorator(businessExecutor);
 
-		for (int i = 0; i < processors.length; i++) {
-			processors[i] = new NIOProcessor("Processor" + i, bufferPool,
-					businessExecutor);
+		if (this.aio = (system.getUsingAIO() == 1)) {
+            log.warn("aio network handler deprecated and ignore");
 		}
+        log.info("using bio network handler");
+        NIOReactorPool reactorPool = new NIOReactorPool(
+                BufferPool.LOCAL_BUF_THREAD_PREX + "NIOREACTOR", processorCount);
+        connector = new NIOConnector(BufferPool.LOCAL_BUF_THREAD_PREX
+                + "NIOConnector", reactorPool);
+        ((NIOConnector) connector).start();
 
-		if (aio) {
-			LOGGER.info("using aio network handler ");
-			asyncChannelGroups = new AsynchronousChannelGroup[processorCount];
-			// startup connector
-			connector = new AIOConnector();
-			for (int i = 0; i < processors.length; i++) {
-				asyncChannelGroups[i] = AsynchronousChannelGroup
-						.withFixedThreadPool(processorCount,
-								new ThreadFactory() {
-									private int inx = 1;
+        manager = new NIOAcceptor(BufferPool.LOCAL_BUF_THREAD_PREX + NAME
+                + "Manager", system.getBindIp(), system.getManagerPort(),
+                mf, reactorPool);
 
-									@Override
-									public Thread newThread(Runnable r) {
-										Thread th = new Thread(r);
-										th.setName(BufferPool.LOCAL_BUF_THREAD_PREX
-												+ "AIO" + (inx++));
-										LOGGER.info("created new AIO thread "
-												+ th.getName());
-										return th;
-									}
-								});
+        server = new NIOAcceptor(BufferPool.LOCAL_BUF_THREAD_PREX + NAME
+                + "Server", system.getBindIp(), system.getServerPort(), sf,
+                reactorPool);
 
-			}
-			manager = new AIOAcceptor(NAME + "Manager", system.getBindIp(),
-					system.getManagerPort(), mf, this.asyncChannelGroups[0]);
-
-			// startup server
-
-			server = new AIOAcceptor(NAME + "Server", system.getBindIp(),
-					system.getServerPort(), sf, this.asyncChannelGroups[0]);
-
-		} else {
-			LOGGER.info("using nio network handler ");
-			NIOReactorPool reactorPool = new NIOReactorPool(
-					BufferPool.LOCAL_BUF_THREAD_PREX + "NIOREACTOR",
-					processors.length);
-			connector = new NIOConnector(BufferPool.LOCAL_BUF_THREAD_PREX
-					+ "NIOConnector", reactorPool);
-			((NIOConnector) connector).start();
-
-			manager = new NIOAcceptor(BufferPool.LOCAL_BUF_THREAD_PREX + NAME
-					+ "Manager", system.getBindIp(), system.getManagerPort(),
-					mf, reactorPool);
-
-			server = new NIOAcceptor(BufferPool.LOCAL_BUF_THREAD_PREX + NAME
-					+ "Server", system.getBindIp(), system.getServerPort(), sf,
-					reactorPool);
-		}
 		// manager start
 		manager.start();
-		LOGGER.info(manager.getName() + " is started and listening on "
-				+ manager.getPort());
+        log.info(manager.getName() + " is started and listening on " + manager.getPort());
 		server.start();
 		// server started
-		LOGGER.info(server.getName() + " is started and listening on "
+        log.info(server.getName() + " is started and listening on "
 				+ server.getPort());
-		LOGGER.info("===============================================");
+        log.info("===============================================");
 		// init datahost
 		Map<String, PhysicalDBPool> dataHosts = config.getDataHosts();
-		LOGGER.info("Initialize dataHost ...");
+        log.info("Initialize dataHost ...");
 		for (PhysicalDBPool node : dataHosts.values()) {
 			String index = dnIndexProperties.getProperty(node.getHostName(),
 					"0");
 			if (!"0".equals(index)) {
-				LOGGER.info("init datahost: " + node.getHostName()
+                log.info("init datahost: " + node.getHostName()
 						+ "  to use datasource index:" + index);
 			}
 			node.init(Integer.valueOf(index));
@@ -305,13 +259,12 @@ public class MycatServer {
 		}
 		long dataNodeIldeCheckPeriod = system.getDataNodeIdleCheckPeriod();
 		timer.schedule(updateTime(), 0L, TIME_UPDATE_PERIOD);
-		timer.schedule(processorCheck(), 0L, system.getProcessorCheckPeriod());
+		timer.schedule(createConnectionCheckTask(), 0L, system.getProcessorCheckPeriod());
 		timer.schedule(dataNodeConHeartBeatCheck(dataNodeIldeCheckPeriod), 0L,
 				dataNodeIldeCheckPeriod);
 		timer.schedule(dataNodeHeartbeat(), 0L,
 				system.getDataNodeHeartbeatPeriod());
 		timer.schedule(catletClassClear(), 30000);
-
 	}
 
 	private TimerTask catletClassClear() {
@@ -321,7 +274,7 @@ public class MycatServer {
 				try {
 					catletClassLoader.clearUnUsedClass();
 				} catch (Exception e) {
-					LOGGER.warn("catletClassClear err " + e);
+                    log.warn("catletClassClear err " + e);
 				}
 			};
 		};
@@ -339,7 +292,7 @@ public class MycatServer {
 			filein = new FileInputStream(file);
 			prop.load(filein);
 		} catch (Exception e) {
-			LOGGER.warn("load DataNodeIndex err:" + e);
+            log.warn("load DataNodeIndex err:" + e);
 		} finally {
 			if (filein != null) {
 				try {
@@ -354,7 +307,7 @@ public class MycatServer {
 	/**
 	 * save cur datanode index to properties file
 	 * 
-	 * @param dataNode
+	 * @param dataHost
 	 * @param curIndex
 	 */
 	public synchronized void saveDataHostIndex(String dataHost, int curIndex) {
@@ -369,8 +322,7 @@ public class MycatServer {
 				return;
 			}
 			dnIndexProperties.setProperty(dataHost, newIndex);
-			LOGGER.info("save DataHost index  " + dataHost + " cur index "
-					+ curIndex);
+            log.info("save DataHost index  " + dataHost + " cur index " + curIndex);
 
 			File parent = file.getParentFile();
 			if (parent != null && !parent.exists()) {
@@ -380,7 +332,7 @@ public class MycatServer {
 			fileOut = new FileOutputStream(file);
 			dnIndexProperties.store(fileOut, "update");
 		} catch (Exception e) {
-			LOGGER.warn("saveDataNodeIndex err:", e);
+            log.warn("saveDataNodeIndex err:", e);
 		} finally {
 			if (fileOut != null) {
 				try {
@@ -408,16 +360,8 @@ public class MycatServer {
 		return routerService;
 	}
 
-	public NIOProcessor nextProcessor() {
-		int i = ++nextProcessor;
-		if (i >= processors.length) {
-			i = nextProcessor = 0;
-		}
-		return processors[i];
-	}
-
-	public NIOProcessor[] getProcessors() {
-		return processors;
+	public ConnectionManager getConnectionManager() {
+		return this.connectionManager;
 	}
 
 	public SocketConnector getConnector() {
@@ -454,34 +398,37 @@ public class MycatServer {
 		};
 	}
 
-	// 处理器定时检查任务
-	private TimerTask processorCheck() {
+	protected void checkBackendCons() {
+	    try {
+            this.connectionManager.checkBackendCons();
+        } catch (Exception e) {
+            log.warn("checkBackendCons caught error", e);
+        }
+    }
+
+    protected void checkFrontCons() {
+        try {
+            this.connectionManager.checkFrontCons();
+        } catch (Exception e) {
+            log.warn("checkFrontCons caught error", e);
+        }
+    }
+
+	private TimerTask createConnectionCheckTask() {
+	    final NameableExecutor executor = this.timerExecutor;
 		return new TimerTask() {
 			@Override
 			public void run() {
-				timerExecutor.execute(new Runnable() {
+                executor.execute(new Runnable() {
 					@Override
 					public void run() {
-						try {
-							for (NIOProcessor p : processors) {
-								p.checkBackendCons();
-							}
-						} catch (Exception e) {
-							LOGGER.warn("checkBackendCons caught err:" + e);
-						}
-
+                        checkBackendCons();
 					}
 				});
-				timerExecutor.execute(new Runnable() {
+                executor.execute(new Runnable() {
 					@Override
 					public void run() {
-						try {
-							for (NIOProcessor p : processors) {
-								p.checkFrontCons();
-							}
-						} catch (Exception e) {
-							LOGGER.warn("checkFrontCons caught err:" + e);
-						}
+                        checkFrontCons();
 					}
 				});
 			}

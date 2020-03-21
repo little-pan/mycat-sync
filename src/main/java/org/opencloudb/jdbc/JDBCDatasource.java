@@ -13,8 +13,8 @@ import org.opencloudb.config.model.DBHostConfig;
 import org.opencloudb.config.model.DataHostConfig;
 import org.opencloudb.heartbeat.DBHeartbeat;
 import org.opencloudb.mysql.nio.handler.ResponseHandler;
+import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.NIOConnector;
-import org.opencloudb.net.NIOProcessor;
 
 import com.google.common.collect.Lists;
 
@@ -48,21 +48,17 @@ public class JDBCDatasource extends PhysicalDatasource {
 	public void createNewConnection(ResponseHandler handler,String schema) throws IOException {
 		DBHostConfig cfg = getConfig();
 		JDBCConnection c = new JDBCConnection();
+		ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
 
 		c.setHost(cfg.getIp());
 		c.setPort(cfg.getPort());
 		c.setPool(this);
 		c.setSchema(schema);
 		c.setDbType(cfg.getDbType());
-		
-		NIOProcessor processor = (NIOProcessor) MycatServer.getInstance()
-                .nextProcessor();
-		c.setProcessor(processor);
+		c.setManager(manager);
 		c.setId(NIOConnector.ID_GENERATOR.getId());  //复用mysql的Backend的ID，需要在process中存储
-
-		processor.addBackend(c);
+		manager.addBackend(c);
 		try {
-
 			Connection con = getConnection();
 			// c.setIdleTimeout(pool.getConfig().getIdleTimeout());
 			c.setCon(con);

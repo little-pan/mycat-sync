@@ -25,8 +25,8 @@ package org.opencloudb.server.handler;
 
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.ErrorCode;
+import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.FrontendConnection;
-import org.opencloudb.net.NIOProcessor;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.util.StringUtil;
@@ -58,13 +58,8 @@ public class KillHandler {
             }
 
             // get connection and close it
-            FrontendConnection fc = null;
-            NIOProcessor[] processors = MycatServer.getInstance().getProcessors();
-            for (NIOProcessor p : processors) {
-                if ((fc = p.getFrontends().get(value)) != null) {
-                    break;
-                }
-            }
+            ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
+            FrontendConnection fc = manager.getFrontends().get(value);
             if (fc != null) {
                 fc.close("killed");
                 getOkPacket().write(c);

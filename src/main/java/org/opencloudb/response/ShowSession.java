@@ -8,8 +8,8 @@ import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.config.Fields;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
+import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.FrontendConnection;
-import org.opencloudb.net.NIOProcessor;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
@@ -62,18 +62,16 @@ public class ShowSession {
 
 		// write rows
 		byte packetId = eof.packetId;
-		for (NIOProcessor process : MycatServer.getInstance().getProcessors()) {
-			for (FrontendConnection front : process.getFrontends().values()) {
-
-				if (!(front instanceof ServerConnection)) {
-					continue;
-				}
-				ServerConnection sc = (ServerConnection) front;
-				RowDataPacket row = getRow(sc, c.getCharset());
-				if (row != null) {
-					row.packetId = ++packetId;
-					buffer = row.write(buffer, c, true);
-				}
+		ConnectionManager connectionManager = MycatServer.getInstance().getConnectionManager();
+		for (FrontendConnection front : connectionManager.getFrontends().values()) {
+			if (!(front instanceof ServerConnection)) {
+				continue;
+			}
+			ServerConnection sc = (ServerConnection) front;
+			RowDataPacket row = getRow(sc, c.getCharset());
+			if (row != null) {
+				row.packetId = ++packetId;
+				buffer = row.write(buffer, c, true);
 			}
 		}
 

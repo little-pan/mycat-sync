@@ -53,10 +53,9 @@ public final class AIOConnector implements SocketConnector,
 	private void finishConnect(BackendAIOConnection c) {
 		try {
 			if (c.finishConnect()) {
+				ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
 				c.setId(ID_GENERATOR.getId());
-				NIOProcessor processor = MycatServer.getInstance()
-						.nextProcessor();
-				c.setProcessor(processor);
+				c.setManager(manager);
 				c.register();
 			}
 		} catch (Exception e) {

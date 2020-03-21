@@ -29,8 +29,8 @@ import org.opencloudb.MycatServer;
 import org.opencloudb.config.Fields;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
+import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.FrontendConnection;
-import org.opencloudb.net.NIOProcessor;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
@@ -94,13 +94,12 @@ public final class ShowConnectionSQL {
         // write rows
         byte packetId = eof.packetId;
         String charset = c.getCharset();
-        for (NIOProcessor p : MycatServer.getInstance().getProcessors()) {
-            for (FrontendConnection fc : p.getFrontends().values()) {
-                if (!fc.isClosed()) {
-                    RowDataPacket row = getRow(fc, charset);
-                    row.packetId = ++packetId;
-                    buffer = row.write(buffer, c,true);
-                }
+        ConnectionManager connectionManager = MycatServer.getInstance().getConnectionManager();
+        for (FrontendConnection fc : connectionManager.getFrontends().values()) {
+            if (!fc.isClosed()) {
+                RowDataPacket row = getRow(fc, charset);
+                row.packetId = ++packetId;
+                buffer = row.write(buffer, c,true);
             }
         }
 

@@ -32,9 +32,9 @@ import org.opencloudb.MycatServer;
 import org.opencloudb.config.Capabilities;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.mysql.SecurityUtil;
+import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.FrontendConnection;
 import org.opencloudb.net.NIOHandler;
-import org.opencloudb.net.NIOProcessor;
 import org.opencloudb.net.mysql.AuthPacket;
 import org.opencloudb.net.mysql.MySQLPacket;
 import org.opencloudb.net.mysql.QuitPacket;
@@ -101,16 +101,11 @@ public class FrontendAuthenticator implements NIOHandler {
     //TODO: add by zhuam
     //前端 connection 达到该用户设定的阀值后, 立马降级拒绝连接
     protected boolean isDegrade(String user) {
-    	
     	int benchmark = source.getPrivileges().getBenchmark(user);
+
     	if ( benchmark > 0 ) {
-    	
-	    	int forntedsLength = 0;
-	    	NIOProcessor[] processors = MycatServer.getInstance().getProcessors();
-			for (NIOProcessor p : processors) {
-				forntedsLength += p.getForntedsLength();
-			}
-		
+            ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
+            int forntedsLength = manager.getForntedsLength();
 			if ( forntedsLength >= benchmark ) {							
 				return true;
 			}			

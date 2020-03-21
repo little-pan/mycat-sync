@@ -85,10 +85,10 @@ public final class AIOAcceptor implements SocketAcceptor,
 	private void accept(NetworkChannel channel, Long id) {
 		try {
 			FrontendConnection c = factory.make(channel);
+			ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
 			c.setAccepted(true);
 			c.setId(id);
-			NIOProcessor processor = MycatServer.getInstance().nextProcessor();
-			c.setProcessor(processor);
+			c.setManager(manager);
 			c.register();
 		} catch (Exception e) {
 		    LOGGER.error("AioAcceptorError", e);

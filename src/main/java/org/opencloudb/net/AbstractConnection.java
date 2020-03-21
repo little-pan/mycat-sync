@@ -40,15 +40,17 @@ import org.opencloudb.util.TimeUtil;
 /**
  * @author mycat
  */
-public abstract class AbstractConnection implements NIOConnection {
+public abstract class AbstractConnection implements NIOConnection, ClosableConnection {
+
+    static final Logger LOGGER = Logger.getLogger(AbstractConnection.class);
+
 	protected String host;
 	protected int localPort;
 	protected int port;
 	protected long id;
 	protected volatile String charset;
 	protected volatile int charsetIndex;
-	protected static final Logger LOGGER = Logger
-			.getLogger(AbstractConnection.class);
+
 	protected final NetworkChannel channel;
 	protected NIOProcessor processor;
 	protected NIOHandler handler;
@@ -75,6 +77,7 @@ public abstract class AbstractConnection implements NIOConnection {
 	private long idleTimeout;
 
 	private final SocketWR socketWR;
+	protected ConnectionManager manager;
 
 	public AbstractConnection(NetworkChannel channel) {
 		this.channel = channel;
@@ -90,6 +93,7 @@ public abstract class AbstractConnection implements NIOConnection {
 		this.lastWriteTime = startupTime;
 	}
 
+	@Override
 	public String getCharset() {
 		return charset;
 	}
@@ -466,6 +470,7 @@ public abstract class AbstractConnection implements NIOConnection {
 		return isClosed.get();
 	}
 
+    @Override
 	public void idleCheck() {
 		if (isIdleTimeout()) {
 			LOGGER.info(toString() + " idle timeout");
@@ -545,5 +550,9 @@ public abstract class AbstractConnection implements NIOConnection {
 
 		}
 	}
+
+    public void setManager(ConnectionManager manager) {
+	    this.manager = manager;
+    }
 
 }

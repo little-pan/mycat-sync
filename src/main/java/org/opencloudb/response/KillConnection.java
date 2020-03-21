@@ -29,9 +29,9 @@ import java.util.List;
 import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.manager.ManagerConnection;
+import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.FrontendConnection;
 import org.opencloudb.net.NIOConnection;
-import org.opencloudb.net.NIOProcessor;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.util.SplitUtil;
 
@@ -64,7 +64,7 @@ public final class KillConnection {
         if (ids.length() > 0) {
             String[] idList = SplitUtil.split(ids, ',', true);
             List<FrontendConnection> fcList = new ArrayList<FrontendConnection>(idList.length);
-            NIOProcessor[] processors = MycatServer.getInstance().getProcessors();
+            ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
             for (String id : idList) {
                 long value = 0;
                 try {
@@ -72,12 +72,9 @@ public final class KillConnection {
                 } catch (NumberFormatException e) {
                     continue;
                 }
-                FrontendConnection fc = null;
-                for (NIOProcessor p : processors) {
-                    if ((fc = p.getFrontends().get(value)) != null) {
-                        fcList.add(fc);
-                        break;
-                    }
+                FrontendConnection fc;
+                if ((fc = manager.getFrontends().get(value)) != null) {
+                    fcList.add(fc);
                 }
             }
             return fcList;

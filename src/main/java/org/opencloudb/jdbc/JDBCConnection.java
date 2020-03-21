@@ -16,7 +16,7 @@ import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.Isolations;
 import org.opencloudb.mysql.nio.handler.ConnectionHeartBeatHandler;
 import org.opencloudb.mysql.nio.handler.ResponseHandler;
-import org.opencloudb.net.NIOProcessor;
+import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.net.mysql.FieldPacket;
@@ -32,8 +32,8 @@ import org.opencloudb.util.StringUtil;
 import org.opencloudb.util.TimeUtil;
 
 public class JDBCConnection implements BackendConnection {
-	protected static final Logger LOGGER = Logger
-			.getLogger(JDBCConnection.class);
+	protected static final Logger LOGGER = Logger.getLogger(JDBCConnection.class);
+
 	private JDBCDatasource pool;
 	private volatile String schema;
 	private volatile String dbType;
@@ -55,17 +55,7 @@ public class JDBCConnection implements BackendConnection {
 	private long lastTime;
 	private boolean isSpark = false;
 
-	private NIOProcessor processor;
-	
-	
-	
-	public NIOProcessor getProcessor() {
-        return processor;
-    }
-
-    public void setProcessor(NIOProcessor processor) {
-        this.processor = processor;
-    }
+	protected ConnectionManager manager;
 
     public JDBCConnection() {
 		startTime = System.currentTimeMillis();
@@ -83,14 +73,11 @@ public class JDBCConnection implements BackendConnection {
 	@Override
 	public void close(String reason) {
 		try {
-			con.close();
-			if(processor!=null){
-			    processor.removeConnection(this);
+			this.con.close();
+			if(this.manager != null){
+                this.manager.removeConnection(this);
 			}
-			
-		} catch (SQLException e) {
-		}
-
+		} catch (SQLException e) {}
 	}
 
 	public void setId(long id) {
@@ -619,7 +606,7 @@ public class JDBCConnection implements BackendConnection {
                 + ", borrowed=" + borrowed + ", host=" + host + ", port=" + port + ", con=" + con
                 + ", respHandler=" + respHandler + ", attachement=" + attachement + ", headerOutputed="
                 + headerOutputed + ", modifiedSQLExecuted=" + modifiedSQLExecuted + ", startTime=" + startTime
-                + ", lastTime=" + lastTime + ", isSpark=" + isSpark + ", processor=" + processor + "]";
+                + ", lastTime=" + lastTime + ", isSpark=" + isSpark + ", manager=" + manager + "]";
     }
 
 	@Override
@@ -627,7 +614,13 @@ public class JDBCConnection implements BackendConnection {
 		// TODO Auto-generated method stub
 		
 	}
+
+    public ConnectionManager getManager() {
+        return this.manager;
+    }
 	
-	
+	public void setManager (ConnectionManager manager) {
+	    this.manager = manager;
+    }
 
 }

@@ -110,11 +110,10 @@ public final class NIOConnector extends Thread implements SocketConnector {
 		BackendAIOConnection c = (BackendAIOConnection) att;
 		try {
 			if (finishConnect(c, (SocketChannel) c.channel)) {
+				ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
 				clearSelectionKey(key);
 				c.setId(ID_GENERATOR.getId());
-				NIOProcessor processor = MycatServer.getInstance()
-						.nextProcessor();
-				c.setProcessor(processor);
+				c.setManager(manager);
 				NIOReactor reactor = reactorPool.getNextReactor();
 				reactor.postRegister(c);
 

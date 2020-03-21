@@ -32,9 +32,8 @@ import org.opencloudb.jdbc.JDBCConnection;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
 import org.opencloudb.mysql.nio.MySQLConnection;
-import org.opencloudb.net.AbstractConnection;
 import org.opencloudb.net.BackendAIOConnection;
-import org.opencloudb.net.NIOProcessor;
+import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
@@ -45,7 +44,7 @@ import org.opencloudb.util.StringUtil;
 import org.opencloudb.util.TimeUtil;
 
 /**
- * 查询后端连接
+ * Query backend connections.
  * 
  * @author mycat
  */
@@ -111,13 +110,12 @@ public class ShowBackend {
 		buffer = eof.write(buffer, c, true);
 		byte packetId = eof.packetId;
 		String charset = c.getCharset();
-		for (NIOProcessor p : MycatServer.getInstance().getProcessors()) {
-			for (BackendConnection bc : p.getBackends().values()) {
-				if (bc != null) {
-					RowDataPacket row = getRow(bc, charset);
-					row.packetId = ++packetId;
-					buffer = row.write(buffer, c, true);
-				}
+		ConnectionManager connectionManager = MycatServer.getInstance().getConnectionManager();
+		for (BackendConnection bc : connectionManager.getBackends().values()) {
+			if (bc != null) {
+				RowDataPacket row = getRow(bc, charset);
+				row.packetId = ++packetId;
+				buffer = row.write(buffer, c, true);
 			}
 		}
 		EOFPacket lastEof = new EOFPacket();
@@ -132,7 +130,7 @@ public class ShowBackend {
 			row.add(((BackendAIOConnection) c).getProcessor().getName()
 					.getBytes());
 		} else if(c instanceof JDBCConnection){
-		    row.add(((JDBCConnection)c).getProcessor().getName().getBytes());
+		    row.add(((JDBCConnection)c).getManager().getName().getBytes());
 		}else{
 		    row.add("N/A".getBytes());
 		}

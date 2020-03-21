@@ -30,7 +30,7 @@ import org.opencloudb.buffer.BufferPool;
 import org.opencloudb.config.Fields;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
-import org.opencloudb.net.NIOProcessor;
+import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
@@ -110,11 +110,10 @@ public final class ShowProcessor {
 
         // write rows
         byte packetId = eof.packetId;
-        for (NIOProcessor p : MycatServer.getInstance().getProcessors()) {
-            RowDataPacket row = getRow(p, c.getCharset());
-            row.packetId = ++packetId;
-            buffer = row.write(buffer, c,true);
-        }
+        ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
+        RowDataPacket row = getRow(manager, c.getCharset());
+        row.packetId = ++packetId;
+        buffer = row.write(buffer, c,true);
 
         // write last eof
         EOFPacket lastEof = new EOFPacket();
@@ -125,25 +124,26 @@ public final class ShowProcessor {
         c.write(buffer);
     }
 
-    private static RowDataPacket getRow(NIOProcessor processor, String charset) {
-    	BufferPool bufferPool=processor.getBufferPool();
+    private static RowDataPacket getRow (ConnectionManager manager, String charset) {
+    	BufferPool bufferPool = manager.getBufferPool();
     	long bufferSize=bufferPool.size();
     	long bufferCapacity=bufferPool.capacity();
     	long bufferSharedOpts=bufferPool.getSharedOptsCount();
     	long bufferUsagePercent=(bufferCapacity-bufferSize)*100/bufferCapacity;
         RowDataPacket row = new RowDataPacket(FIELD_COUNT);
-        row.add(processor.getName().getBytes());
-        row.add(LongUtil.toBytes(processor.getNetInBytes()));
-        row.add(LongUtil.toBytes(processor.getNetOutBytes()));
+        row.add(manager.getName().getBytes());
+        row.add(LongUtil.toBytes(manager.getNetInBytes()));
+        row.add(LongUtil.toBytes(manager.getNetOutBytes()));
         row.add(LongUtil.toBytes(0));
         row.add(IntegerUtil.toBytes(0));
-        row.add(IntegerUtil.toBytes(processor.getWriteQueueSize()));
+        row.add(IntegerUtil.toBytes(manager.getWriteQueueSize()));
         row.add(LongUtil.toBytes(bufferSize));
         row.add(LongUtil.toBytes(bufferCapacity));
         row.add(LongUtil.toBytes(bufferUsagePercent));
         row.add(LongUtil.toBytes(bufferSharedOpts));
-        row.add(IntegerUtil.toBytes(processor.getFrontends().size()));
-        row.add(IntegerUtil.toBytes(processor.getBackends().size()));
+        row.add(IntegerUtil.toBytes(manager.getFrontends().size()));
+        row.add(IntegerUtil.toBytes(manager.getBackends().size()));
+
         return row;
     }
 

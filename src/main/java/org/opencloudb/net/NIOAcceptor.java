@@ -108,15 +108,13 @@ public final class NIOAcceptor extends Thread  implements SocketAcceptor{
 			channel = serverChannel.accept();
 			channel.configureBlocking(false);
 			FrontendConnection c = factory.make(channel);
+			ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
 			c.setAccepted(true);
 			c.setId(ID_GENERATOR.getId());
-			NIOProcessor processor = (NIOProcessor) MycatServer.getInstance()
-					.nextProcessor();
-			c.setProcessor(processor);
+			c.setManager(manager);
 			
 			NIOReactor reactor = reactorPool.getNextReactor();
 			reactor.postRegister(c);
-
 		} catch (Exception e) {
 	        LOGGER.warn(getName(), e);
 			closeChannel(channel);
