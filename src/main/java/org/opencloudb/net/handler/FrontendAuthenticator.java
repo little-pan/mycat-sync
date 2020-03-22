@@ -27,7 +27,6 @@ import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.Capabilities;
 import org.opencloudb.config.ErrorCode;
@@ -38,6 +37,7 @@ import org.opencloudb.net.NIOHandler;
 import org.opencloudb.net.mysql.AuthPacket;
 import org.opencloudb.net.mysql.MySQLPacket;
 import org.opencloudb.net.mysql.QuitPacket;
+import org.slf4j.*;
 
 /**
  * 前端认证处理器
@@ -46,7 +46,7 @@ import org.opencloudb.net.mysql.QuitPacket;
  */
 public class FrontendAuthenticator implements NIOHandler {
 	
-    private static final Logger LOGGER = Logger.getLogger(FrontendAuthenticator.class);
+    private static final Logger log = LoggerFactory.getLogger(FrontendAuthenticator.class);
     private static final byte[] AUTH_OK = new byte[] { 7, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0 };
     
     protected final FrontendConnection source;
@@ -138,7 +138,7 @@ public class FrontendAuthenticator implements NIOHandler {
         try {
             encryptPass = SecurityUtil.scramble411(pass.getBytes(), source.getSeed());
         } catch (NoSuchAlgorithmException e) {
-            LOGGER.warn(source.toString(), e);
+            log.warn("Encrypt password failed in conn " + this.source, e);
             return false;
         }
         if (encryptPass != null && (encryptPass.length == password.length)) {
@@ -178,14 +178,14 @@ public class FrontendAuthenticator implements NIOHandler {
         source.setCharsetIndex(auth.charsetIndex);
         source.setHandler(new FrontendCommandHandler(source));
 
-        if (LOGGER.isInfoEnabled()) {
+        if (log.isInfoEnabled()) {
             StringBuilder s = new StringBuilder();
             s.append(source).append('\'').append(auth.user).append("' login success");
             byte[] extra = auth.extra;
             if (extra != null && extra.length > 0) {
                 s.append(",extra:").append(new String(extra));
             }
-            LOGGER.info(s.toString());
+            log.info(s.toString());
         }
 
         ByteBuffer buffer = source.allocate();
@@ -199,7 +199,7 @@ public class FrontendAuthenticator implements NIOHandler {
     }
 
     protected void failure(int errno, String info) {
-        LOGGER.error(source.toString() + info);
+        log.error(info + " in conn " + this.source);
         source.writeErrMessage((byte) 2, errno, info);
     }
 

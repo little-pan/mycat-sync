@@ -27,22 +27,24 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousChannel;
 import java.nio.channels.NetworkChannel;
+import java.nio.channels.SocketChannel;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.base.Strings;
-import org.apache.log4j.Logger;
 import org.opencloudb.mysql.CharsetUtil;
 import org.opencloudb.util.CompressUtil;
+import org.opencloudb.util.IoUtil;
 import org.opencloudb.util.TimeUtil;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public abstract class AbstractConnection implements NIOConnection, ClosableConnection {
 
-    static final Logger LOGGER = Logger.getLogger(AbstractConnection.class);
+    static final Logger log = LoggerFactory.getLogger(AbstractConnection.class);
 
 	protected String host;
 	protected int localPort;
@@ -114,9 +116,6 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 			return false;
 		}
 	}
-
-
-
 
     public boolean isSupportCompress()
 	{
@@ -239,12 +238,12 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 	}
 
 	public ByteBuffer allocate() {
-		ByteBuffer buffer = this.processor.getBufferPool().allocate();
+		ByteBuffer buffer = this.manager.getBufferPool().allocate();
 		return buffer;
 	}
 
 	public final void recycle(ByteBuffer buffer) {
-		this.processor.getBufferPool().recycle(buffer);
+		this.manager.getBufferPool().recycle(buffer);
 	}
 
 	public void setHandler(NIOHandler handler) {
@@ -274,7 +273,6 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 	}
 
 	public void asynRead() throws IOException {
-
 		this.socketWR.asynRead();
 	}
 
@@ -283,11 +281,11 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 	}
 
 	public void onReadData(int got) throws IOException {
-		if (isClosed.get()) {
+		if (this.isClosed.get()) {
 			return;
 		}
 		ByteBuffer buffer = this.readBuffer;
-		lastReadTime = TimeUtil.currentTimeMillis();
+        this.lastReadTime = TimeUtil.currentTimeMillis();
 		if (got < 0) {
 			this.close("stream closed");
             return;
@@ -297,16 +295,16 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 				return;
 			}
 		}
-		netInBytes += got;
-		processor.addNetInBytes(got);
+        this.netInBytes += got;
+		this.manager.addNetInBytes(got);
 
 		// 循环处理字节信息
-		int offset = readBufferOffset, length = 0, position = buffer.position();
+		int offset = this.readBufferOffset, length = 0, position = buffer.position();
 		for (;;) {
 			length = getPacketLength(buffer, offset);
 			if (length == -1) {
 				if (!buffer.hasRemaining()) {
-					buffer = checkReadBuffer(buffer, offset, position);
+					checkReadBuffer(buffer, offset, position);
 				}
 				break;
 			}
@@ -318,27 +316,26 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 
 				offset += length;
 				if (position == offset) {
-					if (readBufferOffset != 0) {
-						readBufferOffset = 0;
+					if (this.readBufferOffset != 0) {
+                        this.readBufferOffset = 0;
 					}
 					buffer.clear();
 					break;
 				} else {
-					readBufferOffset = offset;
+                    this.readBufferOffset = offset;
 					buffer.position(position);
 					continue;
 				}
 			} else {
 				if (!buffer.hasRemaining()) {
-					buffer = checkReadBuffer(buffer, offset, position);
+					 checkReadBuffer(buffer, offset, position);
 				}
 				break;
 			}
 		}
 	}
 
-	private ByteBuffer checkReadBuffer(ByteBuffer buffer, int offset,
-			int position) {
+	private ByteBuffer checkReadBuffer(ByteBuffer buffer, int offset, int position) {
 		if (offset == 0) {
 			if (buffer.capacity() >= maxPacketSize) {
 				throw new IllegalArgumentException(
@@ -381,28 +378,58 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 
     @Override
 	public final void write(ByteBuffer buffer) {
-        if(isSupportCompress())
-        {
-            ByteBuffer     newBuffer= CompressUtil.compressMysqlPacket(buffer,this,compressUnfinishedDataQueue);
-            writeQueue.offer(newBuffer);
+        if(isSupportCompress()) {
+            ByteBuffer newBuffer = CompressUtil.compressMysqlPacket(buffer,this,compressUnfinishedDataQueue);
+            this.writeQueue.offer(newBuffer);
+        } else {
+            this.writeQueue.offer(buffer);
+        }
+		try {
+            int n = doWrite();
+            log.debug("written {} bytes in conn {}", n, this);
+		} catch (Exception e) {
+            log.warn("Write error", e);
+			this.close("write error: " + e);
+		}
+	}
 
-        }   else
-        {
-            writeQueue.offer(buffer);
+	private int doWrite () throws IOException {
+        SocketChannel channel = (SocketChannel)this.channel;
+        ByteBuffer buf = this.writeBuffer;
+        int written = 0;
+
+        if (buf != null) {
+            while (buf.hasRemaining()) {
+                int n = channel.write(buf);
+                written += n;
+                this.lastWriteTime = TimeUtil.currentTimeMillis();
+                this.netOutBytes += n;
+                this.manager.addNetOutBytes(n);
+            }
+            this.writeBuffer = null;
+            this.recycle(buf);
         }
 
-		// if ansyn write finishe event got lock before me ,then writing
-		// flag is set false but not start a write request
-		// so we check again
-		try {
-			this.socketWR.doNextWriteCheck();
-		} catch (Exception e) {
-			LOGGER.warn("write err:", e);
-			this.close("write err:" + e);
+        while ((buf = this.writeQueue.poll()) != null) {
+            if (buf.limit() == 0) {
+                recycle(buf);
+                close("quit send");
+                return written;
+            }
 
-		}
+            buf.flip();
+            while (buf.hasRemaining()) {
+                int n = channel.write(buf);
+                written += n;
+                this.lastWriteTime = TimeUtil.currentTimeMillis();
+                this.netOutBytes += n;
+                this.manager.addNetOutBytes(n);
+            }
+            recycle(buf);
+        }
 
-	}
+        return written;
+    }
 
 	public ByteBuffer checkWriteBuffer(ByteBuffer buffer, int capacity,
 			boolean writeSocketIfFull) {
@@ -459,9 +486,9 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 			if (Strings.isNullOrEmpty(reason)) {
 				return;
 			}
-			LOGGER.info("close connection,reason:" + reason + " ," + this);
+			log.info("Close connection, reason: {}, conn: {}", reason, this);
 			if (reason.contains("connection,reason:java.net.ConnectException")) {
-				throw new RuntimeException(" errr");
+				throw new RuntimeException("Connection error");
 			}
 		}
 	}
@@ -473,17 +500,15 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
     @Override
 	public void idleCheck() {
 		if (isIdleTimeout()) {
-			LOGGER.info(toString() + " idle timeout");
-			close(" idle ");
+			log.info("Idle timeout: conn {}", this);
+			close("Idle timeout");
 		}
 	}
 
 	/**
 	 * 清理资源
 	 */
-
 	protected void cleanup() {
-
 		if (readBuffer != null) {
 			recycle(readBuffer);
 			this.readBuffer = null;
@@ -508,26 +533,18 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 	}
 
 	protected final int getPacketLength(ByteBuffer buffer, int offset) {
-     int   headerSize  =getPacketHeaderSize();
-        if(isSupportCompress())
-        {
-           headerSize=7;
+        int headerSize = getPacketHeaderSize();
+        if(isSupportCompress()) {
+            headerSize=7;
         }
-
-
-		if (buffer.position() < offset + headerSize) {
-			return -1;
-		} else {
-
-			int length = buffer.get(offset) & 0xff;
-			length |= (buffer.get(++offset) & 0xff) << 8;
-			length |= (buffer.get(++offset) & 0xff) << 16;
-//           if( buffer.position()==length+4 )
-//           {
-//                return   length+4;
-//           }
-			return length + headerSize;
-		}
+        if (buffer.position() < offset + headerSize) {
+            return -1;
+        } else {
+            int length = buffer.get(offset) & 0xff;
+            length |= (buffer.get(++offset) & 0xff) << 8;
+            length |= (buffer.get(++offset) & 0xff) << 16;
+            return length + headerSize;
+        }
 	}
 
 	public ConcurrentLinkedQueue<ByteBuffer> getWriteQueue() {
@@ -535,20 +552,11 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 	}
 
 	private void closeSocket() {
+        IoUtil.close(this.channel);
+	}
 
-		if (channel != null) {
-			boolean isSocketClosed = true;
-			try {
-				channel.close();
-			} catch (Exception e) {
-		         LOGGER.error("AbstractConnectionCloseError", e);
-			}
-			boolean closed = isSocketClosed && (!channel.isOpen());
-			if (closed == false) {
-				LOGGER.warn("close socket of connnection failed " + this);
-			}
-
-		}
+	public ConnectionManager getManager () {
+		return this.manager;
 	}
 
     public void setManager(ConnectionManager manager) {

@@ -48,7 +48,7 @@ public class ExecutorUtil {
     public static final NameableExecutor create(String name, int coreSize, int maxSize, boolean isDaemon) {
         final BlockingQueue<Runnable> queue;
         if (maxSize > coreSize) {
-            queue = new ArrayBlockingQueue<>(0);
+            queue = new ArrayBlockingQueue<>(1);
         } else {
             queue = new LinkedTransferQueue<>();
         }

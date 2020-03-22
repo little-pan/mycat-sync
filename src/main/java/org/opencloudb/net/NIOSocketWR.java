@@ -54,12 +54,11 @@ public class NIOSocketWR extends SocketWR {
 			}
 
 		} catch (IOException e) {
-			if (AbstractConnection.LOGGER.isDebugEnabled()) {
-				AbstractConnection.LOGGER.debug("caught err:", e);
+			if (AbstractConnection.log.isDebugEnabled()) {
+				AbstractConnection.log.debug("Caught error", e);
 			}
 			con.close("err:" + e);
 		}
-
 	}
 
 	private boolean write0() throws IOException {
@@ -99,7 +98,7 @@ public class NIOSocketWR extends SocketWR {
 				if (written > 0) {
 					con.lastWriteTime = TimeUtil.currentTimeMillis();
 					con.netOutBytes += written;
-					con.processor.addNetOutBytes(written);
+					con.manager.addNetOutBytes(written);
 					con.lastWriteTime = TimeUtil.currentTimeMillis();
 				} else {
 					break;
@@ -121,10 +120,8 @@ public class NIOSocketWR extends SocketWR {
 			SelectionKey key = this.processKey;
 			key.interestOps(key.interestOps() & OP_NOT_WRITE);
 		} catch (Exception e) {
-			AbstractConnection.LOGGER.warn("can't disable write " + e + " con "
-					+ con);
+			AbstractConnection.log.warn("Can't disable write in conn "+ con, e);
 		}
-
 	}
 
 	private void enableWrite(boolean wakeup) {
@@ -134,8 +131,7 @@ public class NIOSocketWR extends SocketWR {
 			key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
 			needWakeup = true;
 		} catch (Exception e) {
-			AbstractConnection.LOGGER.warn("can't enable write " + e);
-
+			AbstractConnection.log.warn("Can't enable write in conn " + con, e);
 		}
 		if (needWakeup && wakeup) {
 			processKey.selector().wakeup();
@@ -149,14 +145,13 @@ public class NIOSocketWR extends SocketWR {
 	}
 
 	public void enableRead() {
-
 		boolean needWakeup = false;
 		try {
 			SelectionKey key = this.processKey;
 			key.interestOps(key.interestOps() | SelectionKey.OP_READ);
 			needWakeup = true;
 		} catch (Exception e) {
-			AbstractConnection.LOGGER.warn("enable read fail " + e);
+			AbstractConnection.log.warn("Enable read fail", e);
 		}
 		if (needWakeup) {
 			processKey.selector().wakeup();
@@ -171,7 +166,7 @@ public class NIOSocketWR extends SocketWR {
 				key.cancel();
 			}
 		} catch (Exception e) {
-			AbstractConnection.LOGGER.warn("clear selector keys err:" + e);
+			AbstractConnection.log.warn("Clear selector keys error:", e);
 		}
 	}
 
@@ -179,12 +174,11 @@ public class NIOSocketWR extends SocketWR {
 	public void asynRead() throws IOException {
 		ByteBuffer theBuffer = con.readBuffer;
 		if (theBuffer == null) {
-			theBuffer = con.processor.getBufferPool().allocate();
+			theBuffer = con.manager.getBufferPool().allocate();
 			con.readBuffer = theBuffer;
 		}
 		int got = channel.read(theBuffer);
 		con.onReadData(got);
-
 	}
 
 }

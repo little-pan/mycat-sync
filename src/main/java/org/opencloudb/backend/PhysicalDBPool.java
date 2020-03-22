@@ -32,17 +32,17 @@ import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.Alarms;
 import org.opencloudb.config.model.DataHostConfig;
 import org.opencloudb.heartbeat.DBHeartbeat;
 import org.opencloudb.mysql.nio.handler.GetConnectionHandler;
 import org.opencloudb.mysql.nio.handler.ResponseHandler;
+import org.slf4j.*;
 
 public class PhysicalDBPool {
 	
-	protected static final Logger LOGGER = Logger.getLogger(PhysicalDBPool.class);
+	static final Logger log = LoggerFactory.getLogger(PhysicalDBPool.class);
 	
 	public static final int BALANCE_NONE = 0;
 	public static final int BALANCE_ALL_BACK = 1;
@@ -94,8 +94,7 @@ public class PhysicalDBPool {
 		
 		this.readSources = readSources;
 		this.allDs = this.genAllDataSources();
-		
-		LOGGER.info("total resouces of dataHost " + this.hostName + " is :" + allDs.size());
+		log.info("total resouces of dataHost {}: {}", this.hostName,  allDs.size());
 		
 		setDataSourceProps();
 	}
@@ -118,8 +117,8 @@ public class PhysicalDBPool {
 				}
 			}
 		}
-		
-		LOGGER.warn("can't find connection in pool " + this.hostName + " con:"	+ exitsCon);
+
+		log.warn("Can't find connection in pool {} for con: {}",  this.hostName, exitsCon);
 		return null;
 	}
 
@@ -166,11 +165,8 @@ public class PhysicalDBPool {
 	
 					}
 				}
-				
-				if (LOGGER.isDebugEnabled()) {
-					LOGGER.debug("select write source " + result.getName()
-							+ " for dataHost:" + this.getHostName());
-				}
+
+                log.debug("select write source {} for dataHost: {}", result.getName(), this.getHostName());
 				return result;
 			}
 			default: {
@@ -218,7 +214,7 @@ public class PhysicalDBPool {
 				this.getSources()[current].clearCons("switch datasource");
 				
 				// write log
-				LOGGER.warn(switchMessage(current, newIndex, false, reason));
+				log.warn(switchMessage(current, newIndex, false, reason));
 				
 				return true;
 			}
@@ -262,7 +258,7 @@ public class PhysicalDBPool {
 				active = j;
 				activedIndex = active;
 				initSuccess = true;
-				LOGGER.info(getMessage(active, " init success"));
+				log.info(getMessage(active, " init success"));
 
 				if (this.writeType == WRITE_ONLYONE_NODE) {
 					// only init one write datasource
@@ -276,7 +272,7 @@ public class PhysicalDBPool {
 			initSuccess = false;
 			StringBuilder s = new StringBuilder();
 			s.append(Alarms.DEFAULT).append(hostName).append(" init failure");
-			LOGGER.error(s.toString());
+			log.error(s.toString());
 		}
 	}
 
@@ -290,19 +286,19 @@ public class PhysicalDBPool {
 
 	private boolean initSource(int index, PhysicalDatasource ds) {
 		int initSize = ds.getConfig().getMinCon();
+		log.info("Init backend source, create connections total {} for '{}' index {}" , initSize, ds.getName(), index);
 		
-		LOGGER.info("init backend myqsl source ,create connections total " + initSize + " for " + ds.getName() + " index :" + index);
-		
-		CopyOnWriteArrayList<BackendConnection> list = new CopyOnWriteArrayList<BackendConnection>();
+		CopyOnWriteArrayList<BackendConnection> list = new CopyOnWriteArrayList<>();
 		GetConnectionHandler getConHandler = new GetConnectionHandler(list, initSize);
-		// long start = System.currentTimeMillis();
-		// long timeOut = start + 5000 * 1000L;
-
 		for (int i = 0; i < initSize; i++) {
 			try {
+			    if (schemas.length == 0) {
+			        log.warn("No schema reference host '{}'", this.hostName);
+			        return !list.isEmpty();
+                }
 				ds.getConnection(this.schemas[i % schemas.length], true, getConHandler, null);
 			} catch (Exception e) {
-				LOGGER.warn(getMessage(index, " init connection error."), e);
+				log.warn(getMessage(index, " init connection error."), e);
 			}
 		}
 		long timeOut = System.currentTimeMillis() + 60 * 1000;
@@ -311,15 +307,11 @@ public class PhysicalDBPool {
 		while (!getConHandler.finished() && (System.currentTimeMillis() < timeOut)) {
 			try {
 				Thread.sleep(100);
-
 			} catch (InterruptedException e) {
-				LOGGER.error("initError", e);
+				log.error("Init source error", e);
 			}
 		}
-		LOGGER.info("init result :" + getConHandler.getStatusInfo());
-//		for (BackendConnection c : list) {
-//			c.release();
-//		}
+		log.info("Init result: {}", getConHandler.getStatusInfo());
 		return !list.isEmpty();
 	}
 
@@ -331,13 +323,12 @@ public class PhysicalDBPool {
 		}
 
 		for (PhysicalDatasource source : this.allDs) {
-
 			if (source != null) {
 				source.doHeartbeat();
 			} else {
 				StringBuilder s = new StringBuilder();
 				s.append(Alarms.DEFAULT).append(hostName).append(" current dataSource is null!");
-				LOGGER.error(s.toString());
+				log.error(s.toString());
 			}
 		}
 
@@ -347,8 +338,7 @@ public class PhysicalDBPool {
 	 * back physical connection heartbeat check
 	 */
 	public void heartbeatCheck(long ildCheckPeriod) {
-		
-		for (PhysicalDatasource ds : allDs) {
+		for (PhysicalDatasource ds : this.allDs) {
 			// only readnode or all write node or writetype=WRITE_ONLYONE_NODE
 			// and current write node will check
 			if (ds != null
@@ -376,9 +366,9 @@ public class PhysicalDBPool {
 	}
 
 	public void clearDataSources(String reason) {
-		LOGGER.info("clear datasours of pool " + this.hostName);
+		log.info("clear datasours of pool {}", this.hostName);
 		for (PhysicalDatasource source : this.allDs) {			
-			LOGGER.info("clear datasoure of pool  " + this.hostName + " ds:" + source.getConfig());
+			log.info("clear datasoure of pool {} ds: {}", this.hostName, source.getConfig());
 			source.clearCons(reason);
 			source.stopHeartbeat();
 		}
@@ -447,10 +437,8 @@ public class PhysicalDBPool {
 			// return default write data source
 			theNode = this.getSource();
 		}
-		
-		if (LOGGER.isDebugEnabled()) {
-			LOGGER.debug("select read source " + theNode.getName() + " for dataHost:" + this.getHostName());
-		}
+
+        log.debug("select read source {} for dataHost: {}",  theNode.getName(), this.getHostName());
 		theNode.getConnection(schema, autocommit, handler, attachment);
 	}
 

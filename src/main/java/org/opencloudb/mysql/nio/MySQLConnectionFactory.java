@@ -40,12 +40,9 @@ import org.opencloudb.net.factory.BackendConnectionFactory;
  */
 public class MySQLConnectionFactory extends BackendConnectionFactory {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public MySQLConnection make(MySQLDataSource pool, ResponseHandler handler,
-			String schema) throws IOException {
-
+	public MySQLConnection make(MySQLDataSource pool, ResponseHandler handler, String schema) throws IOException {
 		DBHostConfig dsc = pool.getConfig();
-		NetworkChannel channel = openSocketChannel(MycatServer.getInstance()
-				.isAIO());
+		NetworkChannel channel = openSocketChannel(MycatServer.getInstance().isAIO());
 
 		MySQLConnection c = new MySQLConnection(channel, pool.isReadNode());
 		MycatServer.getInstance().getConfig().setSocketParams(c, false);
@@ -63,9 +60,7 @@ public class MySQLConnectionFactory extends BackendConnectionFactory {
 					(CompletionHandler) MycatServer.getInstance()
 							.getConnector());
 		} else {
-			((NIOConnector) MycatServer.getInstance().getConnector())
-					.postConnect(c);
-
+			((NIOConnector) MycatServer.getInstance().getConnector()).postConnect(c);
 		}
 		return c;
 	}

@@ -44,7 +44,7 @@ public class FrontendCommandHandler implements NIOHandler
     public FrontendCommandHandler(FrontendConnection source)
     {
         this.source = source;
-        this.commands = source.getProcessor().getCommands();
+        this.commands = source.getManager().getCommands();
     }
 
     @Override

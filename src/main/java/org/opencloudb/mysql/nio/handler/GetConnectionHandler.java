@@ -27,8 +27,8 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.backend.BackendConnection;
+import org.slf4j.*;
 
 /**
  * wuzh
@@ -37,9 +37,10 @@ import org.opencloudb.backend.BackendConnection;
  * 
  */
 public class GetConnectionHandler implements ResponseHandler {
+
+	private static final Logger log = LoggerFactory.getLogger(GetConnectionHandler.class);
+
 	private final CopyOnWriteArrayList<BackendConnection> successCons;
-	private static final Logger logger = Logger
-			.getLogger(GetConnectionHandler.class);
 	private final AtomicInteger finishedCount = new AtomicInteger(0);
 	private final int total;
 
@@ -63,33 +64,36 @@ public class GetConnectionHandler implements ResponseHandler {
 	public void connectionAcquired(BackendConnection conn) {
 		successCons.add(conn);
 		finishedCount.addAndGet(1);
-		logger.info("connected successfuly " + conn);
+        log.info("connected successfuly {}", conn);
         conn.release();
 	}
 
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
 		finishedCount.addAndGet(1);
-		logger.warn("connect error " + conn+ e);
+		if (log.isWarnEnabled()) {
+            log.warn("Connect error in conn " + conn, e);
+        }
         conn.release();
 	}
 
 	@Override
 	public void errorResponse(byte[] err, BackendConnection conn) {
-		logger.warn("caught error resp: " + conn + " " + new String(err));
+	    if (log.isWarnEnabled()) {
+            log.warn("Caught error resp: {} in conn " + conn, new String(err));
+        }
         conn.release();
 	}
 
 	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
-		logger.info("received ok resp: " + conn + " " + new String(ok));
-
+	    if (log.isInfoEnabled()) {
+            log.info("Received ok resp: {} in conn " + conn, new String(ok));
+        }
 	}
 
 	@Override
-	public void fieldEofResponse(byte[] header, List<byte[]> fields,
-			byte[] eof, BackendConnection conn) {
-
+	public void fieldEofResponse(byte[] header, List<byte[]> fields, byte[] eof, BackendConnection conn) {
 	}
 
 	@Override

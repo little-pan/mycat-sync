@@ -23,7 +23,6 @@
  */
 package org.opencloudb.net;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.Capabilities;
 import org.opencloudb.config.ErrorCode;
@@ -37,6 +36,7 @@ import org.opencloudb.net.mysql.MySQLPacket;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.util.CompressUtil;
 import org.opencloudb.util.RandomUtil;
+import org.slf4j.*;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -52,7 +52,7 @@ import java.util.Set;
  */
 public abstract class FrontendConnection extends AbstractConnection {
 	
-	private static final Logger LOGGER = Logger.getLogger(FrontendConnection.class);
+	private static final Logger log = LoggerFactory.getLogger(FrontendConnection.class);
 
 	protected long id;
 	protected String host;
@@ -239,10 +239,9 @@ public abstract class FrontendConnection extends AbstractConnection {
 			try {
 				loadDataInfileHandler.start(sql);
 			} catch (Exception e) {
-				LOGGER.error("load data error", e);
+				log.error("Load data error", e);
 				writeErrMessage(ErrorCode.ERR_HANDLE_DATA, e.getMessage());
 			}
-
 		} else {
 			writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, "load data infile sql is not  unsupported!");
 		}
@@ -253,13 +252,12 @@ public abstract class FrontendConnection extends AbstractConnection {
 			try {
 				loadDataInfileHandler.handle(data);
 			} catch (Exception e) {
-				LOGGER.error("load data error", e);
+				log.error("Load data error", e);
 				writeErrMessage(ErrorCode.ERR_HANDLE_DATA, e.getMessage());
 			}
 		} else {
 			writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, "load data infile  data is not  unsupported!");
 		}
-
 	}
 
 	public void loadDataInfileEnd(byte packID) {
@@ -267,13 +265,12 @@ public abstract class FrontendConnection extends AbstractConnection {
 			try {
 				loadDataInfileHandler.end(packID);
 			} catch (Exception e) {
-				LOGGER.error("load data error", e);
+				log.error("Load data error", e);
 				writeErrMessage(ErrorCode.ERR_HANDLE_DATA, e.getMessage());
 			}
 		} else {
 			writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, "load data infile end is not  unsupported!");
 		}
-
 	}
 	
 	public void query(byte[] data) {
@@ -374,7 +371,6 @@ public abstract class FrontendConnection extends AbstractConnection {
 	@Override
 	public void register() throws IOException {
 		if (!isClosed.get()) {
-
 			// 生成认证数据
 			byte[] rand1 = RandomUtil.randomBytes(8);
 			byte[] rand2 = RandomUtil.randomBytes(12);
@@ -428,7 +424,7 @@ public abstract class FrontendConnection extends AbstractConnection {
 		}
 		//修改quit的判断,当load data infile 分隔符为\001 时可能会出现误判断的bug.
 		if (data.length>4 && data[0] == 1 && data[1] == 0 && data[2]== 0 && data[3] == 0 &&data[4] == MySQLPacket.COM_QUIT) {
-			this.getProcessor().getCommands().doQuit();
+			this.getManager().getCommands().doQuit();
 			this.close("quit cmd");
 			return;
 		}

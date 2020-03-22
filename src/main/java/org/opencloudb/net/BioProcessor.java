@@ -56,20 +56,21 @@ public class BioProcessor implements Runnable {
         SocketChannel ch = (SocketChannel)con.channel;
 
         log.debug("{} started", this.name);
-        for (;!con.isClosed();) {
-            try {
+        try {
+            con.register();
+            for (;!con.isClosed();) {
                 ByteBuffer buf = con.readBuffer;
                 if (buf == null) {
-                    buf = con.processor.getBufferPool().allocate();
+                    buf = con.getManager().getBufferPool().allocate();
                     con.readBuffer = buf;
                 }
                 final int n = ch.read(buf);
                 log.debug("{} read {} bytes", this.name, n);
                 con.onReadData(n);
-            } catch (final Throwable e) {
-                log.debug("{} process failed", e);
-                con.close("Program error:" + e);
             }
+        } catch (final Throwable e) {
+            log.debug(this.name + " process failed", e);
+            con.close("Program error:" + e);
         }
     }
 

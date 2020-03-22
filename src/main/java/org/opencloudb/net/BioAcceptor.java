@@ -36,6 +36,7 @@ import java.net.SocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** The blocking acceptor of a front-end connection.
@@ -54,6 +55,8 @@ public class BioAcceptor extends Thread implements SocketAcceptor, AutoCloseable
     protected final FrontendConnectionFactory factory;
     protected final BioProcessorPool processorPool;
     private long acceptCount;
+
+    private final CountDownLatch startLatch = new CountDownLatch(1);
 
     public BioAcceptor (String bindIp, int port,
                         FrontendConnectionFactory factory, BioProcessorPool processorPool) throws IOException {
@@ -97,6 +100,8 @@ public class BioAcceptor extends Thread implements SocketAcceptor, AutoCloseable
         try {
             SocketAddress sa = this.serverChannel.getLocalAddress();
             log.info("{} started and listen on {}", this.name, sa);
+
+            this.startLatch.countDown();
             for (;this.serverChannel.isOpen();) {
                 SocketChannel ch = accept();
                 if (ch != null) {
@@ -107,7 +112,13 @@ public class BioAcceptor extends Thread implements SocketAcceptor, AutoCloseable
         } catch (final IOException e) {
             log.warn("Accept failed", e);
             close();
+        } finally {
+            this.startLatch.countDown();
         }
+    }
+
+    public void awaitStarted () throws InterruptedException {
+        this.startLatch.await();
     }
 
     private SocketChannel accept() throws IOException {

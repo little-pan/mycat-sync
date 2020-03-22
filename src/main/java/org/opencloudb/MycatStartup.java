@@ -23,27 +23,27 @@
  */
 package org.opencloudb;
 
-import org.apache.log4j.helpers.LogLog;
 import org.opencloudb.config.ZkConfig;
 import org.opencloudb.config.model.SystemConfig;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import static java.lang.String.*;
+
 /**
  * @author mycat
  */
 public final class MycatStartup {
-    private static final String dateFormat = "yyyy-MM-dd HH:mm:ss";
 
     public static void main(String[] args) {
-        //use zk ?
+        // use zk ?
         ZkConfig.instance().initZk();
 
         try {
             String home = SystemConfig.getHomePath();
             if (home == null) {
-                System.out.println(String.format("%s is not set.", SystemConfig.SYS_HOME));
+                System.err.println(format("%s is not set.", SystemConfig.SYS_HOME));
                 System.exit(-1);
             }
 
@@ -52,11 +52,20 @@ public final class MycatStartup {
             server.beforeStart();
             // startup
             server.startup();
-            System.out.println(MycatServer.NAME + " startup successfully. See logs in logs/mycat.log");
-        } catch (Exception e) {
-            SimpleDateFormat df = new SimpleDateFormat(dateFormat);
-            LogLog.error(String.format("%s startup error", df.format(new Date())), e);
+            System.out.println(format("%s startup success. See logs in '%s/logs/mycat.log'", MycatServer.NAME, home));
+        } catch (Throwable e) {
+            printError(e);
             System.exit(-1);
+        }
+    }
+
+    private static void printError(Throwable e) {
+        String threadName = Thread.currentThread().getName();
+        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String datetime = df.format(new Date());
+        synchronized (System.err) {
+            System.err.printf("%s [%s] %s startup error: ", datetime, threadName, MycatServer.NAME);
+            e.printStackTrace(System.err);
         }
     }
 

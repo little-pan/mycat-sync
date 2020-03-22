@@ -176,9 +176,8 @@ class AIOWriteHandler implements CompletionHandler<Integer, AIOSocketWR> {
                 wr.con.close("write erro " + result);
             }
         } catch (Exception e) {
-            AbstractConnection.LOGGER.warn("caught aio process err:", e);
+            AbstractConnection.log.warn("caught aio process error:", e);
         }
-
     }
 
     @Override

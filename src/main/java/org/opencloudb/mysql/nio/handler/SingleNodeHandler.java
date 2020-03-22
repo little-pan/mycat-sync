@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Set;
 
 import com.google.common.base.Strings;
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
 import org.opencloudb.backend.BackendConnection;
@@ -53,14 +52,15 @@ import org.opencloudb.stat.QueryResult;
 import org.opencloudb.stat.QueryResultDispatcher;
 
 import org.opencloudb.util.StringUtil;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
-public class SingleNodeHandler implements ResponseHandler, Terminatable,
-		LoadDataResponseHandler {
-	private static final Logger LOGGER = Logger
-			.getLogger(SingleNodeHandler.class);
+public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDataResponseHandler {
+
+	private static final Logger log = LoggerFactory.getLogger(SingleNodeHandler.class);
+
 	private final RouteResultsetNode node;
 	private final RouteResultset rrs;
 	private final NonBlockingSession session;
@@ -226,10 +226,8 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable,
 		int errPort = source.getLocalPort();
 		
 		String errmgs = " errno:" + errPkg.errno + " " + new String(errPkg.message);
-		LOGGER.warn("execute  sql err :" + errmgs + " con:" + conn 
-				+ " frontend host:" + errHost + "/" + errPort + "/" + errUser);
-		
-		session.releaseConnectionIfSafe(conn, LOGGER.isDebugEnabled(), false);
+		log.warn("Execute sql error: '{}', frontend host: '{}:{}/{}', con: {}", errmgs, errHost, errPort, errUser, conn);
+		session.releaseConnectionIfSafe(conn, log.isDebugEnabled(), false);
 		
 		source.setTxInterrupt(errmgs);
 		errPkg.write(source);
@@ -241,8 +239,7 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable,
 	public void okResponse(byte[] data, BackendConnection conn) {        
 		boolean executeResponse = conn.syncAndExcute();		
 		if (executeResponse) {			
-			session.releaseConnectionIfSafe(conn, LOGGER.isDebugEnabled(),
-					false);
+			session.releaseConnectionIfSafe(conn, log.isDebugEnabled(),false);
 			endRunning();
 			ServerConnection source = session.getSource();
 			OkPacket ok = new OkPacket();
@@ -273,12 +270,11 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable,
 	@Override
 	public void rowEofResponse(byte[] eof, BackendConnection conn) {
 		ServerConnection source = session.getSource();
-		conn.recordSql(source.getHost(), source.getSchema(),
-                node.getStatement());
+		conn.recordSql(source.getHost(), source.getSchema(), node.getStatement());
 
 		// 判断是调用存储过程的话不能在这里释放链接
 		if (!rrs.isCallStatement()) {
-			session.releaseConnectionIfSafe(conn, LOGGER.isDebugEnabled(),
+			session.releaseConnectionIfSafe(conn, log.isDebugEnabled(),
 					false);
 			endRunning();
 		}
@@ -303,8 +299,7 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable,
 	@Override
 	public void fieldEofResponse(byte[] header, List<byte[]> fields,
 			byte[] eof, BackendConnection conn) {
-		
-		
+
 			//TODO: add by zhuam
 			//查询结果派发
 			QueryResult queryResult = new QueryResult(session.getSource().getUser(), 

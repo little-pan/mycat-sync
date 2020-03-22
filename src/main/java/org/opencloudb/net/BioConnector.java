@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class BioConnector implements SocketConnector {
 
     static final Logger log = LoggerFactory.getLogger(BioConnector.class);
-    static final AtomicLong ID_GENERATOR = new AtomicLong();
+    public static final AtomicLong ID_GENERATOR = new AtomicLong();
 
     protected final AtomicInteger connectCount = new AtomicInteger();
     protected final String name;
