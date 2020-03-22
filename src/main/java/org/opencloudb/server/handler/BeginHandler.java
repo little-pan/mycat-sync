@@ -23,22 +23,25 @@
  */
 package org.opencloudb.server.handler;
 
-import org.opencloudb.config.ErrorCode;
 import org.opencloudb.server.ServerConnection;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author mycat
  */
 public final class BeginHandler {
-    private static final byte[] AC_OFF = new byte[] { 7, 0, 0, 1, 0, 0, 0, 0,
-            0, 0, 0 };
-    public static void handle(String stmt, ServerConnection c) {
-        if (c.isAutocommit())
-        {
+
+    static final Logger log = LoggerFactory.getLogger(BeginHandler.class);
+    private static final byte[] AC_OFF = new byte[] { 7, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0 };
+
+    public static void handle(String sql, ServerConnection c) {
+        if (c.isAutocommit()) {
+            log.debug("set autocommit: true -> false");
             c.setAutocommit(false);
             c.write(c.writeToBuffer(AC_OFF, c.allocate()));
-        }else
-        {
+        } else {
+            log.debug("committing");
             c.getSession2().commit() ;
         }
     }

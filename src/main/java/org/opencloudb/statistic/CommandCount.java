@@ -39,6 +39,8 @@ public class CommandCount {
     private long heartbeat;
     private long other;
 
+    public CommandCount () {}
+
     public void doInitDB() {
         ++initDB;
     }

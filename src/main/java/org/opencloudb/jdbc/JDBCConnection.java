@@ -109,7 +109,7 @@ public class JDBCConnection implements BackendConnection {
 	@Override
 	public void idleCheck() {
 	    if(TimeUtil.currentTimeMillis() > lastTime + pool.getConfig().getIdleTimeout()){
-	        close(" idle  check");
+	        close(" idle check");
 	    }
 	}
 
@@ -160,7 +160,6 @@ public class JDBCConnection implements BackendConnection {
 	public void setDbType(String newDbType) {
 		this.dbType = newDbType.toUpperCase();
 		this.isSpark = dbType.equals("SPARK");
-
 	}
 
 	@Override
@@ -172,7 +171,6 @@ public class JDBCConnection implements BackendConnection {
 	public void setSchema(String newSchema) {
 		this.oldSchema = this.schema;
 		this.schema = newSchema;
-
 	}
 
 	@Override
@@ -188,7 +186,6 @@ public class JDBCConnection implements BackendConnection {
 	@Override
 	public void setAttachment(Object attachment) {
 		this.attachement = attachment;
-
 	}
 
 	@Override
@@ -211,7 +208,6 @@ public class JDBCConnection implements BackendConnection {
 
 	public void setRunning(boolean running) {
 		this.running = running;
-
 	}
 
 	@Override
@@ -223,37 +219,44 @@ public class JDBCConnection implements BackendConnection {
 	@Override
 	public void commit() {
 		try {
-			con.commit();
+		    log.debug("committing");
+			this.con.commit();
+            log.debug("committed");
 			this.respHandler.okResponse(OkPacket.OK, this);
 		} catch (SQLException e) {
 			throw new RuntimeException(e);
 		}
 	}
-    private  int convertNativeIsolationToJDBC(int nativeIsolation) {
-        if (nativeIsolation == Isolations.REPEATED_READ) {
-            return Connection.TRANSACTION_REPEATABLE_READ;
-        } else if (nativeIsolation == Isolations.SERIALIZABLE) {
-            return Connection.TRANSACTION_SERIALIZABLE;
-        } else {
-            return nativeIsolation;
+
+    private int convertNativeIsolationToJDBC(int nativeIsolation) {
+        switch (nativeIsolation) {
+            case Isolations.READ_UNCOMMITTED:
+                return Connection.TRANSACTION_READ_UNCOMMITTED;
+            case Isolations.REPEATED_READ:
+                return Connection.TRANSACTION_REPEATABLE_READ;
+            case Isolations.SERIALIZABLE:
+                return Connection.TRANSACTION_SERIALIZABLE;
+            default:
+                return Connection.TRANSACTION_READ_COMMITTED;
         }
     }
 
-    private void syncIsolation(int nativeIsolation) {
-        int jdbcIsolation=convertNativeIsolationToJDBC(nativeIsolation);
-        int srcJdbcIsolation=   getTxIsolation();
-        if(jdbcIsolation==srcJdbcIsolation)return;
+    private void syncIsolation(int nativeIsolation) throws SQLException {
+        int jdbcIsolation = convertNativeIsolationToJDBC(nativeIsolation);
+        int srcJdbcIsolation = getTxIsolation();
+
+        if(jdbcIsolation == srcJdbcIsolation) {
+        	return;
+		}
         if("oracle".equalsIgnoreCase(getDbType())
-                &&jdbcIsolation!=Connection.TRANSACTION_READ_COMMITTED
-                &&jdbcIsolation!=Connection.TRANSACTION_SERIALIZABLE) {
-            //oracle 只支持2个级别, 且只能更改一次隔离级别，否则会报 ORA-01453
+                && jdbcIsolation != Connection.TRANSACTION_READ_COMMITTED
+                && jdbcIsolation != Connection.TRANSACTION_SERIALIZABLE) {
+            // Oracle 只支持2个级别, 且只能更改一次隔离级别，否则会报 ORA-01453
             return;
         }
-        try {
-            con.setTransactionIsolation(jdbcIsolation);
-        } catch (SQLException e) {
-            log.warn("set txIsolation error", e);
-        }
+
+        log.debug("set transactionIsolation to {}", jdbcIsolation);
+        this.con.setTransactionIsolation(jdbcIsolation);
     }
 
 	private FieldPacket getNewFieldPacket(String charset, String fieldName) {
@@ -412,35 +415,38 @@ public class JDBCConnection implements BackendConnection {
 	}
 
 	@Override
-	public void execute(RouteResultsetNode rrn, ServerConnection sc, boolean autocommit)
-			throws IOException {
-        String orgin = rrn.getStatement();
-        log.debug("execute sql '{}' from {} ", orgin, sc);
+	public void execute(RouteResultsetNode rrn, ServerConnection sc, boolean autocommit) throws IOException {
+        String origin = rrn.getStatement();
+        log.debug("execute sql '{}' from {} ", origin, sc);
         if (!modifiedSQLExecuted && rrn.isModifySQL()) {
             modifiedSQLExecuted = true;
         }
 
         try {
-            syncIsolation(sc.getTxIsolation()) ;
             if (!this.schema.equals(this.oldSchema)) {
-                con.setCatalog(schema);
-                this.oldSchema = schema;
+                log.debug("set catalog to {}", this.schema);
+                con.setCatalog(this.schema);
+                this.oldSchema = this.schema;
             }
-            if (!this.isSpark) {
-                con.setAutoCommit(autocommit);
-            }
-            int sqlType = rrn.getSqlType();
 
+            // Sync transaction state
+            syncIsolation(sc.getTxIsolation()) ;
+            if (!this.isSpark) {
+                log.debug("set autocommit to {}", autocommit);
+                this.con.setAutoCommit(autocommit);
+            }
+
+            int sqlType = rrn.getSqlType();
             if (sqlType == ServerParse.SELECT || sqlType == ServerParse.SHOW) {
                 if ((sqlType == ServerParse.SHOW) && (!dbType.equals("MYSQL"))) {
-                    ShowVariables.execute(sc, orgin,this);
-                } else if ("SELECT CONNECTION_ID()".equalsIgnoreCase(orgin)) {
+                    ShowVariables.execute(sc, origin,this);
+                } else if ("SELECT CONNECTION_ID()".equalsIgnoreCase(origin)) {
                     ShowVariables.justReturnValue(sc,String.valueOf(sc.getId()),this);
                 } else {
-                    executeSelect(sc, orgin);
+                    executeSelect(sc, origin);
                 }
             } else {
-                executeDDL(sc, orgin);
+                executeDDL(sc, origin);
             }
         } catch (SQLException e) {
             String msg = e.getMessage();
@@ -476,8 +482,9 @@ public class JDBCConnection implements BackendConnection {
 	@Override
 	public void rollback() {
 		try {
-			con.rollback();
-
+		    log.debug("rollbacking");
+			this.con.rollback();
+            log.debug("rollbacked");
 			this.respHandler.okResponse(OkPacket.OK, this);
 		} catch (SQLException e) {
 			throw new RuntimeException(e);
@@ -496,14 +503,13 @@ public class JDBCConnection implements BackendConnection {
 	@Override
 	public void setBorrowed(boolean borrowed) {
 		this.borrowed = borrowed;
-
 	}
 
 	@Override
 	public int getTxIsolation() {
-		if (con != null) {
+		if (this.con != null) {
 			try {
-				return con.getTransactionIsolation();
+				return this.con.getTransactionIsolation();
 			} catch (SQLException e) {
 				return 0;
 			}
@@ -520,10 +526,9 @@ public class JDBCConnection implements BackendConnection {
 			try {
 				return con.getAutoCommit();
 			} catch (SQLException e) {
-
+                return true;
 			}
 		}
-		return true;
 	}
 
 	@Override
@@ -533,9 +538,9 @@ public class JDBCConnection implements BackendConnection {
 
 	@Override
     public String toString() {
-        return "JDBCConnection [id=" + id +",autocommit="+this.isAutocommit()+",pool=" + pool + ", schema=" + schema + ", dbType=" + dbType + ", oldSchema="
-                + oldSchema + ", packetId=" + packetId + ", txIsolation=" + txIsolation + ", running=" + running
-                + ", borrowed=" + borrowed + ", host=" + host + ", port=" + port + ", con=" + con
+        return "JDBCConnection [id=" + id +",autocommit="+this.isAutocommit()+",pool=" + pool + ", schema=" + schema
+                + ", dbType=" + dbType + ", oldSchema=" + oldSchema + ", packetId=" + packetId + ", txIsolation=" + txIsolation
+                + ", running=" + running + ", borrowed=" + borrowed + ", host=" + host + ", port=" + port + ", con=" + con
                 + ", respHandler=" + respHandler + ", attachement=" + attachement + ", headerOutputed="
                 + headerOutputed + ", modifiedSQLExecuted=" + modifiedSQLExecuted + ", startTime=" + startTime
                 + ", lastTime=" + lastTime + ", isSpark=" + isSpark + ", manager=" + manager + "]";
@@ -543,8 +548,7 @@ public class JDBCConnection implements BackendConnection {
 
 	@Override
 	public void discardClose(String reason) {
-		// TODO Auto-generated method stub
-		
+
 	}
 
     public ConnectionManager getManager() {

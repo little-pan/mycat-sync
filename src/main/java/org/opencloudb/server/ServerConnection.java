@@ -225,29 +225,20 @@ public class ServerConnection extends FrontendConnection {
 		}
 	}
 
-	/**
-	 * 提交事务
-	 */
 	public void commit() {
-		if (txInterrupted) {
-			writeErrMessage(ErrorCode.ER_YES,
-					"Transaction error, need to rollback.");
+		if (this.txInterrupted) {
+			writeErrMessage(ErrorCode.ER_YES, "Transaction status error, need to rollback.");
 		} else {
-			session.commit();
+			this.session.commit();
 		}
 	}
 
-	/**
-	 * 回滚事务
-	 */
 	public void rollback() {
-		// 状态检查
-		if (txInterrupted) {
-			txInterrupted = false;
+		if (this.txInterrupted) {
+			this.txInterrupted = false;
 		}
 
-		// 执行回滚
-		session.rollback();
+        this.session.rollback();
 	}
 
 	/**

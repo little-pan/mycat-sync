@@ -138,33 +138,37 @@ public class NonBlockingSession implements Session {
 		}
 	}
 
+	@Override
 	public void commit() {
-		final int initCount = target.size();
+		final int initCount = this.target.size();
+
 		if (initCount <= 0) {
-			ByteBuffer buffer = source.allocate();
-			buffer = source.writeToBuffer(OkPacket.OK, buffer);
-			source.write(buffer);
-			return;
+			log.debug("no node in current transaction");
+			ByteBuffer buffer = this.source.allocate();
+			buffer = this.source.writeToBuffer(OkPacket.OK, buffer);
+			this.source.write(buffer);
 		} else if (initCount == 1) {
-			BackendConnection con = target.elements().nextElement();
-			commitHandler.commit(con);
+            log.debug("single node in current transaction");
+			BackendConnection con = this.target.elements().nextElement();
+			this.commitHandler.commit(con);
 		} else {
-            log.debug("multi node commit to send, total {}", initCount);
-			multiNodeCoordinator.executeBatchNodeCmd(SQLCmdConstant.COMMIT_CMD);
+            log.debug("multi node commit to send: node count {}", initCount);
+			this.multiNodeCoordinator.executeBatchNodeCmd(SQLCmdConstant.COMMIT_CMD);
 		}
 	}
 
 	public void rollback() {
-		final int initCount = target.size();
+		final int initCount = this.target.size();
 		if (initCount <= 0) {
             log.debug("no session bound connections found, no need send rollback cmd");
-			ByteBuffer buffer = source.allocate();
+			ByteBuffer buffer = this.source.allocate();
 			buffer = source.writeToBuffer(OkPacket.OK, buffer);
-			source.write(buffer);
+            this.source.write(buffer);
 			return;
 		}
-		rollbackHandler = new RollbackNodeHandler(this);
-		rollbackHandler.rollback();
+
+        this.rollbackHandler = new RollbackNodeHandler(this);
+        this.rollbackHandler.rollback();
 	}
 
 	@Override

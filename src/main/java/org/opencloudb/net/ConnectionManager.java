@@ -29,8 +29,7 @@ import org.opencloudb.buffer.BufferPool;
 import org.opencloudb.statistic.CommandCount;
 import org.opencloudb.util.NameableExecutor;
 import org.opencloudb.util.TimeUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.slf4j.*;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -205,6 +204,11 @@ public class ConnectionManager {
 
     public void removeConnection(BackendConnection con){
         this.backends.remove(con.getId());
+    }
+
+    @Override
+    public String toString() {
+        return "ConnectionManager[name="+this.name+",netInBytes="+this.netInBytes+",netOutBytes="+this.netOutBytes+"]";
     }
 
 }

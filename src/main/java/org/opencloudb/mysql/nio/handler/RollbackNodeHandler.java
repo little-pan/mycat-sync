@@ -25,57 +25,50 @@ package org.opencloudb.mysql.nio.handler;
 
 import java.util.List;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.NonBlockingSession;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public class RollbackNodeHandler extends MultiNodeHandler {
-	private static final Logger LOGGER = Logger
-			.getLogger(RollbackNodeHandler.class);
+
+	private static final Logger log = LoggerFactory.getLogger(RollbackNodeHandler.class);
 
 	public RollbackNodeHandler(NonBlockingSession session) {
 		super(session);
 	}
 
 	public void rollback() {
-		final int initCount = session.getTargetCount();
-		lock.lock();
+		final int initCount = this.session.getTargetCount();
+		this.lock.lock();
 		try {
 			reset(initCount);
 		} finally {
-			lock.unlock();
+			this.lock.unlock();
 		}
-		if (session.closed()) {
+		if (this.session.closed()) {
 			decrementCountToZero();
 			return;
 		}
 
 		// 执行
 		int started = 0;
-		for (final RouteResultsetNode node : session.getTargetKeys()) {
+		for (final RouteResultsetNode node : this.session.getTargetKeys()) {
 			if (node == null) {
-				try {
-					LOGGER.error("null is contained in RoutResultsetNodes, source = "
-							+ session.getSource());
-				} catch (Exception e) {
-				}
+                log.error("null is contained in RouteResultsetNodes, source = {}", this.session.getSource());
 				continue;
 			}
-			final BackendConnection conn = session.getTarget(node);
+			final BackendConnection conn =  this.session.getTarget(node);
 			if (conn != null) {
-				if (LOGGER.isDebugEnabled()) {
-					LOGGER.debug("rollback job run for " + conn);
-				}
-				if (clearIfSessionClosed(session)) {
+                log.debug("rollback job run for backend {}", conn);
+				if (clearIfSessionClosed(this.session)) {
 					return;
 				}
 				conn.setResponseHandler(RollbackNodeHandler.this);
 				conn.rollback();
-
 				++started;
 			}
 		}
@@ -85,7 +78,7 @@ public class RollbackNodeHandler extends MultiNodeHandler {
 			 * assumption: only caused by front-end connection close. <br/>
 			 * Otherwise, packet must be returned to front-end
 			 */
-			session.clearResources(true);
+			this.session.clearResources(true);
 		}
 	}
 
@@ -104,29 +97,22 @@ public class RollbackNodeHandler extends MultiNodeHandler {
 
 	@Override
 	public void rowEofResponse(byte[] eof, BackendConnection conn) {
-		LOGGER.error(new StringBuilder().append("unexpected packet for ")
-				.append(conn).append(" bound by ").append(session.getSource())
-				.append(": field's eof").toString());
+		log.error("Unexpected packet for backend {} bound by source {}", conn, this.session.getSource());
 	}
 
 	@Override
 	public void connectionAcquired(BackendConnection conn) {
-		LOGGER.error("unexpected invocation: connectionAcquired from rollback");
+        log.error("Unexpected packet for backend {} bound by source {}", conn, this.session.getSource());
 	}
 
 	@Override
-	public void fieldEofResponse(byte[] header, List<byte[]> fields,
-			byte[] eof, BackendConnection conn) {
-		LOGGER.error(new StringBuilder().append("unexpected packet for ")
-				.append(conn).append(" bound by ").append(session.getSource())
-				.append(": field's eof").toString());
+	public void fieldEofResponse(byte[] header, List<byte[]> fields, byte[] eof, BackendConnection conn) {
+        log.error("Unexpected packet for backend {} bound by source {}", conn, this.session.getSource());
 	}
 
 	@Override
 	public void rowResponse(byte[] row, BackendConnection conn) {
-		LOGGER.error(new StringBuilder().append("unexpected packet for ")
-				.append(conn).append(" bound by ").append(session.getSource())
-				.append(": field's eof").toString());
+        log.error("Unexpected packet for backend {} bound by source {}", conn, this.session.getSource());
 	}
 
 	@Override

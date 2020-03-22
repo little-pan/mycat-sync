@@ -51,7 +51,7 @@ public class ServerQueryHandler implements FrontendQueryHandler {
 	@Override
 	public void query(String sql) {
 		ServerConnection c = this.source;
-        log.debug("Query '{}' in {}", sql, c);
+        log.debug("Execute '{}' in {}", sql, c);
 
 		int rs = ServerParse.parse(sql);
 		int sqlType = rs & 0xff;

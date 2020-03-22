@@ -157,7 +157,7 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 	@Override
 	public void connectionAcquired(final BackendConnection conn) {
-	    log.debug("acquire a backend {} in node {}", conn, this.node);
+	    log.debug("acquire a backend {} in node {}, and bind it into session", conn, this.node);
 		this.session.bindConnection(this.node, conn);
 		_execute(conn);
 	}

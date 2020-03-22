@@ -25,19 +25,20 @@ package org.opencloudb.mysql.nio.handler;
 
 import java.util.List;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.mysql.nio.MySQLConnection;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.server.NonBlockingSession;
 import org.opencloudb.server.ServerConnection;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public class CommitNodeHandler implements ResponseHandler {
-	private static final Logger LOGGER = Logger
-			.getLogger(CommitNodeHandler.class);
+
+	private static final Logger log = LoggerFactory.getLogger(CommitNodeHandler.class);
+
 	private final NonBlockingSession session;
 
 	public CommitNodeHandler(NonBlockingSession session) {
@@ -45,49 +46,40 @@ public class CommitNodeHandler implements ResponseHandler {
 	}
 
 	public void commit(BackendConnection conn) {
-		conn.setResponseHandler(CommitNodeHandler.this);
-	   if(conn instanceof MySQLConnection)
-	   {
+		conn.setResponseHandler(this);
+	   if(conn instanceof MySQLConnection) {
 		   MySQLConnection mysqlCon = (MySQLConnection) conn;
-		   if (mysqlCon.getXaStatus() == 1)
-		   {
+		   if (mysqlCon.getXaStatus() == 1) {
 			   String xaTxId = session.getXaTXID();
 			   String[] cmds = new String[]{"XA END " + xaTxId,
 					   "XA PREPARE " + xaTxId};
 			   mysqlCon.execBatchCmd(cmds);
-		   } else
-		   {
+		   } else {
 			   conn.commit();
 		   }
-	   }else
-	   {
+	   } else {
 		   conn.commit();
 	   }
 	}
 
 	@Override
 	public void connectionAcquired(BackendConnection conn) {
-		LOGGER.error("unexpected invocation: connectionAcquired from commit");
-
+        log.error("Unexpected invocation in commit handler");
 	}
 
 	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
-		if(conn instanceof MySQLConnection)
-		{
+		if(conn instanceof MySQLConnection) {
 			MySQLConnection mysqlCon = (MySQLConnection) conn;
-			switch (mysqlCon.getXaStatus())
-			{
+			switch (mysqlCon.getXaStatus()) {
 				case 1:
-					if (mysqlCon.batchCmdFinished())
-					{
+					if (mysqlCon.batchCmdFinished()) {
 						String xaTxId = session.getXaTXID();
 						mysqlCon.execCmd("XA COMMIT " + xaTxId);
 						mysqlCon.setXaStatus(2);
 					}
 					return;
-				case 2:
-				{
+				case 2: {
 					mysqlCon.setXaStatus(0);
 					break;
 				}
@@ -103,31 +95,23 @@ public class CommitNodeHandler implements ResponseHandler {
 		ErrorPacket errPkg = new ErrorPacket();
 		errPkg.read(err);
 		String errInfo = new String(errPkg.message);
-		session.getSource().setTxInterrupt(errInfo);
+		this.session.getSource().setTxInterrupt(errInfo);
 		errPkg.write(session.getSource());
-
 	}
 
 	@Override
 	public void rowEofResponse(byte[] eof, BackendConnection conn) {
-		LOGGER.error(new StringBuilder().append("unexpected packet for ")
-				.append(conn).append(" bound by ").append(session.getSource())
-				.append(": field's eof").toString());
+		log.error("Unexpected packet for backend {} bound by source {}", conn, this.session.getSource());
 	}
 
 	@Override
-	public void fieldEofResponse(byte[] header, List<byte[]> fields,
-			byte[] eof, BackendConnection conn) {
-		LOGGER.error(new StringBuilder().append("unexpected packet for ")
-				.append(conn).append(" bound by ").append(session.getSource())
-				.append(": field's eof").toString());
+	public void fieldEofResponse(byte[] header, List<byte[]> fields, byte[] eof, BackendConnection conn) {
+        log.error("Unexpected packet for backend {} bound by source {}", conn, this.session.getSource());
 	}
 
 	@Override
 	public void rowResponse(byte[] row, BackendConnection conn) {
-		LOGGER.warn(new StringBuilder().append("unexpected packet for ")
-				.append(conn).append(" bound by ").append(session.getSource())
-				.append(": row data packet").toString());
+        log.error("Unexpected packet for backend {} bound by source {}", conn, this.session.getSource());
 	}
 
 	@Override
@@ -137,13 +121,11 @@ public class CommitNodeHandler implements ResponseHandler {
 
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
-		
 
 	}
 
 	@Override
 	public void connectionClose(BackendConnection conn, String reason) {
-		
 
 	}
 
