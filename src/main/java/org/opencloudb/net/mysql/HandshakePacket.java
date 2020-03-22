@@ -105,7 +105,6 @@ public class HandshakePacket extends MySQLPacket {
         buffer.put(serverCharsetIndex);
         BufferUtil.writeUB2(buffer, serverStatus);
         buffer.put(FILLER_13);
-        //        buffer.position(buffer.position() + 13);
         BufferUtil.writeWithNull(buffer, restOfScrambleBuff);
         c.write(buffer);
     }

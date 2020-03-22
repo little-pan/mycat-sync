@@ -184,14 +184,16 @@ public final class ShowVariables
         variables.put("wait_timeout", "172800");
     }
     
-     public static void execute(ServerConnection sc, String orgin, BackendConnection jdbcConnection) {
+    public static void execute(ServerConnection sc, String orgin, BackendConnection jdbcConnection) {
         execute(sc, orgin);
         NonBlockingSession session = sc.getSession2();
-        session.releaseConnectionIfSafe(jdbcConnection, LOGGER.isDebugEnabled(), false);
+        session.releaseConnectionIfSafe(jdbcConnection, false);
     }
+
      public static void justReturnValue(ServerConnection sc, String orgin, BackendConnection jdbcConnection) {
     	 justReturnValue(sc, orgin);
          NonBlockingSession session = sc.getSession2();
-         session.releaseConnectionIfSafe(jdbcConnection, LOGGER.isDebugEnabled(), false);
+         session.releaseConnectionIfSafe(jdbcConnection,  false);
      }
+
 }

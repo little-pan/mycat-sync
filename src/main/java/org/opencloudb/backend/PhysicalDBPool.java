@@ -77,7 +77,6 @@ public class PhysicalDBPool {
 			PhysicalDatasource[] writeSources,
 			Map<Integer, PhysicalDatasource[]> readSources, int balance,
 			int writeType) {
-		
 		this.hostName = name;
 		this.dataHostConfig = conf;
 		this.writeSources = writeSources;
@@ -407,16 +406,14 @@ public class PhysicalDBPool {
 	 */
 	public void getRWBanlanceCon(String schema, boolean autocommit,
 			ResponseHandler handler, Object attachment, String database) throws Exception {
-		
 		PhysicalDatasource theNode = null;
 		ArrayList<PhysicalDatasource> okSources = null;
-		switch (banlance) {
+		switch (this.banlance) {
 		case BALANCE_ALL_BACK: {			
 			// all read nodes and the standard by masters
 			okSources = getAllActiveRWSources(true, false, checkSlaveSynStatus());
 			if (okSources.isEmpty()) {
 				theNode = this.getSource();
-				
 			} else {
 				theNode = randomSelect(okSources);
 			}
@@ -438,7 +435,7 @@ public class PhysicalDBPool {
 			theNode = this.getSource();
 		}
 
-        log.debug("select read source {} for dataHost: {}",  theNode.getName(), this.getHostName());
+        log.debug("select read node '{}' in dataHost '{}'",  theNode.getName(), this.getHostName());
 		theNode.getConnection(schema, autocommit, handler, attachment);
 	}
 

@@ -124,11 +124,6 @@ public abstract class FrontendConnection extends AbstractConnection {
 		this.isAccepted = isAccepted;
 	}
 
-	public void setProcessor(NIOProcessor processor) {
-		super.setProcessor(processor);
-		processor.addFrontend(this);
-	}
-
 	public LoadDataInfileHandler getLoadDataInfileHandler() {
 		return loadDataInfileHandler;
 	}
@@ -393,15 +388,11 @@ public abstract class FrontendConnection extends AbstractConnection {
 			hs.serverStatus = 2;
 			hs.restOfScrambleBuff = rand2;
 			hs.write(this);
-
-			// asynread response
-			this.asynRead();
 		}
 	}
 
 	@Override
 	public void handle(final byte[] data) {
-
 		if (isSupportCompress()) {			
 			List<byte[]> packs = CompressUtil.decompressMysqlPacket(data, decompressUnfinishedDataQueue);
 			for (byte[] pack : packs) {

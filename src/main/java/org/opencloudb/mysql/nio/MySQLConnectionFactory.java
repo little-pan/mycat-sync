@@ -32,7 +32,6 @@ import java.nio.channels.NetworkChannel;
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.model.DBHostConfig;
 import org.opencloudb.mysql.nio.handler.ResponseHandler;
-import org.opencloudb.net.NIOConnector;
 import org.opencloudb.net.factory.BackendConnectionFactory;
 
 /**
@@ -57,10 +56,9 @@ public class MySQLConnectionFactory extends BackendConnectionFactory {
 		if (channel instanceof AsynchronousSocketChannel) {
 			((AsynchronousSocketChannel) channel).connect(
 					new InetSocketAddress(dsc.getIp(), dsc.getPort()), c,
-					(CompletionHandler) MycatServer.getInstance()
-							.getConnector());
+					(CompletionHandler) MycatServer.getInstance().getConnector());
 		} else {
-			((NIOConnector) MycatServer.getInstance().getConnector()).postConnect(c);
+			throw new UnsupportedOperationException("Nio unsupported");
 		}
 		return c;
 	}

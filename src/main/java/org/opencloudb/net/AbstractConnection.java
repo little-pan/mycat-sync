@@ -25,7 +25,6 @@ package org.opencloudb.net;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.AsynchronousChannel;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SocketChannel;
 import java.util.List;
@@ -54,14 +53,12 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 	protected volatile int charsetIndex;
 
 	protected final NetworkChannel channel;
-	protected NIOProcessor processor;
 	protected NIOHandler handler;
 
 	protected int packetHeaderSize;
 	protected int maxPacketSize;
 	protected volatile ByteBuffer readBuffer;
 	protected volatile ByteBuffer writeBuffer;
-	// private volatile boolean writing = false;
 	protected final ConcurrentLinkedQueue<ByteBuffer> writeQueue = new ConcurrentLinkedQueue<ByteBuffer>();
 	protected volatile int readBufferOffset;
 	protected final AtomicBoolean isClosed;
@@ -73,22 +70,14 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 	protected long netOutBytes;
 	protected int writeAttempts;
 	protected volatile boolean isSupportCompress=false;
-    protected final ConcurrentLinkedQueue<byte[]> decompressUnfinishedDataQueue = new ConcurrentLinkedQueue<byte[]>();
-    protected final ConcurrentLinkedQueue<byte[]> compressUnfinishedDataQueue = new ConcurrentLinkedQueue<byte[]>();
+    protected final ConcurrentLinkedQueue<byte[]> decompressUnfinishedDataQueue = new ConcurrentLinkedQueue<>();
+    protected final ConcurrentLinkedQueue<byte[]> compressUnfinishedDataQueue = new ConcurrentLinkedQueue<>();
 
 	private long idleTimeout;
-
-	private final SocketWR socketWR;
 	protected ConnectionManager manager;
 
 	public AbstractConnection(NetworkChannel channel) {
 		this.channel = channel;
-		boolean isAIO = (channel instanceof AsynchronousChannel);
-		if (isAIO) {
-			socketWR = new AIOSocketWR(this);
-		} else {
-			socketWR = new NIOSocketWR(this);
-		}
 		this.isClosed = new AtomicBoolean(false);
 		this.startupTime = TimeUtil.currentTimeMillis();
 		this.lastReadTime = startupTime;
@@ -101,8 +90,7 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 	}
 
 	public boolean setCharset(String charset) {
-		
-		//修复PHP字符集设置错误, 如： set names 'utf8'
+		// 修复PHP字符集设置错误, 如： set names 'utf8'
 		if ( charset != null ) {			
 			charset = charset.replace("'", "");
 		}
@@ -132,10 +120,6 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 
 	public long getIdleTimeout() {
 		return idleTimeout;
-	}
-
-	public SocketWR getSocketWR() {
-		return socketWR;
 	}
 
 	public void setIdleTimeout(long idleTimeout) {
@@ -175,9 +159,7 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 	}
 
 	public boolean isIdleTimeout() {
-		return TimeUtil.currentTimeMillis() > Math.max(lastWriteTime,
-				lastReadTime) + idleTimeout;
-
+		return TimeUtil.currentTimeMillis() > Math.max(lastWriteTime, lastReadTime) + idleTimeout;
 	}
 
 	public NetworkChannel getChannel() {
@@ -208,11 +190,6 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 		return lastReadTime;
 	}
 
-	public void setProcessor(NIOProcessor processor) {
-		this.processor = processor;
-		this.readBuffer = processor.getBufferPool().allocate();
-	}
-
 	public long getLastWriteTime() {
 		return lastWriteTime;
 	}
@@ -227,10 +204,6 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 
 	public int getWriteAttempts() {
 		return writeAttempts;
-	}
-
-	public NIOProcessor getProcessor() {
-		return processor;
 	}
 
 	public ByteBuffer getReadBuffer() {
@@ -252,54 +225,39 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 
 	@Override
 	public void handle(byte[] data) {
-        if(isSupportCompress())
-        {
+        if(isSupportCompress()) {
             List<byte[]> packs= CompressUtil.decompressMysqlPacket(data,decompressUnfinishedDataQueue);
-
-            for (byte[] pack : packs)
-            {
-				if(pack.length != 0)
-                handler.handle(pack);
+            for (byte[] pack : packs) {
+				if(pack.length != 0) {
+                    this.handler.handle(pack);
+                }
             }
-        }   else
-        {
-            handler.handle(data);
+        } else {
+            this.handler.handle(data);
         }
 	}
 
-	@Override
-	public void register() throws IOException {
-
-	}
-
-	public void asynRead() throws IOException {
-		this.socketWR.asynRead();
-	}
-
-	public void doNextWriteCheck() throws IOException {
-		this.socketWR.doNextWriteCheck();
-	}
-
 	public void onReadData(int got) throws IOException {
-		if (this.isClosed.get()) {
+		if (isClosed()) {
 			return;
 		}
+
 		ByteBuffer buffer = this.readBuffer;
         this.lastReadTime = TimeUtil.currentTimeMillis();
 		if (got < 0) {
-			this.close("stream closed");
+			close("stream closed");
             return;
 		} else if (got == 0) {
 			if (!this.channel.isOpen()) {
-				this.close("socket closed");
+				close("socket closed");
 				return;
 			}
 		}
         this.netInBytes += got;
 		this.manager.addNetInBytes(got);
 
-		// 循环处理字节信息
-		int offset = this.readBufferOffset, length = 0, position = buffer.position();
+		// Handle MySQL protocol packet
+		int offset = this.readBufferOffset, length, position = buffer.position();
 		for (;;) {
 			length = getPacketLength(buffer, offset);
 			if (length == -1) {
@@ -338,12 +296,11 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 	private ByteBuffer checkReadBuffer(ByteBuffer buffer, int offset, int position) {
 		if (offset == 0) {
 			if (buffer.capacity() >= maxPacketSize) {
-				throw new IllegalArgumentException(
-						"Packet size over the limit.");
+				throw new IllegalArgumentException("Packet size over the limit.");
 			}
 			int size = buffer.capacity() << 1;
 			size = (size > maxPacketSize) ? maxPacketSize : size;
-			ByteBuffer newBuffer = processor.getBufferPool().allocate(size);
+			ByteBuffer newBuffer = this.manager.getBufferPool().allocate(size);
 			buffer.position(offset);
 			newBuffer.put(buffer);
 			readBuffer = newBuffer;
@@ -367,7 +324,7 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 	private final void writeNotSend(ByteBuffer buffer) {
         if(isSupportCompress())
         {
-            ByteBuffer     newBuffer= CompressUtil.compressMysqlPacket(buffer,this,compressUnfinishedDataQueue);
+            ByteBuffer newBuffer = CompressUtil.compressMysqlPacket(buffer,this,compressUnfinishedDataQueue);
             writeQueue.offer(newBuffer);
         }   else
         {
@@ -436,11 +393,10 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 		if (capacity > buffer.remaining()) {
 			if (writeSocketIfFull) {
 				writeNotSend(buffer);
-				return processor.getBufferPool().allocate(capacity);
-			} else {// Relocate a larger buffer
+				return this.manager.getBufferPool().allocate(capacity);
+			} else { // Relocate a larger buffer
 				buffer.flip();
-				ByteBuffer newBuf = processor.getBufferPool().allocate(
-						capacity + buffer.limit() + 1);
+				ByteBuffer newBuf = this.manager.getBufferPool().allocate(capacity + buffer.limit() + 1);
 				newBuf.put(buffer);
 				this.recycle(buffer);
 				return newBuf;
@@ -468,6 +424,7 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 				continue;
 			}
 		}
+
 		return buffer;
 	}
 
@@ -476,8 +433,8 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 		if (!isClosed.get()) {
 			closeSocket();
 			isClosed.set(true);
-			if (processor != null) {
-				processor.removeConnection(this);
+			if (this.manager != null) {
+                this.manager.removeConnection(this);
 			}
 			this.cleanup();
 			isSupportCompress=false;
@@ -561,6 +518,7 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 
     public void setManager(ConnectionManager manager) {
 	    this.manager = manager;
+		this.readBuffer = manager.getBufferPool().allocate();
     }
 
 }

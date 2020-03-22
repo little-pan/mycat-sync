@@ -127,8 +127,7 @@ public class ShowBackend {
 	private static RowDataPacket getRow(BackendConnection c, String charset) {
 		RowDataPacket row = new RowDataPacket(FIELD_COUNT);
 		if (c instanceof BackendAIOConnection) {
-			row.add(((BackendAIOConnection) c).getProcessor().getName()
-					.getBytes());
+			row.add(((BackendAIOConnection) c).getManager().getName().getBytes());
 		} else if(c instanceof JDBCConnection){
 		    row.add(((JDBCConnection)c).getManager().getName().getBytes());
 		}else{
@@ -148,8 +147,6 @@ public class ShowBackend {
 		row.add(LongUtil.toBytes((TimeUtil.currentTimeMillis() - c
 				.getStartupTime()) / 1000L));
 		row.add(c.isClosed() ? "true".getBytes() : "false".getBytes());
-		// boolean isRunning = c.isRunning();
-		// row.add(isRunning ? "true".getBytes() : "false".getBytes());
 		boolean isBorrowed = c.isBorrowed();
 		row.add(isBorrowed ? "true".getBytes() : "false".getBytes());
 		int writeQueueSize = 0;
@@ -173,4 +170,5 @@ public class ShowBackend {
 		row.add(txAutommit.getBytes());
 		return row;
 	}
+
 }

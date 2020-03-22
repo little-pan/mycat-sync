@@ -76,7 +76,7 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 
 	@Override
 	public void handle(byte[] data) {
-		offerData(data, source.getProcessor().getExecutor());
+		offerData(data, source.getManager().getExecutor());
 	}
 
 	@Override

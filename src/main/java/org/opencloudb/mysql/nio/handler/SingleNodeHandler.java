@@ -78,29 +78,26 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 	public SingleNodeHandler(RouteResultset rrs, NonBlockingSession session) {
 		this.rrs = rrs;
 		this.node = rrs.getNodes()[0];
-		if (node == null) {
-			throw new IllegalArgumentException("routeNode is null!");
+		if (this.node == null) {
+			throw new IllegalArgumentException("routeNode is null");
 		}
 		if (session == null) {
-			throw new IllegalArgumentException("session is null!");
+			throw new IllegalArgumentException("session is null");
 		}
 		this.session = session;
         ServerConnection source = session.getSource();
         String schema=source.getSchema();
-        if(schema!=null&&ServerParse.SHOW==rrs.getSqlType())
-        {
+        if(schema != null && ServerParse.SHOW == rrs.getSqlType()) {
             SchemaConfig schemaConfig= MycatServer.getInstance().getConfig().getSchemas().get(schema);
-           int type= ServerParseShow.tableCheck(rrs.getStatement(),0) ;
-            isDefaultNodeShowTable=(ServerParseShow.TABLES==type &&!Strings.isNullOrEmpty(schemaConfig.getDataNode()));
-            isDefaultNodeShowFullTable=(ServerParseShow.FULLTABLES==type &&!Strings.isNullOrEmpty(schemaConfig.getDataNode()));
-
-            if(isDefaultNodeShowTable)
-            {
-                shardingTablesSet = ShowTables.getTableSet(source, rrs.getStatement());
+            int type= ServerParseShow.tableCheck(rrs.getStatement(),0) ;
+            boolean noDefaultNode = Strings.isNullOrEmpty(schemaConfig.getDataNode());
+            this.isDefaultNodeShowTable = (ServerParseShow.TABLES == type && !noDefaultNode);
+            this.isDefaultNodeShowFullTable = (ServerParseShow.FULLTABLES == type && !noDefaultNode);
+            if(this.isDefaultNodeShowTable) {
+                this.shardingTablesSet = ShowTables.getTableSet(source, rrs.getStatement());
             } else
-            if(isDefaultNodeShowFullTable)
-            {
-                shardingTablesSet = ShowFullTables.getTableSet(source, rrs.getStatement());
+            if(this.isDefaultNodeShowFullTable) {
+                this.shardingTablesSet = ShowFullTables.getTableSet(source, rrs.getStatement());
             }
         }
 	}
@@ -134,54 +131,50 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 	}
 
 	private void recycleResources() {
-
 		ByteBuffer buf = buffer;
 		if (buf != null) {
 			buffer = null;
 			session.getSource().recycle(buffer);
-
 		}
 	}
 
 	public void execute() throws Exception {
-		startTime=System.currentTimeMillis();
-		ServerConnection sc = session.getSource();
+	    log.debug("execute SQL in node {}", this.node);
+		this.startTime = System.currentTimeMillis();
+		ServerConnection sc = this.session.getSource();
 		this.isRunning = true;
 		this.packetId = 0;
-		final BackendConnection conn = session.getTarget(node);
-		if (session.tryExistsCon(conn, node)) {
+		final BackendConnection conn = this.session.getTarget(this.node);
+		if (this.session.tryExistsCon(conn, this.node)) {
 			_execute(conn);
 		} else {
 			// create new connection
-
 			MycatConfig conf = MycatServer.getInstance().getConfig();
-			PhysicalDBNode dn = conf.getDataNodes().get(node.getName());
-			dn.getConnection(dn.getDatabase(), sc.isAutocommit(), node, this,
-                    node);
+			PhysicalDBNode dn = conf.getDataNodes().get(this.node.getName());
+			dn.getConnection(dn.getDatabase(), sc.isAutocommit(), this.node, this, this.node);
 		}
-
 	}
 
 	@Override
 	public void connectionAcquired(final BackendConnection conn) {
-		session.bindConnection(node, conn);
+	    log.debug("acquire a backend {} in node {}", conn, this.node);
+		this.session.bindConnection(this.node, conn);
 		_execute(conn);
-
 	}
 
 	private void _execute(BackendConnection conn) {
-		if (session.closed()) {
+		if (this.session.closed()) {
 			endRunning();
-			session.clearResources(true);
+            this.session.clearResources(true);
 			return;
 		}
+
 		conn.setResponseHandler(this);
 		try {
-			conn.execute(node, session.getSource(), session.getSource()
-					.isAutocommit());
-		} catch (Exception e1) {
-			executeException(conn, e1);
-			return;
+		    ServerConnection sc = this.session.getSource();
+			conn.execute(this.node, sc, sc.isAutocommit());
+		} catch (Exception e) {
+			executeException(conn, e);
 		}
 	}
 
@@ -189,15 +182,13 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 		ErrorPacket err = new ErrorPacket();
 		err.packetId = ++packetId;
 		err.errno = ErrorCode.ERR_FOUND_EXCEPION;
-		err.message = StringUtil.encode(e.toString(), session.getSource()
-				.getCharset());
+		err.message = StringUtil.encode(e.toString(), session.getSource().getCharset());
 
 		this.backConnectionErr(err, c);
 	}
 
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
-
 		endRunning();
 		ErrorPacket err = new ErrorPacket();
 		err.packetId = ++packetId;
@@ -214,7 +205,6 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 		err.read(data);
 		err.packetId = ++packetId;
 		backConnectionErr(err, conn);
-
 	}
 
 	private void backConnectionErr(ErrorPacket errPkg, BackendConnection conn) {
@@ -227,19 +217,18 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 		
 		String errmgs = " errno:" + errPkg.errno + " " + new String(errPkg.message);
 		log.warn("Execute sql error: '{}', frontend host: '{}:{}/{}', con: {}", errmgs, errHost, errPort, errUser, conn);
-		session.releaseConnectionIfSafe(conn, log.isDebugEnabled(), false);
+		session.releaseConnectionIfSafe(conn, false);
 		
 		source.setTxInterrupt(errmgs);
 		errPkg.write(source);
 		recycleResources();
 	}
 
-
 	@Override
 	public void okResponse(byte[] data, BackendConnection conn) {        
 		boolean executeResponse = conn.syncAndExcute();		
 		if (executeResponse) {			
-			session.releaseConnectionIfSafe(conn, log.isDebugEnabled(),false);
+			session.releaseConnectionIfSafe(conn, false);
 			endRunning();
 			ServerConnection source = session.getSource();
 			OkPacket ok = new OkPacket();
@@ -258,7 +247,7 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 			source.setLastInsertId(ok.insertId);
 			ok.write(source);
 			
-			//TODO: add by zhuam
+			// TODO: add by zhuam
 			//查询结果派发
 			QueryResult queryResult = new QueryResult(session.getSource().getUser(), 
 					rrs.getSqlType(), rrs.getStatement(), startTime, System.currentTimeMillis());
@@ -269,19 +258,19 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 	@Override
 	public void rowEofResponse(byte[] eof, BackendConnection conn) {
-		ServerConnection source = session.getSource();
-		conn.recordSql(source.getHost(), source.getSchema(), node.getStatement());
+	    log.debug("query eof in backend {}", conn);
+		ServerConnection source = this.session.getSource();
+		conn.recordSql(source.getHost(), source.getSchema(), this.node.getStatement());
 
-		// 判断是调用存储过程的话不能在这里释放链接
-		if (!rrs.isCallStatement()) {
-			session.releaseConnectionIfSafe(conn, log.isDebugEnabled(),
-					false);
+		// 判断是调用存储过程的话不能在这里释放连接
+		if (!this.rrs.isCallStatement()) {
+            this.session.releaseConnectionIfSafe(conn, false);
 			endRunning();
 		}
 
-		eof[3] = ++packetId;
-		buffer = source.writeToBuffer(eof, allocBuffer());
-		source.write(buffer);
+		eof[3] = ++this.packetId;
+		this.buffer = source.writeToBuffer(eof, allocBuffer());
+		source.write(this.buffer);
 	}
 
 	/**
@@ -339,17 +328,15 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 	@Override
 	public void rowResponse(byte[] row, BackendConnection conn) {
-        if(isDefaultNodeShowTable||isDefaultNodeShowFullTable)
-        {
+        if(isDefaultNodeShowTable||isDefaultNodeShowFullTable) {
             RowDataPacket rowDataPacket =new RowDataPacket(1);
             rowDataPacket.read(row);
             String table=  StringUtil.decode(rowDataPacket.fieldValues.get(0),conn.getCharset());
             if(shardingTablesSet.contains(table.toUpperCase())) return;
         }
 
-            row[3] = ++packetId;
-            buffer = session.getSource().writeToBuffer(row, allocBuffer());
-
+        row[3] = ++packetId;
+        buffer = session.getSource().writeToBuffer(row, allocBuffer());
 	}
 
 	@Override
@@ -362,10 +349,8 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 		ErrorPacket err = new ErrorPacket();
 		err.packetId = ++packetId;
 		err.errno = ErrorCode.ER_ERROR_ON_CLOSE;
-		err.message = StringUtil.encode(reason, session.getSource()
-				.getCharset());
+		err.message = StringUtil.encode(reason, session.getSource().getCharset());
 		this.backConnectionErr(err, conn);
-
 	}
 
 	public void clearResources() {

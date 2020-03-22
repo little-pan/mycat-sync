@@ -25,9 +25,7 @@ package org.opencloudb.server;
 
 import java.io.IOException;
 import java.nio.channels.NetworkChannel;
-import java.util.Map;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.model.SchemaConfig;
@@ -39,13 +37,15 @@ import org.opencloudb.server.response.Heartbeat;
 import org.opencloudb.server.response.Ping;
 import org.opencloudb.server.util.SchemaUtil;
 import org.opencloudb.util.TimeUtil;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public class ServerConnection extends FrontendConnection {
-	private static final Logger LOGGER = Logger
-			.getLogger(ServerConnection.class);
+
+	private static final Logger log = LoggerFactory.getLogger(ServerConnection.class);
+
 	private static final long AUTH_TIMEOUT = 15 * 1000L;
 
 	private volatile int txIsolation;
@@ -129,33 +129,27 @@ public class ServerConnection extends FrontendConnection {
 	}
 
 	public void execute(String sql, int type) {
-		if (this.isClosed()) {
-			LOGGER.warn("ignore execute ,server connection is closed " + this);
+		if (isClosed()) {
+			log.warn("Ignore execute, server connection is closed: conn {}", this);
 			return;
 		}
-		// 状态检查
-		if (txInterrupted) {
+
+		if (this.txInterrupted) {
 			writeErrMessage(ErrorCode.ER_YES,
 					"Transaction error, need to rollback." + txInterrputMsg);
 			return;
 		}
 
-		// 检查当前使用的DB
 		String db = this.schema;
 		if (db == null) {
-
             db = SchemaUtil.detectDefaultDb(sql, type);
-
-            if(db==null)
-            {
-                writeErrMessage(ErrorCode.ERR_BAD_LOGICDB,
-                        "No MyCAT Database selected");
+            if(db == null) {
+                writeErrMessage(ErrorCode.ERR_BAD_LOGICDB,"No MyCAT Database selected");
                 return;
             }
 		}
 
-        if(ServerParse.SELECT==type&&sql.contains("mysql")&&sql.contains("proc"))
-        {
+        if(ServerParse.SELECT == type && sql.contains("mysql") && sql.contains("proc")) {
             SchemaUtil.SchemaInfo schemaInfo = SchemaUtil.parseSchema(sql);
             if(schemaInfo!=null&&"mysql".equalsIgnoreCase(schemaInfo.schema)&&"proc".equalsIgnoreCase(schemaInfo.table))
             {
@@ -164,8 +158,7 @@ public class ServerConnection extends FrontendConnection {
                 return;
             }
         }
-		SchemaConfig schema = MycatServer.getInstance().getConfig()
-				.getSchemas().get(db);
+		SchemaConfig schema = MycatServer.getInstance().getConfig().getSchemas().get(db);
 		if (schema == null) {
 			writeErrMessage(ErrorCode.ERR_BAD_LOGICDB,
 					"Unknown MyCAT Database '" + db + "'");
@@ -173,13 +166,9 @@ public class ServerConnection extends FrontendConnection {
 		}
 
 		routeEndExecuteSQL(sql, type, schema);
-
 	}
 
-
-
     public RouteResultset routeSQL(String sql, int type) {
-
 		// 检查当前使用的DB
 		String db = this.schema;
 		if (db == null) {
@@ -206,7 +195,7 @@ public class ServerConnection extends FrontendConnection {
 
 		} catch (Exception e) {
 			StringBuilder s = new StringBuilder();
-			LOGGER.warn(s.append(this).append(sql).toString() + " err:" + e.toString(),e);
+			log.warn(s.append(this).append(sql).toString() + " error:" + e.toString(), e);
 			String msg = e.getMessage();
 			writeErrMessage(ErrorCode.ER_PARSE_ERROR, msg == null ? e.getClass().getSimpleName() : msg);
 			return null;
@@ -214,22 +203,18 @@ public class ServerConnection extends FrontendConnection {
 		return rrs;
 	}
 
-
-
-
 	public void routeEndExecuteSQL(String sql, int type, SchemaConfig schema) {
 		// 路由计算
-		RouteResultset rrs = null;
+		RouteResultset rrs;
 		try {
 			rrs = MycatServer
 					.getInstance()
 					.getRouterservice()
 					.route(MycatServer.getInstance().getConfig().getSystem(),
 							schema, type, sql, this.charset, this);
-
 		} catch (Exception e) {
 			StringBuilder s = new StringBuilder();
-			LOGGER.warn(s.append(this).append(sql).toString() + " err:" + e.toString(),e);
+			log.warn(s.append(this).append(sql).toString() + " error:" + e.toString(), e);
 			String msg = e.getMessage();
 			writeErrMessage(ErrorCode.ER_PARSE_ERROR, msg == null ? e.getClass().getSimpleName() : msg);
 			return;
@@ -272,7 +257,7 @@ public class ServerConnection extends FrontendConnection {
 	 *            发起者为null表示是自己
 	 */
 	public void cancel(final FrontendConnection sponsor) {
-		processor.getExecutor().execute(new Runnable() {
+		super.manager.getExecutor().execute(new Runnable() {
 			@Override
 			public void run() {
 				session.cancel(sponsor);

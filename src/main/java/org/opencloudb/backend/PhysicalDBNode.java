@@ -92,15 +92,13 @@ public class PhysicalDBNode {
 		checkRequest(schema);
 		if (dbPool.isInitSuccess()) {
 			if (rrs.canRunnINReadDB(autoCommit)) {
-				dbPool.getRWBanlanceCon(schema,autoCommit, handler, attachment,
-						this.database);
+				dbPool.getRWBanlanceCon(schema,autoCommit, handler, attachment, this.database);
 			} else {
 				dbPool.getSource().getConnection(schema,autoCommit, handler, attachment);
 			}
-
 		} else {
-			throw new IllegalArgumentException("Invalid DataSource:"
-					+ dbPool.getActivedIndex());
+			throw new IllegalArgumentException("Invalid DataSource:" + dbPool.getActivedIndex());
 		}
 	}
+
 }

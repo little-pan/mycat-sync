@@ -86,9 +86,8 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 	}
 
 	protected boolean canClose(BackendConnection conn, boolean tryErrorFinish) {
-
 		// realse this connection if safe
-		session.releaseConnectionIfSafe(conn, LOGGER.isDebugEnabled(), false);
+		session.releaseConnectionIfSafe(conn, false);
 		boolean allFinished = false;
 		if (tryErrorFinish) {
 			allFinished = this.decrementCountBy(1);
@@ -119,13 +118,12 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 	}
 
 	public void errorResponse(byte[] data, BackendConnection conn) {
-		session.releaseConnectionIfSafe(conn, LOGGER.isDebugEnabled(), false);
+		session.releaseConnectionIfSafe(conn, false);
 		ErrorPacket err = new ErrorPacket();
 		err.read(data);
 		String errmsg = new String(err.message);
 		this.setFail(errmsg);
-		LOGGER.warn("error response from " + conn + " err " + errmsg + " code:"
-				+ err.errno);
+		LOGGER.warn("error response from " + conn + " err " + errmsg + " code:" + err.errno);
 
 		this.tryErrorFinished(this.decrementCountBy(1));
 	}

@@ -29,7 +29,7 @@ import java.nio.ByteBuffer;
 /**
  * @author mycat
  */
-public interface NIOConnection extends ClosableConnection{
+public interface NIOConnection extends ClosableConnection {
 
     /**
      * connected 
@@ -45,7 +45,5 @@ public interface NIOConnection extends ClosableConnection{
      * 写出一块缓存数据
      */
     void write(ByteBuffer buffer);
-    
-     
-     
+
 }

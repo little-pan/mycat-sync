@@ -9,57 +9,52 @@ import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.ServerConnection;
 
 public interface BackendConnection extends ClosableConnection {
-	public boolean isModifiedSQLExecuted();
+	boolean isModifiedSQLExecuted();
 
-	public boolean isFromSlaveDB();
+	boolean isFromSlaveDB();
 
-	public String getSchema();
+	String getSchema();
 
-	public void setSchema(String newSchema);
+	void setSchema(String newSchema);
 
-	public long getLastTime();
+	long getLastTime();
 
-	public boolean isClosedOrQuit();
+	boolean isClosedOrQuit();
 
-	public void setAttachment(Object attachment);
+	void setAttachment(Object attachment);
 
-	public void quit();
+	void quit();
 
-	public void setLastTime(long currentTimeMillis);
+	void setLastTime(long currentTimeMillis);
 
-	public void release();
+	void release();
 
-	public boolean setResponseHandler(ResponseHandler commandHandler);
+	boolean setResponseHandler(ResponseHandler commandHandler);
 
-	public void commit();
+	void commit();
 
-	public void query(String sql) throws UnsupportedEncodingException;
+ 	void query(String sql) throws UnsupportedEncodingException;
 
-	public Object getAttachment();
+	Object getAttachment();
 
-	// public long getThreadId();
+	void execute(RouteResultsetNode node, ServerConnection source, boolean autocommit) throws IOException;
 
+	void recordSql(String host, String schema, String statement);
 
+    boolean syncAndExcute();
 
-	public void execute(RouteResultsetNode node, ServerConnection source,
-			boolean autocommit) throws IOException;
+    void rollback();
 
-	public void recordSql(String host, String schema, String statement);
+    boolean isBorrowed();
 
-	public boolean syncAndExcute();
+    void setBorrowed(boolean borrowed);
 
-	public void rollback();
+    int getTxIsolation();
 
-	public boolean isBorrowed();
+    boolean isAutocommit();
 
-	public void setBorrowed(boolean borrowed);
+    long getId();
 
-	public int getTxIsolation();
-
-	public boolean isAutocommit();
-
-	public long getId();
-
-	public void discardClose(String reason);
+     void discardClose(String reason);
 
 }

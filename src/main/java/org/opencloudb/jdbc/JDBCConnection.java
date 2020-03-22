@@ -9,8 +9,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.*;
 
-import org.apache.log4j.Logger;
-import org.opencloudb.MycatServer;
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.Isolations;
@@ -26,13 +24,12 @@ import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.parser.ServerParse;
-import org.opencloudb.util.MysqlDefs;
-import org.opencloudb.util.ResultSetUtil;
-import org.opencloudb.util.StringUtil;
-import org.opencloudb.util.TimeUtil;
+import org.opencloudb.util.*;
+import org.slf4j.*;
 
 public class JDBCConnection implements BackendConnection {
-	protected static final Logger LOGGER = Logger.getLogger(JDBCConnection.class);
+
+	protected static final Logger log = LoggerFactory.getLogger(JDBCConnection.class);
 
 	private JDBCDatasource pool;
 	private volatile String schema;
@@ -138,7 +135,6 @@ public class JDBCConnection implements BackendConnection {
 
 	@Override
 	public long getNetInBytes() {
-
 		return 0;
 	}
 
@@ -181,7 +177,6 @@ public class JDBCConnection implements BackendConnection {
 
 	@Override
 	public long getLastTime() {
-
 		return lastTime;
 	}
 
@@ -199,7 +194,6 @@ public class JDBCConnection implements BackendConnection {
 	@Override
 	public void quit() {
 		this.close("client quit");
-
 	}
 
 	@Override
@@ -230,111 +224,37 @@ public class JDBCConnection implements BackendConnection {
 	public void commit() {
 		try {
 			con.commit();
-
 			this.respHandler.okResponse(OkPacket.OK, this);
 		} catch (SQLException e) {
 			throw new RuntimeException(e);
 		}
 	}
-    private  int convertNativeIsolationToJDBC(int nativeIsolation)
-    {
-        if(nativeIsolation== Isolations.REPEATED_READ)
-        {
+    private  int convertNativeIsolationToJDBC(int nativeIsolation) {
+        if (nativeIsolation == Isolations.REPEATED_READ) {
             return Connection.TRANSACTION_REPEATABLE_READ;
-        }else
-        if(nativeIsolation== Isolations.SERIALIZABLE)
-        {
+        } else if (nativeIsolation == Isolations.SERIALIZABLE) {
             return Connection.TRANSACTION_SERIALIZABLE;
-        } else
-        {
+        } else {
             return nativeIsolation;
         }
     }
 
-
-
-    private void syncIsolation(int nativeIsolation)
-    {
+    private void syncIsolation(int nativeIsolation) {
         int jdbcIsolation=convertNativeIsolationToJDBC(nativeIsolation);
         int srcJdbcIsolation=   getTxIsolation();
         if(jdbcIsolation==srcJdbcIsolation)return;
         if("oracle".equalsIgnoreCase(getDbType())
                 &&jdbcIsolation!=Connection.TRANSACTION_READ_COMMITTED
-                &&jdbcIsolation!=Connection.TRANSACTION_SERIALIZABLE)
-        {
-            //oracle 只支持2个级别        ,且只能更改一次隔离级别，否则会报 ORA-01453
+                &&jdbcIsolation!=Connection.TRANSACTION_SERIALIZABLE) {
+            //oracle 只支持2个级别, 且只能更改一次隔离级别，否则会报 ORA-01453
             return;
         }
-        try
-        {
+        try {
             con.setTransactionIsolation(jdbcIsolation);
-        } catch (SQLException e)
-        {
-            LOGGER.warn("set txisolation error:",e);
+        } catch (SQLException e) {
+            log.warn("set txIsolation error", e);
         }
     }
-	private void executeSQL(RouteResultsetNode rrn, ServerConnection sc,
-							boolean autocommit) throws IOException {
-		String orgin = rrn.getStatement();
-		// String sql = rrn.getStatement().toLowerCase();
-		// LOGGER.info("JDBC SQL:"+orgin+"|"+sc.toString());
-		if (!modifiedSQLExecuted && rrn.isModifySQL()) {
-			modifiedSQLExecuted = true;
-		}
-
-		try {
-            syncIsolation(sc.getTxIsolation()) ;
-			if (!this.schema.equals(this.oldSchema)) {
-				con.setCatalog(schema);
-				this.oldSchema = schema;
-			}
-			if (!this.isSpark) {
-				con.setAutoCommit(autocommit);
-			}
-			int sqlType = rrn.getSqlType();
-
-			if (sqlType == ServerParse.SELECT || sqlType == ServerParse.SHOW) {
-				if ((sqlType == ServerParse.SHOW) && (!dbType.equals("MYSQL"))) {
-					// showCMD(sc, orgin);
-					//ShowVariables.execute(sc, orgin);
-					ShowVariables.execute(sc, orgin,this);
-				} else if ("SELECT CONNECTION_ID()".equalsIgnoreCase(orgin)) {
-					//ShowVariables.justReturnValue(sc,String.valueOf(sc.getId()));
-					ShowVariables.justReturnValue(sc,String.valueOf(sc.getId()),this);
-				} else {
-					ouputResultSet(sc, orgin);
-				}
-			} else {
-				executeddl(sc, orgin);
-			}
-
-		} catch (SQLException e) {
-
-			String msg = e.getMessage();
-			ErrorPacket error = new ErrorPacket();
-			error.packetId = ++packetId;
-			error.errno = e.getErrorCode();
-			error.message = msg.getBytes();
-			this.respHandler.errorResponse(error.writeToBytes(sc), this);
-		}
-		catch (Exception e) {
-			String msg = e.getMessage();
-			ErrorPacket error = new ErrorPacket();
-			error.packetId = ++packetId;
-			error.errno = ErrorCode.ER_UNKNOWN_ERROR;
-			error.message = msg.getBytes();
-			String err = null;
-			if(error.message!=null){
-			    err = new String(error.message);
-			}
-			LOGGER.error("sql execute error, "+ err +", "+ e);
-			this.respHandler.errorResponse(error.writeToBytes(sc), this);
-		}
-		finally {
-			this.running = false;
-		}
-
-	}
 
 	private FieldPacket getNewFieldPacket(String charset, String fieldName) {
 		FieldPacket fieldPacket = new FieldPacket();
@@ -348,7 +268,7 @@ public class JDBCConnection implements BackendConnection {
 		return fieldPacket;
 	}
 
-	private void executeddl(ServerConnection sc, String sql)
+	private void executeDDL(ServerConnection sc, String sql)
 			throws SQLException {
 		Statement stmt = null;
 		try {
@@ -371,18 +291,16 @@ public class JDBCConnection implements BackendConnection {
 		}
 	}
 
-	private void ouputResultSet(ServerConnection sc, String sql)
-			throws SQLException {
+	private void executeSelect(ServerConnection sc, String sql) throws SQLException {
 		ResultSet rs = null;
 		Statement stmt = null;
 
 		try {
-			stmt = con.createStatement();
+			stmt = this.con.createStatement();
 			rs = stmt.executeQuery(sql);
 
-			List<FieldPacket> fieldPks = new LinkedList<FieldPacket>();
-			ResultSetUtil.resultSetToFieldPacket(sc.getCharset(), fieldPks, rs,
-					this.isSpark);
+			List<FieldPacket> fieldPks = new LinkedList<>();
+			ResultSetUtil.resultSetToFieldPacket(sc.getCharset(), fieldPks, rs, this.isSpark);
 			int colunmCount = fieldPks.size();
 			ByteBuffer byteBuf = sc.allocate();
 			ResultSetHeaderPacket headerPkg = new ResultSetHeaderPacket();
@@ -394,10 +312,10 @@ public class JDBCConnection implements BackendConnection {
 			byte[] header = new byte[byteBuf.limit()];
 			byteBuf.get(header);
 			byteBuf.clear();
-			List<byte[]> fields = new ArrayList<byte[]>(fieldPks.size());
-			Iterator<FieldPacket> itor = fieldPks.iterator();
-			while (itor.hasNext()) {
-				FieldPacket curField = itor.next();
+			List<byte[]> fields = new ArrayList<>(fieldPks.size());
+			Iterator<FieldPacket> it = fieldPks.iterator();
+			while (it.hasNext()) {
+				FieldPacket curField = it.next();
 				curField.packetId = ++packetId;
 				byteBuf = curField.write(byteBuf, sc, false);
 				byteBuf.flip();
@@ -405,7 +323,7 @@ public class JDBCConnection implements BackendConnection {
 				byteBuf.get(field);
 				byteBuf.clear();
 				fields.add(field);
-				itor.remove();
+                it.remove();
 			}
 			EOFPacket eofPckg = new EOFPacket();
 			eofPckg.packetId = ++packetId;
@@ -421,8 +339,7 @@ public class JDBCConnection implements BackendConnection {
 				RowDataPacket curRow = new RowDataPacket(colunmCount);
 				for (int i = 0; i < colunmCount; i++) {
 					int j = i + 1;
-					curRow.add(StringUtil.encode(rs.getString(j),
-							sc.getCharset()));
+					curRow.add(StringUtil.encode(rs.getString(j), sc.getCharset()));
 				}
 				curRow.packetId = ++packetId;
 				byteBuf = curRow.write(byteBuf, sc, false);
@@ -443,36 +360,20 @@ public class JDBCConnection implements BackendConnection {
 			sc.recycle(byteBuf);
 			this.respHandler.rowEofResponse(eof, this);
 		} finally {
-			if (rs != null) {
-				try {
-					rs.close();
-				} catch (SQLException e) {
-
-				}
-			}
-			if (stmt != null) {
-				try {
-					stmt.close();
-				} catch (SQLException e) {
-
-				}
-			}
+            IoUtil.close(rs);
+            IoUtil.close(stmt);
 		}
 	}
 
 	@Override
 	public void query(final String sql) throws UnsupportedEncodingException {
-		if(respHandler instanceof ConnectionHeartBeatHandler)
-		{
+		if(respHandler instanceof ConnectionHeartBeatHandler) {
 			justForHeartbeat(sql);
-		}    else
-		{
+		} else {
 			throw new UnsupportedEncodingException("unsupported yet ");
 		}
 	}
-	private void justForHeartbeat(String sql)
-			  {
-
+	private void justForHeartbeat(String sql) {
 		Statement stmt = null;
 
 		try {
@@ -482,10 +383,7 @@ public class JDBCConnection implements BackendConnection {
 			    con.commit();
 			}
 			this.respHandler.okResponse(OkPacket.OK, this);
-
-		}
-		catch (Exception e)
-		{
+		} catch (Exception e) {
 			String msg = e.getMessage();
 			ErrorPacket error = new ErrorPacket();
 			error.packetId = ++packetId;
@@ -514,21 +412,55 @@ public class JDBCConnection implements BackendConnection {
 	}
 
 	@Override
-	public void execute(final RouteResultsetNode node,
-						final ServerConnection source, final boolean autocommit)
+	public void execute(RouteResultsetNode rrn, ServerConnection sc, boolean autocommit)
 			throws IOException {
-		Runnable runnable = new Runnable() {
-			@Override
-			public void run() {
-				try {
-					executeSQL(node, source, autocommit);
-				} catch (IOException e) {
-					throw new RuntimeException(e);
-				}
-			}
-		};
+        String orgin = rrn.getStatement();
+        log.debug("execute sql '{}' from {} ", orgin, sc);
+        if (!modifiedSQLExecuted && rrn.isModifySQL()) {
+            modifiedSQLExecuted = true;
+        }
 
-		MycatServer.getInstance().getBusinessExecutor().execute(runnable);
+        try {
+            syncIsolation(sc.getTxIsolation()) ;
+            if (!this.schema.equals(this.oldSchema)) {
+                con.setCatalog(schema);
+                this.oldSchema = schema;
+            }
+            if (!this.isSpark) {
+                con.setAutoCommit(autocommit);
+            }
+            int sqlType = rrn.getSqlType();
+
+            if (sqlType == ServerParse.SELECT || sqlType == ServerParse.SHOW) {
+                if ((sqlType == ServerParse.SHOW) && (!dbType.equals("MYSQL"))) {
+                    ShowVariables.execute(sc, orgin,this);
+                } else if ("SELECT CONNECTION_ID()".equalsIgnoreCase(orgin)) {
+                    ShowVariables.justReturnValue(sc,String.valueOf(sc.getId()),this);
+                } else {
+                    executeSelect(sc, orgin);
+                }
+            } else {
+                executeDDL(sc, orgin);
+            }
+        } catch (SQLException e) {
+            String msg = e.getMessage();
+            ErrorPacket error = new ErrorPacket();
+            error.packetId = ++packetId;
+            error.errno = e.getErrorCode();
+            error.message = msg.getBytes();
+            this.respHandler.errorResponse(error.writeToBytes(sc), this);
+        } catch (Exception e) {
+            String msg = e.getMessage();
+            ErrorPacket error = new ErrorPacket();
+            error.packetId = ++packetId;
+            error.errno = ErrorCode.ER_UNKNOWN_ERROR;
+            error.message = msg.getBytes();
+            String err =  new String(error.message);
+            log.error("sql execute error: " + err, e);
+            this.respHandler.errorResponse(error.writeToBytes(sc), this);
+        } finally {
+            this.running = false;
+        }
 	}
 
 	@Override

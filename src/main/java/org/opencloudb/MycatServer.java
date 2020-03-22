@@ -405,6 +405,10 @@ public class MycatServer {
         }
     }
 
+    public BioProcessorPool getProcessorPool () {
+        return this.processorPool;
+    }
+
     public MycatConfig getConfig() {
         return config;
     }

@@ -32,11 +32,8 @@ import org.opencloudb.backend.BackendConnection;
 /**
  * @author mycat
  */
-public abstract class BackendAIOConnection extends AbstractConnection implements
-		BackendConnection {
+public abstract class BackendAIOConnection extends AbstractConnection implements BackendConnection {
 
-	
-	
 	protected boolean isFinishConnect;
 
 	public BackendAIOConnection(NetworkChannel channel) {
@@ -44,9 +41,8 @@ public abstract class BackendAIOConnection extends AbstractConnection implements
 	}
 
 	public void register() throws IOException {
-		this.asynRead();
+		throw new UnsupportedOperationException();
 	}
-
 
 	public void setHost(String host) {
 		this.host = host;
@@ -57,9 +53,6 @@ public abstract class BackendAIOConnection extends AbstractConnection implements
 		this.port = port;
 	}
 
-	
-
-	
 	public void discardClose(String reason){
 		//跨节点处理,中断后端连接时关闭
 	}
@@ -71,16 +64,10 @@ public abstract class BackendAIOConnection extends AbstractConnection implements
 		return true;
 	}
 
-	public void setProcessor(NIOProcessor processor) {
-		super.setProcessor(processor);
-		processor.addBackend(this);
-	}
-
 	@Override
 	public String toString() {
 		return "BackendConnection [id=" + id + ", host=" + host + ", port="
 				+ port + ", localPort=" + localPort + "]";
 	}
-
 	
 }

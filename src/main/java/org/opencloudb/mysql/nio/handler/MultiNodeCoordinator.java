@@ -80,20 +80,14 @@ public class MultiNodeCoordinator implements ResponseHandler {
 		if (this.cmdHandler.releaseConOnErr()) {
 			session.releaseConnection(conn);
 		} else {
-			
-			
-			
-			session.releaseConnectionIfSafe(conn, LOGGER.isDebugEnabled(),
-					false);
+			session.releaseConnectionIfSafe(conn, false);
 		}
 		if (this.finished()) {
-			cmdHandler.errorResponse(session, err, this.nodeCount,
-					this.faileCount.get());
+			cmdHandler.errorResponse(session, err, this.nodeCount, this.faileCount.get());
 			if (cmdHandler.isAutoClearSessionCons()) {
 				session.clearResources(session.getSource().isTxInterrupted());
 			}
 		}
-
 	}
 
 	@Override
@@ -101,17 +95,14 @@ public class MultiNodeCoordinator implements ResponseHandler {
 		if (this.cmdHandler.relaseConOnOK()) {
 			session.releaseConnection(conn);
 		} else {
-			session.releaseConnectionIfSafe(conn, LOGGER.isDebugEnabled(),
-					false);
+			session.releaseConnectionIfSafe(conn, false);
 		}
 		if (this.finished()) {
 			cmdHandler.okResponse(session, ok);
 			if (cmdHandler.isAutoClearSessionCons()) {
 				session.clearResources(false);
 			}
-
 		}
-
 	}
 
 	@Override

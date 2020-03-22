@@ -46,7 +46,6 @@ public class ServerConnectionFactory extends FrontendConnectionFactory {
         c.setPrivileges(MycatPrivileges.instance());
         c.setQueryHandler(new ServerQueryHandler(c));
         c.setLoadDataInfileHandler(new ServerLoadDataInfileHandler(c));
-        // c.setPrepareHandler(new ServerPrepareHandler(c));
         c.setTxIsolation(sys.getTxIsolation());
         c.setSession2(new NonBlockingSession(c));
         return c;

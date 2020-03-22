@@ -50,6 +50,10 @@ public class BioProcessorPool implements AutoCloseable {
         this.executor = ExecutorUtil.create(name, coreSize, maxSize, daemon);
     }
 
+    public NameableExecutor getExecutor () {
+        return this.executor;
+    }
+
     public boolean execute (BioProcessor processor) {
         try {
             this.executor.execute(processor);

@@ -149,7 +149,7 @@ public final class ShowConnection {
 
 	private static RowDataPacket getRow(FrontendConnection c, String charset) {
 		RowDataPacket row = new RowDataPacket(FIELD_COUNT);
-		row.add(c.getProcessor().getName().getBytes());
+		row.add(c.getManager().getName().getBytes());
 		row.add(LongUtil.toBytes(c.getId()));
 		row.add(StringUtil.encode(c.getHost(), charset));
 		row.add(IntegerUtil.toBytes(c.getPort()));

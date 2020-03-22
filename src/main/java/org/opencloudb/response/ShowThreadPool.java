@@ -24,7 +24,7 @@
 package org.opencloudb.response;
 
 import java.nio.ByteBuffer;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.opencloudb.MycatServer;
@@ -128,14 +128,14 @@ public final class ShowThreadPool {
 	}
 
 	private static List<NameableExecutor> getExecutors() {
-		List<NameableExecutor> list = new LinkedList<NameableExecutor>();
 		MycatServer server = MycatServer.getInstance();
+		List<NameableExecutor> list = new ArrayList<>(3);
+		NameableExecutor processorExecutor = server.getProcessorPool().getExecutor();
+
 		list.add(server.getTimerExecutor());
-		// list.add(server.getAioExecutor());
 		list.add(server.getBusinessExecutor());
-		// for (NIOProcessor pros : server.getProcessors()) {
-		// list.add(pros.getExecutor());
-		// }
+		list.add(processorExecutor);
 		return list;
 	}
+
 }

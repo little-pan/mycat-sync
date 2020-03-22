@@ -23,19 +23,19 @@
  */
 package org.opencloudb.server;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.net.handler.FrontendQueryHandler;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.server.handler.*;
 import org.opencloudb.server.parser.ServerParse;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public class ServerQueryHandler implements FrontendQueryHandler {
-	private static final Logger LOGGER = Logger
-			.getLogger(ServerQueryHandler.class);
+
+	private static final Logger log = LoggerFactory.getLogger(ServerQueryHandler.class);
 
 	private final ServerConnection source;
 	protected Boolean readOnly;
@@ -50,12 +50,9 @@ public class ServerQueryHandler implements FrontendQueryHandler {
 
 	@Override
 	public void query(String sql) {
-		
 		ServerConnection c = this.source;
-		if (LOGGER.isDebugEnabled()) {
-			LOGGER.debug(new StringBuilder().append(c).append(sql).toString());
-		}
-		//
+        log.debug("Query '{}' in {}", sql, c);
+
 		int rs = ServerParse.parse(sql);
 		int sqlType = rs & 0xff;
 		
@@ -90,7 +87,7 @@ public class ServerQueryHandler implements FrontendQueryHandler {
 			KillHandler.handle(sql, rs >>> 8, c);
 			break;
 		case ServerParse.KILL_QUERY:
-			LOGGER.warn(new StringBuilder().append("Unsupported command:").append(sql).toString());
+			log.debug("Unsupported command: {}", sql);
 			c.writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR,"Unsupported command");
 			break;
 		case ServerParse.USE:
@@ -103,7 +100,7 @@ public class ServerQueryHandler implements FrontendQueryHandler {
 			c.rollback();
 			break;
 		case ServerParse.HELP:
-			LOGGER.warn(new StringBuilder().append("Unsupported command:").append(sql).toString());
+			log.debug("Unsupported command: {}", sql);
 			c.writeErrMessage(ErrorCode.ER_SYNTAX_ERROR, "Unsupported command");
 			break;
 		case ServerParse.MYSQL_CMD_COMMENT:
@@ -117,7 +114,7 @@ public class ServerQueryHandler implements FrontendQueryHandler {
                 break;
 		default:
 			if(readOnly){
-				LOGGER.warn(new StringBuilder().append("User readonly:").append(sql).toString());
+				log.warn("User readonly: sql '{}'", sql);
 				c.writeErrMessage(ErrorCode.ER_USER_READ_ONLY, "User readonly");
 				break;
 			}
