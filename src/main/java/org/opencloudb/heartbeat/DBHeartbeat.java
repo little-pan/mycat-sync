@@ -81,7 +81,7 @@ public abstract class DBHeartbeat {
 	public abstract void stop();
 
 	public boolean isStop() {
-		return isStop.get();
+		return this.isStop.get();
 	}
 
 	public int getErrorCount() {

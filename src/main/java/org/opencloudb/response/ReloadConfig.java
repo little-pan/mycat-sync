@@ -97,7 +97,7 @@ public final class ReloadConfig {
 				LOGGER.info("init datahost: " + dn.getHostName()
 						+ "  to use datasource index:" + index);
 			}
-			dn.init(Integer.valueOf(index));
+			dn.init(Integer.parseInt(index));
 
 			//dn.init(0);
 			if (!dn.isInitSuccess()) {

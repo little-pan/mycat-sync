@@ -23,43 +23,38 @@
  */
 package org.opencloudb.mysql.nio.handler;
 
-import java.util.Collection;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.net.mysql.ErrorPacket;
+import org.slf4j.*;
 
 /**
- * heartbeat check for mysql connections
+ * Heartbeat check for idle backend connections.
  * 
  * @author wuzhih
  * 
  */
 public class ConnectionHeartBeatHandler implements ResponseHandler {
-	private static final Logger LOGGER = Logger
-			.getLogger(ConnectionHeartBeatHandler.class);
+
+	private static final Logger log = LoggerFactory.getLogger(ConnectionHeartBeatHandler.class);
+
 	protected final ReentrantLock lock = new ReentrantLock();
 	private final ConcurrentHashMap<Long, HeartBeatCon> allCons = new ConcurrentHashMap<Long, HeartBeatCon>();
 
-	public void doHeartBeat(BackendConnection conn, String sql) {
-		if (LOGGER.isDebugEnabled()) {
-			LOGGER.debug("do heartbeat for con " + conn);
-		}
+	public void heartBeat(BackendConnection conn, String sql) {
+		log.debug("Heartbeat for idle backend {}: sql '{}'", conn, sql);
 
 		try {
-
 			HeartBeatCon hbCon = new HeartBeatCon(conn);
-			boolean notExist = (allCons.putIfAbsent(hbCon.conn.getId(), hbCon) == null);
-			if (notExist) {
+			HeartBeatCon oldCon = this.allCons.putIfAbsent(hbCon.conn.getId(), hbCon);
+			if (oldCon == null) {
 				conn.setResponseHandler(this);
 				conn.query(sql);
-
 			}
 		} catch (Exception e) {
 			executeException(conn, e);
@@ -69,33 +64,20 @@ public class ConnectionHeartBeatHandler implements ResponseHandler {
 	/**
 	 * remove timeout connections
 	 */
-	public void abandTimeOuttedConns() {
-		if (allCons.isEmpty()) {
+	public void abandonTimeoutConns() {
+		if (this.allCons.isEmpty()) {
 			return;
 		}
-		Collection<BackendConnection> abandCons = new LinkedList<BackendConnection>();
+
 		long curTime = System.currentTimeMillis();
-		Iterator<Entry<Long, HeartBeatCon>> itors = allCons.entrySet()
-				.iterator();
-		while (itors.hasNext()) {
-			HeartBeatCon hbCon = itors.next().getValue();
+		Iterator<Entry<Long, HeartBeatCon>> it = this.allCons.entrySet().iterator();
+		while (it.hasNext()) {
+			HeartBeatCon hbCon = it.next().getValue();
 			if (hbCon.timeOutTimestamp < curTime) {
-				abandCons.add(hbCon.conn);
-				itors.remove();
+				hbCon.conn.close("heartbeat timeout");
+				it.remove();
 			}
 		}
-
-		if (!abandCons.isEmpty()) {
-			for (BackendConnection con : abandCons) {
-				try {
-					// if(con.isBorrowed())
-					con.close("heartbeat timeout ");
-				} catch (Exception e) {
-					LOGGER.warn("close err:" + e);
-				}
-			}
-		}
-
 	}
 
 	@Override
@@ -106,18 +88,19 @@ public class ConnectionHeartBeatHandler implements ResponseHandler {
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
 		// not called
-
 	}
 
 	@Override
 	public void errorResponse(byte[] data, BackendConnection conn) {
 		removeFinished(conn);
-		ErrorPacket err = new ErrorPacket();
-		err.read(data);
-		LOGGER.warn("errorResponse " + err.errno + " "
-				+ new String(err.message));
-		conn.release();
-
+		try {
+			ErrorPacket err = new ErrorPacket();
+			err.read(data);
+			log.warn("errorResponse: errno {}, errmsg {}",
+						err.errno, new String(err.message));
+		} finally {
+			conn.release();
+		}
 	}
 
 	@Override
@@ -127,11 +110,11 @@ public class ConnectionHeartBeatHandler implements ResponseHandler {
 			removeFinished(conn);
 			conn.release();
 		}
-
 	}
 
 	@Override
 	public void rowResponse(byte[] row, BackendConnection conn) {
+
 	}
 
 	@Override
@@ -142,14 +125,12 @@ public class ConnectionHeartBeatHandler implements ResponseHandler {
 
 	private void executeException(BackendConnection c, Throwable e) {
 		removeFinished(c);
-		LOGGER.warn("executeException   ", e);
-		c.close("heatbeat exception:" + e);
-
+		log.warn("Execute failed", e);
+		c.close("heartbeat failed: " + e);
 	}
 
 	private void removeFinished(BackendConnection con) {
-		Long id = ((BackendConnection) con).getId();
-		this.allCons.remove(id);
+		this.allCons.remove(con.getId());
 	}
 
 	@Override
@@ -160,15 +141,13 @@ public class ConnectionHeartBeatHandler implements ResponseHandler {
 	@Override
 	public void connectionClose(BackendConnection conn, String reason) {
 		removeFinished(conn);
-		LOGGER.warn("connection closed " + conn + " reason:" + reason);
+		log.warn("Connection closed reason {} in backend {}", reason, conn);
 	}
 
 	@Override
 	public void fieldEofResponse(byte[] header, List<byte[]> fields,
 			byte[] eof, BackendConnection conn) {
-		if (LOGGER.isDebugEnabled()) {
-			LOGGER.debug("received field eof  from " + conn);
-		}
+		log.debug("received field eof from backend {}", conn);
 	}
 
 }
@@ -178,7 +157,6 @@ class HeartBeatCon {
 	public final BackendConnection conn;
 
 	public HeartBeatCon(BackendConnection conn) {
-		super();
 		this.timeOutTimestamp = System.currentTimeMillis() + 20 * 1000L;
 		this.conn = conn;
 	}

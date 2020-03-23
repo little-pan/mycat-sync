@@ -9,6 +9,7 @@ import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.ServerConnection;
 
 public interface BackendConnection extends ClosableConnection {
+
 	boolean isModifiedSQLExecuted();
 
 	boolean isFromSlaveDB();
@@ -33,7 +34,7 @@ public interface BackendConnection extends ClosableConnection {
 
 	void commit();
 
- 	void query(String sql) throws UnsupportedEncodingException;
+ 	void query(String sql) throws UnsupportedOperationException;
 
 	Object getAttachment();
 

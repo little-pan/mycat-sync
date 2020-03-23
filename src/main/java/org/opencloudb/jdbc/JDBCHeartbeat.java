@@ -1,6 +1,7 @@
 package org.opencloudb.jdbc;
 
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -15,27 +16,30 @@ public class JDBCHeartbeat extends DBHeartbeat {
 
 	private final ReentrantLock lock;
 	private final JDBCDatasource source;
-    private final boolean heartbeatnull;
+    private final boolean noSqlGiven;
     private Long lastSendTime = System.currentTimeMillis();
-    private Long lastReciveTime = System.currentTimeMillis();
+    private Long lastRecvTime = System.currentTimeMillis();
     
 	public JDBCHeartbeat(JDBCDatasource source) {
 		this.source = source;
-		lock = new ReentrantLock(false);
+		this.lock = new ReentrantLock(false);
 		this.status = INIT_STATUS;
-		this.heartbeatSQL = source.getHostConfig().getHearbeatSQL().trim();
-		this.heartbeatnull= heartbeatSQL.length()==0;
+		this.heartbeatSQL = source.getHostConfig().getHeartbeatSQL().trim();
+		this.noSqlGiven = heartbeatSQL.length() == 0;
 	}
 
 	@Override
 	public void start() {
-		if (this.heartbeatnull){
+		if (this.noSqlGiven) {
+			String host = this.source.getConfig().getHostName();
+			log.warn("Heartbeat stops for no sql configured in host '{}'", host);
 			stop();
 			return;
 		}
+
 		lock.lock();
 		try {
-			isStop.compareAndSet(true, false);
+			this.isStop.compareAndSet(true, false);
 			this.status = DBHeartbeat.OK_STATUS;
 		} finally {
 			lock.unlock();
@@ -46,8 +50,10 @@ public class JDBCHeartbeat extends DBHeartbeat {
 	public void stop() {
 		lock.lock();
 		try {
-			if (isStop.compareAndSet(false, true)) {
-				isChecking.set(false);
+			if (this.isStop.compareAndSet(false, true)) {
+				this.isChecking.set(false);
+				String host = this.source.getConfig().getHostName();
+				log.info("Heartbeat stopped in host '{}'", host);
 			}
 		} finally {
 			lock.unlock();
@@ -56,7 +62,7 @@ public class JDBCHeartbeat extends DBHeartbeat {
 
 	@Override
 	public String getLastActiveTime() {
-	    long t = lastReciveTime;
+	    long t = lastRecvTime;
 	    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         return sdf.format(new Date(t));
 	}
@@ -69,14 +75,13 @@ public class JDBCHeartbeat extends DBHeartbeat {
 
 	@Override
 	public HeartbeatRecorder getRecorder() {
-        recorder.set(lastReciveTime - lastSendTime);
+        this.recorder.set(lastRecvTime - lastSendTime);
         return recorder;
     }
 	
 	@Override
 	public void heartbeat() {
-	    
-		if (this.isStop.get()) {
+		if (isStop()) {
             return;
         }
 
@@ -84,25 +89,23 @@ public class JDBCHeartbeat extends DBHeartbeat {
         this.lock.lock();
 		try {
             this.isChecking.set(true);
-
 			String sql = this.heartbeatSQL;
 			if (log.isDebugEnabled()) {
                 log.debug("JDBCHeartBeat: url '{}', sql '{}'", getUrl(), sql);
             }
-			try (Connection c = this.source.getConnection()) {
-				try (Statement s = c.createStatement()) {
-					s.execute(sql);
-				}
+			try (Connection c = this.source.getConnection();
+				 Statement s = c.createStatement()) {
+				s.execute(sql);
 			}
             this.status = OK_STATUS;
             log.debug("JDBCHeartBeat: ok");
-		} catch (Exception ex) {
-		    log.error("JDBCHeartBeat error: url '" + getUrl() + "'", ex);
+		} catch (SQLException e) {
+		    log.error("JDBCHeartBeat error: url '" + getUrl() + "'", e);
             this.status = ERROR_STATUS;
 		} finally {
-            this.lock.unlock();
 			this.isChecking.set(false);
-            this.lastReciveTime = System.currentTimeMillis();
+            this.lock.unlock();
+            this.lastRecvTime = System.currentTimeMillis();
 		}
 	}
 

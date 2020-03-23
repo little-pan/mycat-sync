@@ -37,7 +37,6 @@ import org.opencloudb.MycatServer;
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.config.ErrorCode;
-import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.mysql.nio.handler.CommitNodeHandler;
 import org.opencloudb.mysql.nio.handler.KillConnectionHandler;
 import org.opencloudb.mysql.nio.handler.MultiNodeCoordinator;
@@ -261,7 +260,7 @@ public class NonBlockingSession implements Session {
 		if (conn == null) {
 			return false;
 		}
-		if (!conn.isFromSlaveDB() || node.canRunnINReadDB(getSource().isAutocommit())) {
+		if (!conn.isFromSlaveDB() || node.canRunINReadDB(getSource().isAutocommit())) {
             log.debug("found connections in session to use backend {} for {}", conn, node);
 			conn.setAttachment(node);
 			return true;
@@ -290,18 +289,16 @@ public class NonBlockingSession implements Session {
 			}
 		}
 		if (hooked) {
-			for (Entry<RouteResultsetNode, BackendConnection> en : killees
-					.entrySet()) {
-				KillConnectionHandler kill = new KillConnectionHandler(
-						en.getValue(), this);
+			for (Entry<RouteResultsetNode, BackendConnection> en : killees.entrySet()) {
+				RouteResultsetNode rrs = en.getKey();
+				BackendConnection exitsCon = en.getValue();
+				KillConnectionHandler kill = new KillConnectionHandler(exitsCon, this);
 				MycatConfig conf = MycatServer.getInstance().getConfig();
-				PhysicalDBNode dn = conf.getDataNodes().get(
-						en.getKey().getName());
+				PhysicalDBNode dn = conf.getDataNodes().get(rrs.getName());
 				try {
-					dn.getConnectionFromSameSource(null,true, en.getValue(),
-							kill, en.getKey());
+					dn.getConnectionFromSameSource(null,true, rrs, exitsCon, kill, rrs);
 				} catch (Exception e) {
-					log.error("get killer connection failed for " + en.getKey(), e);
+					log.error("get killer connection failed for " + rrs, e);
 					kill.connectionError(e, null);
 				}
 			}
@@ -309,9 +306,9 @@ public class NonBlockingSession implements Session {
 	}
 
 	private void clearHandlesResources() {
-		SingleNodeHandler singleHander = singleNodeHandler;
-		if (singleHander != null) {
-			singleHander.clearResources();
+		SingleNodeHandler singleHandler = singleNodeHandler;
+		if (singleHandler != null) {
+			singleHandler.clearResources();
 			singleNodeHandler = null;
 		}
 		MultiNodeQueryHandler multiHandler = multiNodeHandler;

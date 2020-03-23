@@ -159,22 +159,21 @@ public class MycatServer {
             String prefix = BufferPool.LOCAL_BUF_THREAD_PREX + "BioProcessorPool";
             this.processorPool = new BioProcessorPool(prefix, initExecutor, processorCount, false);
 
-			// init datahost
+			// init dataHost
 			Map<String, PhysicalDBPool> dataHosts = config.getDataHosts();
 			log.info("Initialize dataHost ...");
 			for (PhysicalDBPool node : dataHosts.values()) {
-				String index = dnIndexProperties.getProperty(node.getHostName(),
-						"0");
+				String index = this.dnIndexProperties.getProperty(node.getHostName(), "0");
 				if (!"0".equals(index)) {
-					log.info("Init datahost: {}, use datasource index: {}", node.getHostName(), index);
+					log.info("Init dataHost '{}', use dataSource index {}", node.getHostName(), index);
 				}
-				node.init(Integer.valueOf(index));
+				node.init(Integer.parseInt(index));
 				node.startHeartbeat();
 			}
-            long dataNodeIldeCheckPeriod = system.getDataNodeIdleCheckPeriod();
+            long dataNodeIdleCheckPeriod = system.getDataNodeIdleCheckPeriod();
             this.timer.schedule(updateTime(), 0L, TIME_UPDATE_PERIOD);
             this.timer.schedule(createConnectionCheckTask(), 0L, system.getProcessorCheckPeriod());
-            this.timer.schedule(dataNodeConHeartBeatCheck(dataNodeIldeCheckPeriod), 0L, dataNodeIldeCheckPeriod);
+            this.timer.schedule(dataNodeConHeartBeatCheck(dataNodeIdleCheckPeriod), 0L, dataNodeIdleCheckPeriod);
             this.timer.schedule(dataNodeHeartbeat(), 0L, system.getDataNodeHeartbeatPeriod());
             this.timer.schedule(catletClassClear(), 30000);
 
@@ -326,7 +325,7 @@ public class MycatServer {
         };
     }
 
-    // 数据节点定时连接空闲超时检查任务
+    // 数据节点定时连接空闲检查任务
     private TimerTask dataNodeConHeartBeatCheck(final long heartPeriod) {
         return new TimerTask() {
             @Override
@@ -334,13 +333,11 @@ public class MycatServer {
                 timerExecutor.execute(new Runnable() {
                     @Override
                     public void run() {
-                        Map<String, PhysicalDBPool> nodes = config
-                                .getDataHosts();
+                        Map<String, PhysicalDBPool> nodes = config.getDataHosts();
                         for (PhysicalDBPool node : nodes.values()) {
                             node.heartbeatCheck(heartPeriod);
                         }
-                        Map<String, PhysicalDBPool> _nodes = config
-                                .getBackupDataHosts();
+                        Map<String, PhysicalDBPool> _nodes = config.getBackupDataHosts();
                         if (_nodes != null) {
                             for (PhysicalDBPool node : _nodes.values()) {
                                 node.heartbeatCheck(heartPeriod);
@@ -362,7 +359,7 @@ public class MycatServer {
                     public void run() {
                         Map<String, PhysicalDBPool> nodes = config.getDataHosts();
                         for (PhysicalDBPool node : nodes.values()) {
-                            node.doHeartbeat();
+                            node.heartbeat();
                         }
                     }
                 });

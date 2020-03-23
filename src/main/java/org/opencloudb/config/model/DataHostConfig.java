@@ -54,7 +54,7 @@ public class DataHostConfig {
 	private final String dbDriver;
 	private final DBHostConfig[] writeHosts;
 	private final Map<Integer, DBHostConfig[]> readHosts;
-	private String hearbeatSQL;
+	private String heartbeatSQL;
     private boolean isShowSlaveSql=false;
     private boolean isShowClusterSql=false;
 	private String connectionInitSql;
@@ -165,20 +165,18 @@ public class DataHostConfig {
 		return readHosts;
 	}
 
-	public String getHearbeatSQL() {
-		return hearbeatSQL;
+	public String getHeartbeatSQL() {
+		return this.heartbeatSQL;
 	}
 
-	public void setHearbeatSQL(String heartbeatSQL) {
-		this.hearbeatSQL = heartbeatSQL;
+	public void setHeartbeatSQL(String heartbeatSQL) {
+		this.heartbeatSQL = heartbeatSQL;
         Matcher matcher = pattern.matcher(heartbeatSQL);
-        if (matcher.find())
-        {
+        if (matcher.find()) {
             isShowSlaveSql=true;
         }
         Matcher matcher2 = patternCluster.matcher(heartbeatSQL);
-        if (matcher2.find())
-        {
+        if (matcher2.find()) {
         	isShowClusterSql=true;
         }
 	}

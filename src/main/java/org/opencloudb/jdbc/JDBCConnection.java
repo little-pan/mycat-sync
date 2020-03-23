@@ -1,7 +1,6 @@
 package org.opencloudb.jdbc;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -64,17 +63,15 @@ public class JDBCConnection implements BackendConnection {
 
 	public void setCon(Connection con) {
 		this.con = con;
-
 	}
 
 	@Override
 	public void close(String reason) {
-		try {
-			this.con.close();
-			if(this.manager != null){
-                this.manager.removeConnection(this);
-			}
-		} catch (SQLException e) {}
+    	log.debug("{}: close backend {}", reason, this);
+		IoUtil.close(this.con);
+		if(this.manager != null){
+			this.manager.removeConnection(this);
+		}
 	}
 
 	public void setId(long id) {
@@ -369,24 +366,22 @@ public class JDBCConnection implements BackendConnection {
 	}
 
 	@Override
-	public void query(final String sql) throws UnsupportedEncodingException {
-		if(respHandler instanceof ConnectionHeartBeatHandler) {
-			justForHeartbeat(sql);
+	public void query(final String sql) throws UnsupportedOperationException {
+		if(this.respHandler instanceof ConnectionHeartBeatHandler) {
+			heartbeat(sql);
 		} else {
-			throw new UnsupportedEncodingException("unsupported yet ");
+			throw new UnsupportedOperationException("Unsupported yet except for heartbeat");
 		}
 	}
-	private void justForHeartbeat(String sql) {
-		Statement stmt = null;
 
-		try {
-			stmt = con.createStatement();
+	private void heartbeat(String sql) {
+		try (Statement stmt = this.con.createStatement()) {
 			stmt.execute(sql);
-			if(!isAutocommit()){ //如果在写库上，如果是事务方式的连接，需要进行手动commit
-			    con.commit();
+			if(!isAutocommit()){ // 如果在写库上，如果是事务方式的连接，需要进行手动commit
+				this.con.commit();
 			}
 			this.respHandler.okResponse(OkPacket.OK, this);
-		} catch (Exception e) {
+		} catch (SQLException e) {
 			String msg = e.getMessage();
 			ErrorPacket error = new ErrorPacket();
 			error.packetId = ++packetId;
@@ -394,16 +389,8 @@ public class JDBCConnection implements BackendConnection {
 			error.message = msg.getBytes();
 			this.respHandler.errorResponse(error.writeToBytes(), this);
 		}
-		finally {
-			if (stmt != null) {
-				try {
-					stmt.close();
-				} catch (SQLException e) {
-
-				}
-			}
-		}
 	}
+
 	@Override
 	public Object getAttachment() {
 		return this.attachement;

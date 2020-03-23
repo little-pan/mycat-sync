@@ -35,7 +35,6 @@ import org.opencloudb.config.model.DBHostConfig;
 import org.opencloudb.config.model.DataHostConfig;
 import org.opencloudb.config.model.DataNodeConfig;
 import org.opencloudb.config.model.SchemaConfig;
-import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.TableConfig;
 import org.opencloudb.config.model.TableConfigMap;
 import org.opencloudb.config.model.rule.TableRuleConfig;
@@ -373,10 +372,10 @@ public class XMLSchemaLoader implements SchemaLoader {
 	 *
 	 * @param dataNodes
 	 */
-	private void distributeDataNodes(ArrayList<String> theDataNodes) {
-		Map<String, ArrayList<String>> newDataNodeMap = new HashMap<String, ArrayList<String>>(dataHosts.size());
-		for (String dn : theDataNodes) {
-			DataNodeConfig dnConf = dataNodes.get(dn);
+	private void distributeDataNodes(ArrayList<String> dataNodes) {
+		Map<String, ArrayList<String>> newDataNodeMap = new HashMap<>(dataHosts.size());
+		for (String dn : dataNodes) {
+			DataNodeConfig dnConf = this.dataNodes.get(dn);
 			String host = dnConf.getDataHost();
 			ArrayList<String> hostDns = newDataNodeMap.get(host);
 			hostDns = (hostDns == null) ? new ArrayList<String>() : hostDns;
@@ -384,7 +383,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 			newDataNodeMap.put(host, hostDns);
 		}
 		
-		ArrayList<String> result = new ArrayList<String>(theDataNodes.size());
+		ArrayList<String> result = new ArrayList<String>(dataNodes.size());
 		boolean hasData = true;
 		while (hasData) {
 			hasData = false;
@@ -395,8 +394,8 @@ public class XMLSchemaLoader implements SchemaLoader {
 				}
 			}
 		}
-		theDataNodes.clear();
-		theDataNodes.addAll(result);
+		dataNodes.clear();
+		dataNodes.addAll(result);
 	}
 
 	private Set<String> getDbType(String dataNode) {
@@ -553,16 +552,16 @@ public class XMLSchemaLoader implements SchemaLoader {
 
 	private DBHostConfig createDBHostConf(String dataHost, Element node,
 			String dbType, String dbDriver, int maxCon, int minCon, String filters, long logTime) {
-		
+
 		String nodeHost = node.getAttribute("host");
 		String nodeUrl = node.getAttribute("url");
 		String user = node.getAttribute("user");
 		String password = node.getAttribute("password");
 		String usingDecrypt = node.getAttribute("usingDecrypt");
-		String passwordEncryty= DecryptUtil.DBHostDecrypt(usingDecrypt, nodeHost, user, password);
+		String passwordEncrypt = DecryptUtil.DBHostDecrypt(usingDecrypt, nodeHost, user, password);
 		
 		String weightStr = node.getAttribute("weight");
-		int weight = "".equals(weightStr) ? PhysicalDBPool.WEIGHT : Integer.valueOf(weightStr) ;
+		int weight = "".equals(weightStr) ? PhysicalDBPool.WEIGHT : Integer.parseInt(weightStr) ;
 		
 		String ip = null;
 		int port = 0;
@@ -588,49 +587,51 @@ public class XMLSchemaLoader implements SchemaLoader {
 			port = url.getPort();
 		}
 
-		DBHostConfig conf = new DBHostConfig(nodeHost, ip, port, nodeUrl, user, passwordEncryty,password);
+		DBHostConfig conf = new DBHostConfig(nodeHost, ip, port, nodeUrl, user, passwordEncrypt, password);
 		conf.setDbType(dbType);
 		conf.setMaxCon(maxCon);
 		conf.setMinCon(minCon);
 		conf.setFilters(filters);
 		conf.setLogTime(logTime);
 		conf.setWeight(weight); 	//新增权重
+
 		return conf;
 	}
 
 	private void loadDataHosts(Element root) {
 		NodeList list = root.getElementsByTagName("dataHost");
 		for (int i = 0, n = list.getLength(); i < n; ++i) {
-			
-			Element element = (Element) list.item(i);
+			final Element element = (Element) list.item(i);
 			String name = element.getAttribute("name");
 			
 			if (dataHosts.containsKey(name)) {
 				throw new ConfigException("dataHost name " + name + "duplicated!");
 			}
 			
-			int maxCon = Integer.valueOf(element.getAttribute("maxCon"));
-			int minCon = Integer.valueOf(element.getAttribute("minCon"));
-			int balance = Integer.valueOf(element.getAttribute("balance"));
+			int maxCon = Integer.parseInt(element.getAttribute("maxCon"));
+			int minCon = Integer.parseInt(element.getAttribute("minCon"));
+			int balance = Integer.parseInt(element.getAttribute("balance"));
 			
 			String switchTypeStr = element.getAttribute("switchType");
-			int switchType = switchTypeStr.equals("") ? -1 : Integer.valueOf(switchTypeStr);
+			int switchType = switchTypeStr.equals("") ? -1 : Integer.parseInt(switchTypeStr);
 			
 			String slaveThresholdStr = element.getAttribute("slaveThreshold");
-			int slaveThreshold = slaveThresholdStr.equals("") ? -1 : Integer.valueOf(slaveThresholdStr);
+			int slaveThreshold = slaveThresholdStr.equals("") ? -1 : Integer.parseInt(slaveThresholdStr);
 			
 			//如果 tempReadHostAvailable 设置大于 0 则表示写主机如果挂掉， 临时的读服务依然可用
 			String tempReadHostAvailableStr = element.getAttribute("tempReadHostAvailable");
-			boolean tempReadHostAvailable = tempReadHostAvailableStr.equals("") ? false : Integer.valueOf(tempReadHostAvailableStr) > 0;
+			boolean tempReadHostAvailable = !tempReadHostAvailableStr.equals("")
+												&& Integer.parseInt(tempReadHostAvailableStr) > 0;
 			
 			String writeTypStr = element.getAttribute("writeType");
-			int writeType = "".equals(writeTypStr) ? PhysicalDBPool.WRITE_ONLYONE_NODE : Integer.valueOf(writeTypStr);
+			int writeType = "".equals(writeTypStr) ? PhysicalDBPool.WRITE_ONLYONE_NODE
+														: Integer.parseInt(writeTypStr);
 
 			String dbDriver = element.getAttribute("dbDriver");
 			String dbType = element.getAttribute("dbType");
 			String filters = element.getAttribute("filters");
 			String logTimeStr = element.getAttribute("logTime");
-			long logTime = "".equals(logTimeStr) ? PhysicalDBPool.LONG_TIME : Long.valueOf(logTimeStr) ;
+			long logTime = "".equals(logTimeStr) ? PhysicalDBPool.LONG_TIME : Long.parseLong(logTimeStr) ;
 			String heartbeatSQL = element.getElementsByTagName("heartbeat").item(0).getTextContent();
 			NodeList connectionInitSqlList = element.getElementsByTagName("connectionInitSql");
 			String initConSQL = null;
@@ -656,13 +657,12 @@ public class XMLSchemaLoader implements SchemaLoader {
 			}
 
 			DataHostConfig hostConf = new DataHostConfig(name, dbType, dbDriver, 
-					writeDbConfs, readHostsMap, switchType, slaveThreshold, tempReadHostAvailable);		
-			
+					writeDbConfs, readHostsMap, switchType, slaveThreshold, tempReadHostAvailable);
 			hostConf.setMaxCon(maxCon);
 			hostConf.setMinCon(minCon);
 			hostConf.setBalance(balance);
 			hostConf.setWriteType(writeType);
-			hostConf.setHearbeatSQL(heartbeatSQL);
+			hostConf.setHeartbeatSQL(heartbeatSQL);
 			hostConf.setConnectionInitSql(initConSQL);
 			hostConf.setFilters(filters);
 			hostConf.setLogTime(logTime);

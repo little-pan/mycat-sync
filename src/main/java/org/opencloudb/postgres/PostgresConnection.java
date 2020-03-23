@@ -121,8 +121,7 @@ public class PostgresConnection extends BackendAIOConnection {
 	}
 
 	@Override
-	public void query(String sql) throws UnsupportedEncodingException {
-		
+	public void query(String sql) throws UnsupportedOperationException {
 
 	}
 

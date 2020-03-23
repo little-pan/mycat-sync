@@ -1,6 +1,5 @@
 package org.opencloudb.jdbc;
 
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -16,6 +15,7 @@ import org.opencloudb.heartbeat.DBHeartbeat;
 import org.opencloudb.mysql.nio.handler.ResponseHandler;
 import org.opencloudb.net.BioConnector;
 import org.opencloudb.net.ConnectionManager;
+import org.opencloudb.util.IoUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,45 +48,44 @@ public class JDBCDatasource extends PhysicalDatasource {
 	}
 
 	@Override
-	public void createNewConnection(ResponseHandler handler,String schema) throws IOException {
-		DBHostConfig cfg = getConfig();
-		JDBCConnection c = new JDBCConnection();
-		ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
-
-		c.setHost(cfg.getIp());
-		c.setPort(cfg.getPort());
-		c.setPool(this);
-		c.setSchema(schema);
-		c.setDbType(cfg.getDbType());
-		c.setManager(manager);
-		c.setId(BioConnector.ID_GENERATOR.incrementAndGet());  // 复用mysql的Backend的ID，需要在process中存储
-		manager.addBackend(c);
+	public void createNewConnection(ResponseHandler handler, String schema) {
 		try {
+			DBHostConfig cfg = getConfig();
+			JDBCConnection c = new JDBCConnection();
+			ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
+			manager.addBackend(c);
+
+			c.setHost(cfg.getIp());
+			c.setPort(cfg.getPort());
+			c.setPool(this);
+			c.setSchema(schema);
+			c.setDbType(cfg.getDbType());
+			c.setManager(manager);
+			c.setId(BioConnector.ID_GENERATOR.incrementAndGet());
+
 			Connection con = getConnection();
-			// c.setIdleTimeout(pool.getConfig().getIdleTimeout());
 			c.setCon(con);
 			// notify handler
 			handler.connectionAcquired(c);
-		} catch (Exception e) {
-			handler.connectionError(e, c);
+		} catch (Throwable cause) {
+			handler.connectionError(cause, null);
 		}
 	}
 
     Connection getConnection() throws SQLException {
         DBHostConfig cfg = getConfig();
 		Connection connection = DriverManager.getConnection(cfg.getUrl(), cfg.getUser(), cfg.getPassword());
-		String initSql=getHostConfig().getConnectionInitSql();
-		if(initSql!=null&&!"".equals(initSql)) {
-		    Statement statement =null;
+		String initSql = getHostConfig().getConnectionInitSql();
+		if(initSql != null && !"".equals(initSql)) {
+		    Statement statement = null;
 			try {
 				 statement = connection.createStatement();
 				 statement.execute(initSql);
 			} finally {
-				if(statement!=null) {
-					statement.close();
-				}
+				IoUtil.close(statement);
 			}
 		}
+
 		return connection;
     }
 

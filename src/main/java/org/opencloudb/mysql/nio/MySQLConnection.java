@@ -473,10 +473,10 @@ public class MySQLConnection extends BackendAIOConnection {
 	/**
 	 * by wuzh ,execute a query and ignore transaction settings for performance
 	 * 
-	 * @param sql
-	 * @throws UnsupportedEncodingException
+	 * @param query
+	 * @throws UnsupportedOperationException
 	 */
-	public void query(String query) throws UnsupportedEncodingException {
+	public void query(String query) throws UnsupportedOperationException {
 		RouteResultsetNode rrn = new RouteResultsetNode("default",
 				ServerParse.SELECT, query);
 

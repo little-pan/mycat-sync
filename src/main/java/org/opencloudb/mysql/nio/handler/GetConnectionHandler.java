@@ -24,7 +24,8 @@
 package org.opencloudb.mysql.nio.handler;
 
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.opencloudb.backend.BackendConnection;
@@ -40,55 +41,76 @@ public class GetConnectionHandler implements ResponseHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(GetConnectionHandler.class);
 
-	private final CopyOnWriteArrayList<BackendConnection> successCons;
-	private final AtomicInteger finishedCount = new AtomicInteger(0);
+	private final AtomicInteger successCons;
+	private final CountDownLatch finishLatch;
 	private final int total;
 
-	public GetConnectionHandler(
-			CopyOnWriteArrayList<BackendConnection> connsToStore,
-			int totalNumber) {
-		super();
-		this.successCons = connsToStore;
-		this.total = totalNumber;
+	public GetConnectionHandler(int total) {
+		this.successCons = new AtomicInteger();
+		this.total = total;
+		this.finishLatch = new CountDownLatch(total);
 	}
 
-	public String getStatusInfo()
-	{
-		return "finished "+ finishedCount.get()+" success "+successCons.size()+" target count:"+this.total;
+	public String getStatusInfo() {
+		long finished = this.total - this.finishLatch.getCount();
+		return "finished "+finished+" success "+this.successCons+" target count:"+this.total;
 	}
+
+	public int getSuccessCons() {
+		return this.successCons.get();
+	}
+
 	public boolean finished() {
-		return finishedCount.get() >= total;
+		return (this.finishLatch.getCount() == 0);
+	}
+
+	public boolean await() {
+		try {
+			this.finishLatch.await();
+			return true;
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			return false;
+		}
+	}
+
+	public boolean await(long timeout, TimeUnit unit) {
+		try {
+			return this.finishLatch.await(timeout, unit);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			return false;
+		}
 	}
 
 	@Override
 	public void connectionAcquired(BackendConnection conn) {
-		successCons.add(conn);
-		finishedCount.addAndGet(1);
-        log.info("connected successfuly {}", conn);
+		this.successCons.incrementAndGet();
+		this.finishLatch.countDown();
+		log.debug("Connection ok: {}", conn);
         conn.release();
 	}
 
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
-		finishedCount.addAndGet(1);
+		this.finishLatch.countDown();
 		if (log.isWarnEnabled()) {
             log.warn("Connect error in conn " + conn, e);
         }
-        conn.release();
 	}
 
 	@Override
 	public void errorResponse(byte[] err, BackendConnection conn) {
 	    if (log.isWarnEnabled()) {
-            log.warn("Caught error resp: {} in conn " + conn, new String(err));
+            log.warn("Caught error {} in conn {}", new String(err), conn);
         }
         conn.release();
 	}
 
 	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
-	    if (log.isInfoEnabled()) {
-            log.info("Received ok resp: {} in conn " + conn, new String(ok));
+	    if (log.isDebugEnabled()) {
+            log.debug("Received ok {} in conn {}", new String(ok), conn);
         }
 	}
 

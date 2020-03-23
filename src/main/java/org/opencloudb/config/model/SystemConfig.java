@@ -40,7 +40,7 @@ public final class SystemConfig {
 	private static final int DEFAULT_MANAGER_PORT = 9066;
 	private static final String DEFAULT_CHARSET = "utf8";
 
-	private static final String DEFAULT_SQL_PARSER = "fdbparser";// druidparser
+	private static final String DEFAULT_SQL_PARSER = "druidparser"; // fdbparser
 	private static final int DEFAULT_BUFFER_CHUNK_SIZE = 4096;
 	private static final int DEFAULT_PROCESSORS = 100;
 

@@ -29,19 +29,20 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.log4j.Logger;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public final class BufferPool {
 
+	private static final Logger log = LoggerFactory.getLogger(BufferPool.class);
     static final boolean DIRECT = Boolean.getBoolean("org.opencloudb.buffer.direct");
 
 	// This value not changed ,isLocalCacheThread use it
 	public static final String LOCAL_BUF_THREAD_PREX = "$_";
 	private  final ThreadLocalBufferPool localBufferPool;
-	private static final Logger LOGGER = Logger.getLogger(BufferPool.class);
+
 	private final int chunkSize;
 	private final ConcurrentLinkedQueue<ByteBuffer> items = new ConcurrentLinkedQueue<ByteBuffer>();
 	private long sharedOptsCount;
@@ -95,7 +96,7 @@ public final class BufferPool {
 		if (node == null) {
 			//newCreated++;
 			final int size = this.chunkSize;
-			node = DIRECT? createDirectBuffer(size):createHeapBuffer(size);
+			node = DIRECT? createDirectBuffer(size): createHeapBuffer(size);
             this.newCreated.incrementAndGet();
 		}
 
@@ -107,8 +108,7 @@ public final class BufferPool {
 		if (buffer == null || DIRECT != buffer.isDirect()) {
 			return false;
 		} else if (buffer.capacity() > this.chunkSize) {
-			LOGGER.warn("cant' recycle  a buffer large than my pool chunksize "
-					+ buffer.capacity());
+			log.warn("Cant' recycle a buffer larger than pool chunkSize {}", buffer.capacity());
 			return false;
 		}
         this.totalCounts++;
@@ -171,8 +171,7 @@ public final class BufferPool {
 		if (size <= this.chunkSize) {
 			return allocate();
 		} else {
-			LOGGER.warn("allocate buffer size large than default chunksize:"
-					+ this.chunkSize + " he want " + size);
+			log.warn("Allocate buffer size {}(larger than pool chunkSize {})", size, this.chunkSize);
 			return createHeapBuffer(size);
 		}
 	}
@@ -187,7 +186,7 @@ public final class BufferPool {
 		for (ByteBuffer buf : all) {
 			pool.recycle(buf);
 		}
-		LOGGER.info(pool.size());
+		log.info("pool size {}", pool.size());
 	}
 
 }

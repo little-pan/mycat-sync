@@ -176,7 +176,7 @@ public class MySQLDetector implements
 	public void close(String msg) {
 		SQLJob curJob = sqlJob;
 		if (curJob != null && !curJob.isFinished()) {
-			curJob.teminate(msg);
+			curJob.terminate(msg);
 			sqlJob = null;
 		}
 	}

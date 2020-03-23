@@ -40,7 +40,7 @@
 	<dataNode name="dn2" dataHost="localhost2" database="db2" />
 	<dataNode name="dn3" dataHost="localhost3" database="db3" />
 
-	<dataHost name="localhost1" maxCon="50" minCon="2" balance="0" writeType="0" dbType="h2" dbDriver="jdbc"
+	<dataHost name="localhost1" maxCon="50" minCon="0" balance="0" writeType="0" dbType="h2" dbDriver="jdbc"
 			  switchType="1"  slaveThreshold="100">
 		<heartbeat>select 1</heartbeat>
 		<!-- can have multi write hosts -->
@@ -49,7 +49,7 @@
 		</writeHost>
 	</dataHost>
 
-    <dataHost name="localhost2" maxCon="50" minCon="2" balance="0" writeType="0" dbType="h2" dbDriver="jdbc"
+    <dataHost name="localhost2" maxCon="50" minCon="0" balance="0" writeType="0" dbType="h2" dbDriver="jdbc"
               switchType="1"  slaveThreshold="100">
         <heartbeat>select 1</heartbeat>
         <!-- can have multi write hosts -->
@@ -58,7 +58,7 @@
         </writeHost>
     </dataHost>
 
-    <dataHost name="localhost3" maxCon="50" minCon="2" balance="0" writeType="0" dbType="h2" dbDriver="jdbc"
+    <dataHost name="localhost3" maxCon="50" minCon="0" balance="0" writeType="0" dbType="h2" dbDriver="jdbc"
               switchType="1"  slaveThreshold="100">
         <heartbeat>select 1</heartbeat>
         <!-- can have multi write hosts -->

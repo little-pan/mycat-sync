@@ -25,66 +25,57 @@ package org.opencloudb.mysql.nio.handler;
 
 import java.util.List;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.backend.BackendConnection;
+import org.slf4j.*;
 
-public class NewConnectionRespHandler implements ResponseHandler{
-	private static final Logger LOGGER = Logger
-			.getLogger(NewConnectionRespHandler.class);
+public class NewConnectionRespHandler implements ResponseHandler {
+
+	private static final Logger log = LoggerFactory.getLogger(NewConnectionRespHandler.class);
+
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
-		LOGGER.warn(conn+" connectionError "+e);
-		
+		log.warn("Connection failed", e);
 	}
 
 	@Override
 	public void connectionAcquired(BackendConnection conn) {
-		//
 		conn.release();
-		LOGGER.info("connectionAcquired "+conn);
-		
-		
+		log.debug("Acquired backend {}", conn);
 	}
 
 	@Override
 	public void errorResponse(byte[] err, BackendConnection conn) {
-		LOGGER.warn("caught error resp: " + conn + " " + new String(err));
+		log.warn("Caught error '{}' in backend {}", new String(err), conn);
 	}
 
 	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
-		LOGGER.info("okResponse: " + conn );
-		
+		log.debug("okResponse in backend {}", conn);
 	}
 
 	@Override
 	public void fieldEofResponse(byte[] header, List<byte[]> fields,
 			byte[] eof, BackendConnection conn) {
-		LOGGER.info("fieldEofResponse: " + conn );
-		
+		log.debug("fieldEofResponse in backend {}", conn);
 	}
 
 	@Override
 	public void rowResponse(byte[] row, BackendConnection conn) {
-		LOGGER.info("rowResponse: " + conn );
-		
+		log.debug("rowResponse in backend {}", conn);
 	}
 
 	@Override
 	public void rowEofResponse(byte[] eof, BackendConnection conn) {
-		LOGGER.info("rowEofResponse: " + conn );
-		
+		log.debug("rowEofResponse in backend {}", conn);
 	}
 
 	@Override
 	public void writeQueueAvailable() {
-		
-		
+
 	}
 
 	@Override
 	public void connectionClose(BackendConnection conn, String reason) {
-		
 		
 	}
 

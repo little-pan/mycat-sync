@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
-import org.opencloudb.mpp.tmp.RowDataSorter;
+import org.opencloudb.mpp.sorter.RowSorter;
 import org.opencloudb.mysql.BufferUtil;
 import org.opencloudb.mysql.nio.handler.MultiNodeQueryHandler;
 import org.opencloudb.net.mysql.EOFPacket;
@@ -60,17 +60,16 @@ public class DataMergeService implements Runnable {
 	class PackWraper {
 		public byte[] data;
 		public String node;
-
 	}
 
 	private int fieldCount;
 	private RouteResultset rrs;
-	private RowDataSorter sorter;
+	private RowSorter sorter;
 	private RowDataPacketGrouper grouper;
 	private volatile boolean hasOrderBy = false;
 	private MultiNodeQueryHandler multiQueryHandler;
 	public PackWraper END_FLAG_PACK = new PackWraper();
-	private AtomicInteger areadyAdd = new AtomicInteger();
+	private AtomicInteger alreadyAdd = new AtomicInteger();
 	private List<RowDataPacket> result = new Vector<RowDataPacket>();
 	private static Logger LOGGER = Logger.getLogger(DataMergeService.class);
 	private BlockingQueue<PackWraper> packs = new LinkedBlockingQueue<PackWraper>();
@@ -108,7 +107,7 @@ public class DataMergeService implements Runnable {
 		}
 
 		if (rrs.isHasAggrColumn()) {
-			List<MergeCol> mergCols = new LinkedList<MergeCol>();
+			List<MergeCol> mergeCols = new LinkedList<>();
 			Map<String, Integer> mergeColsMap = rrs.getMergeCols();
 			if (mergeColsMap != null) {
 				for (Map.Entry<String, Integer> mergEntry : mergeColsMap
@@ -121,14 +120,12 @@ public class DataMergeService implements Runnable {
 								+ "COUNT");
 						if (sumColMeta != null && countColMeta != null) {
 							ColMeta colMeta = new ColMeta(sumColMeta.colIndex,
-									countColMeta.colIndex,
-									sumColMeta.getColType());
-							mergCols.add(new MergeCol(colMeta, mergEntry
-									.getValue()));
+									countColMeta.colIndex, sumColMeta.getColType());
+							mergeCols.add(new MergeCol(colMeta, mergEntry.getValue()));
 						}
 					} else {
 						ColMeta colMeta = columToIndx.get(colName);
-						mergCols.add(new MergeCol(colMeta, mergEntry.getValue()));
+						mergeCols.add(new MergeCol(colMeta, mergEntry.getValue()));
 					}
 				}
 			}
@@ -136,14 +133,12 @@ public class DataMergeService implements Runnable {
 			for (Map.Entry<String, ColMeta> fieldEntry : columToIndx.entrySet()) {
 				String colName = fieldEntry.getKey();
 				int result = MergeCol.tryParseAggCol(colName);
-				if (result != MergeCol.MERGE_UNSUPPORT
-						&& result != MergeCol.MERGE_NOMERGE) {
-					mergCols.add(new MergeCol(fieldEntry.getValue(), result));
+				if (result != MergeCol.MERGE_UNSUPPORT && result != MergeCol.MERGE_NOMERGE) {
+					mergeCols.add(new MergeCol(fieldEntry.getValue(), result));
 				}
 			}
 			grouper = new RowDataPacketGrouper(groupColumnIndexs,
-					mergCols.toArray(new MergeCol[mergCols.size()]),
-					rrs.getHavingCols());
+					mergeCols.toArray(new MergeCol[0]), rrs.getHavingCols());
 		}
 		if (rrs.getOrderByCols() != null) {
 			LinkedHashMap<String, Integer> orders = rrs.getOrderByCols();
@@ -155,13 +150,12 @@ public class DataMergeService implements Runnable {
 				ColMeta colMeta = columToIndx.get(key);
 				if (colMeta == null) {
 					throw new java.lang.IllegalArgumentException(
-							"all columns in order by clause should be in the selected column list!"
+							"All columns in order by clause should be in the selected column list: "
 									+ entry.getKey());
 				}
 				orderCols[i++] = new OrderCol(colMeta, entry.getValue());
 			}
-			// sorter = new RowDataPacketSorter(orderCols);
-			RowDataSorter tmp = new RowDataSorter(orderCols);
+			RowSorter tmp = new RowSorter(orderCols);
 			tmp.setLimit(rrs.getLimitStart(), rrs.getLimitSize());
 			hasOrderBy = true;
 			sorter = tmp;
@@ -179,7 +173,6 @@ public class DataMergeService implements Runnable {
 	 *            DN's name (data from this dataNode)
 	 * @param rowData
 	 *            raw data
-	 * @param conn
 	 */
 	public boolean onNewRecord(String dataNode, byte[] rowData) {
 		// 对于无需排序的SQL,取前getLimitSize条就足够
@@ -201,7 +194,7 @@ public class DataMergeService implements Runnable {
 		data.node = dataNode;
 		data.data = rowData;
 		packs.add(data);
-		areadyAdd.getAndIncrement();
+		this.alreadyAdd.getAndIncrement();
 		return false;
 	}
 
@@ -213,7 +206,7 @@ public class DataMergeService implements Runnable {
 			curColMeta = toIndexMap.get(columns[i].toUpperCase());
 			if (curColMeta == null) {
 				throw new java.lang.IllegalArgumentException(
-						"all columns in group by clause should be in the selected column list.!"
+						"All columns in group by clause should be in the selected column list: "
 								+ columns[i]);
 			}
 			result[i] = curColMeta.colIndex;

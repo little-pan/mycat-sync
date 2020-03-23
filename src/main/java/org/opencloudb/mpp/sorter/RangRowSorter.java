@@ -21,14 +21,14 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.mpp;
+package org.opencloudb.mpp.sorter;
 
-import org.opencloudb.mpp.tmp.RowDataSorter;
+import org.opencloudb.mpp.OrderCol;
 import org.opencloudb.net.mysql.RowDataPacket;
 
+public class RangRowSorter extends RowSorter {
 
-public class RangRowDataPacketSorter extends RowDataSorter {
-    public RangRowDataPacketSorter(OrderCol[] orderCols) {
+    public RangRowSorter(OrderCol[] orderCols) {
         super(orderCols);
     }
 

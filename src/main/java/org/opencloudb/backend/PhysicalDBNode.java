@@ -23,20 +23,18 @@
  */
 package org.opencloudb.backend;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.mysql.nio.handler.ResponseHandler;
 import org.opencloudb.route.RouteResultsetNode;
 
+import java.io.IOException;
+
 public class PhysicalDBNode {
-	protected static final Logger LOGGER = Logger
-			.getLogger(PhysicalDBNode.class);
 
 	protected final String name;
 	protected final String database;
 	protected final PhysicalDBPool dbPool;
 
-	public PhysicalDBNode(String hostName, String database,
-			PhysicalDBPool dbPool) {
+	public PhysicalDBNode(String hostName, String database, PhysicalDBPool dbPool) {
 		this.name = hostName;
 		this.database = database;
 		this.dbPool = dbPool;
@@ -60,44 +58,38 @@ public class PhysicalDBNode {
 	 * @param exitsCon
 	 * @throws Exception
 	 */
-	public void getConnectionFromSameSource(String schema,boolean autocommit,
+	public void getConnectionFromSameSource(String schema, boolean autocommit, RouteResultsetNode rrs,
 			BackendConnection exitsCon, ResponseHandler handler,
 			Object attachment) throws Exception {
-
 		PhysicalDatasource ds = this.dbPool.findDatasouce(exitsCon);
 		if (ds == null) {
-			throw new RuntimeException(
-					"can't find exits connection,maybe fininshed " + exitsCon);
+			throw new RuntimeException("can't find exits connection, maybe finished: " + exitsCon);
 		} else {
-			ds.getConnection(schema,autocommit, handler, attachment);
+			ds.getConnection(schema, autocommit, rrs, handler, attachment);
 		}
-
 	}
 
 	private void checkRequest(String schema){
-		if (schema != null
-				&& !schema.equals(this.database)) {
-			throw new RuntimeException(
-					"invalid param ,connection request db is :"
-							+ schema + " and datanode db is "
-							+ this.database);
+		if (schema != null && !schema.equals(this.database)) {
+			throw new RuntimeException("invalid param, connection request db is :"
+								+ schema + " and datanode db is " + this.database);
 		}
-		if (!dbPool.isInitSuccess()) {
-			dbPool.init(dbPool.activedIndex);
+		if (!this.dbPool.isInitSuccess()) {
+			this.dbPool.init(this.dbPool.activedIndex);
 		}
 	}
 
-	public void getConnection(String schema,boolean autoCommit, RouteResultsetNode rrs,
+	public void getConnection(String schema, boolean autoCommit, RouteResultsetNode rrs,
 			ResponseHandler handler, Object attachment) throws Exception {
 		checkRequest(schema);
-		if (dbPool.isInitSuccess()) {
-			if (rrs.canRunnINReadDB(autoCommit)) {
-				dbPool.getRWBanlanceCon(schema,autoCommit, handler, attachment, this.database);
+		if (this.dbPool.isInitSuccess()) {
+			if (rrs.canRunINReadDB(autoCommit)) {
+				this.dbPool.getRWBalanceCon(schema, autoCommit, rrs, handler, attachment, this.database);
 			} else {
-				dbPool.getSource().getConnection(schema,autoCommit, handler, attachment);
+				this.dbPool.getSource().getConnection(schema, autoCommit, rrs, handler, attachment);
 			}
 		} else {
-			throw new IllegalArgumentException("Invalid DataSource:" + dbPool.getActivedIndex());
+			throw new IOException("Invalid DataSource: " + this.dbPool.getActivedIndex());
 		}
 	}
 

@@ -32,10 +32,9 @@ import java.io.Serializable;
  * @author mycat
  */
 public final class RouteResultsetNode implements Serializable , Comparable<RouteResultsetNode> {
-	/**
-	 *
-	 */
+
 	private static final long serialVersionUID = 1L;
+
 	private final String name; // 数据节点名称
 	private String statement; // 执行的语句
 	private final String srcStatement;
@@ -45,20 +44,19 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 
 	private int limitStart;
 	private int limitSize;
-	private int totalNodeSize =0; //方便后续jdbc批量获取扩展
+	private int totalNodeSize = 0; //方便后续jdbc批量获取扩展
 
 	private LoadData loadData;
 
 	public RouteResultsetNode(String name, int sqlType, String srcStatement) {
 		this.name = name;
-		limitStart=0;
+		this.limitStart = 0;
 		this.limitSize = -1;
 		this.sqlType = sqlType;
 		this.srcStatement = srcStatement;
 		this.statement = srcStatement;
-		canRunInReadDB = (sqlType == ServerParse.SELECT || sqlType == ServerParse.SHOW);
-		hasBlanceFlag = (statement != null)
-				&& statement.startsWith("/*balance*/");
+		this.canRunInReadDB = (sqlType == ServerParse.SELECT || sqlType == ServerParse.SHOW);
+		this.hasBlanceFlag = (this.statement != null) && this.statement.startsWith("/*balance*/");
 	}
 
 	public void setStatement(String statement) {
@@ -77,9 +75,13 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 		this.statement = srcStatement;
 	}
 
-	public boolean canRunnINReadDB(boolean autocommit) {
-		return canRunInReadDB && autocommit && !hasBlanceFlag
-			|| canRunInReadDB && !autocommit && hasBlanceFlag;
+	public boolean canRunINReadDB(boolean autocommit) {
+		if (!this.canRunInReadDB) {
+			return false;
+		}
+
+		return (autocommit && !this.hasBlanceFlag
+			|| !autocommit && this.hasBlanceFlag);
 	}
 
 	public String getName() {

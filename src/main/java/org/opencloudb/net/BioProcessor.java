@@ -64,6 +64,7 @@ public class BioProcessor implements Runnable {
                     buf = con.getManager().getBufferPool().allocate();
                     con.readBuffer = buf;
                 }
+                log.debug("{} continue reading", this.name);
                 final int n = ch.read(buf);
                 log.debug("{} read {} bytes", this.name, n);
                 con.onReadData(n);

@@ -33,8 +33,8 @@ public class DBHostConfig {
 	private final String user;
 	private final String password;
     private final String encryptPassword; //密文
-	private int maxCon ;
-	private int minCon ;
+	private int maxCon = 10;
+	private int minCon = 2;
 	private String dbType;
 	private String filters="mergeStat";
 	private long logTime = 300000;
