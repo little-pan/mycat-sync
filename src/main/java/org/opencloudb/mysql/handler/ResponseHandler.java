@@ -21,8 +21,9 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.mysql.nio.handler;
+package org.opencloudb.mysql.handler;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.opencloudb.backend.BackendConnection;
@@ -39,7 +40,7 @@ public interface ResponseHandler {
 	 * @param e
 	 * @param conn
 	 */
-	public void connectionError(Throwable e, BackendConnection conn);
+	void connectionError(Throwable e, BackendConnection conn);
 
 	/**
 	 * 已获得有效连接的响应处理
@@ -83,5 +84,4 @@ public interface ResponseHandler {
 	 */
 	void connectionClose(BackendConnection conn, String reason);
 
-	
 }

@@ -21,7 +21,7 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.mysql.nio.handler;
+package org.opencloudb.mysql.handler;
 
 import org.apache.log4j.Logger;
 import org.opencloudb.MycatConfig;
@@ -32,11 +32,10 @@ import org.opencloudb.cache.LayerCachePool;
 import org.opencloudb.mpp.ColMeta;
 import org.opencloudb.mpp.DataMergeService;
 import org.opencloudb.mpp.MergeCol;
-import org.opencloudb.mysql.LoadDataUtil;
 import org.opencloudb.net.mysql.*;
 import org.opencloudb.route.RouteResultset;
 import org.opencloudb.route.RouteResultsetNode;
-import org.opencloudb.server.NonBlockingSession;
+import org.opencloudb.server.ServerSession;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.parser.ServerParse;
 import org.opencloudb.stat.QueryResult;
@@ -56,7 +55,7 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements
 			.getLogger(MultiNodeQueryHandler.class);
 
 	private final RouteResultset rrs;
-	private final NonBlockingSession session;
+	private final ServerSession session;
 	// private final CommitNodeHandler icHandler;
 	private final DataMergeService dataMergeSvr;
 	private final boolean autocommit;
@@ -72,8 +71,7 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements
 	private long startTime;
 	private int execCount = 0;
 
-	public MultiNodeQueryHandler(int sqlType, RouteResultset rrs,
-			boolean autocommit, NonBlockingSession session) {
+	public MultiNodeQueryHandler(int sqlType, RouteResultset rrs, boolean autocommit, ServerSession session) {
 		super(session);
 		if (rrs.getNodes() == null) {
 			throw new IllegalArgumentException("routeNode is null!");
@@ -105,7 +103,7 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements
 		this.execCount = 0;
 	}
 
-	public NonBlockingSession getSession() {
+	public ServerSession getSession() {
 		return session;
 	}
 
@@ -520,7 +518,7 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements
 
 	@Override
 	public void requestDataResponse(byte[] data, BackendConnection conn) {
-		LoadDataUtil.requestFileDataResponse(data, conn);
+		throw new UnsupportedOperationException();
 	}
 
 }

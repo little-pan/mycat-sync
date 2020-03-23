@@ -39,7 +39,7 @@ import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
-import org.opencloudb.server.NonBlockingSession;
+import org.opencloudb.server.ServerSession;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.util.StringUtil;
 
@@ -186,13 +186,13 @@ public final class ShowVariables
     
     public static void execute(ServerConnection sc, String orgin, BackendConnection jdbcConnection) {
         execute(sc, orgin);
-        NonBlockingSession session = sc.getSession2();
+        ServerSession session = sc.getSession();
         session.releaseConnectionIfSafe(jdbcConnection, false);
     }
 
      public static void justReturnValue(ServerConnection sc, String orgin, BackendConnection jdbcConnection) {
     	 justReturnValue(sc, orgin);
-         NonBlockingSession session = sc.getSession2();
+         ServerSession session = sc.getSession();
          session.releaseConnectionIfSafe(jdbcConnection,  false);
      }
 

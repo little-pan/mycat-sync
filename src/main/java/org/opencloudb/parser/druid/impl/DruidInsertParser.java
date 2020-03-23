@@ -9,7 +9,7 @@ import java.util.Map;
 
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.TableConfig;
-import org.opencloudb.mysql.nio.handler.FetchStoreNodeOfChildTableHandler;
+import org.opencloudb.mysql.handler.FetchStoreNodeOfChildTableHandler;
 import org.opencloudb.parser.druid.MycatSchemaStatVisitor;
 import org.opencloudb.parser.druid.RouteCalculateUnit;
 import org.opencloudb.route.RouteResultset;

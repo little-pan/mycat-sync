@@ -1,5 +1,6 @@
 package org.opencloudb.jdbc;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -12,8 +13,7 @@ import org.opencloudb.backend.PhysicalDatasource;
 import org.opencloudb.config.model.DBHostConfig;
 import org.opencloudb.config.model.DataHostConfig;
 import org.opencloudb.heartbeat.DBHeartbeat;
-import org.opencloudb.mysql.nio.handler.ResponseHandler;
-import org.opencloudb.net.BioConnector;
+import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.util.IoUtil;
 import org.slf4j.Logger;
@@ -48,7 +48,7 @@ public class JDBCDatasource extends PhysicalDatasource {
 	}
 
 	@Override
-	public void createNewConnection(ResponseHandler handler, String schema) {
+	public void createNewConnection(ResponseHandler handler, String schema) throws IOException {
 		try {
 			DBHostConfig cfg = getConfig();
 			JDBCConnection c = new JDBCConnection();
@@ -61,7 +61,7 @@ public class JDBCDatasource extends PhysicalDatasource {
 			c.setSchema(schema);
 			c.setDbType(cfg.getDbType());
 			c.setManager(manager);
-			c.setId(BioConnector.ID_GENERATOR.incrementAndGet());
+			c.setId(PhysicalDatasource.ID_GENERATOR.incrementAndGet());
 
 			Connection con = getConnection();
 			c.setCon(con);

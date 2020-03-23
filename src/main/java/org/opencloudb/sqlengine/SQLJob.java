@@ -7,7 +7,7 @@ import org.opencloudb.MycatServer;
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.backend.PhysicalDatasource;
-import org.opencloudb.mysql.nio.handler.ResponseHandler;
+import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.parser.ServerParse;

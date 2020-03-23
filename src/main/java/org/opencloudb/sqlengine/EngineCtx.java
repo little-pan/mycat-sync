@@ -9,10 +9,9 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.apache.log4j.Logger;
 import org.opencloudb.handler.ConfFileHandler;
 import org.opencloudb.net.mysql.EOFPacket;
-import org.opencloudb.net.mysql.EmptyPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
-import org.opencloudb.server.NonBlockingSession;
+import org.opencloudb.server.ServerSession;
 import org.opencloudb.server.ServerConnection;
 
 public class EngineCtx {
@@ -20,13 +19,13 @@ public class EngineCtx {
 	private final BatchSQLJob bachJob;
 	private AtomicInteger jobId = new AtomicInteger(0);
 	AtomicInteger packetId = new AtomicInteger(0);
-	private final NonBlockingSession session;
+	private final ServerSession session;
 	private AtomicBoolean finished = new AtomicBoolean(false);
 	private AllJobFinishedListener allJobFinishedListener;
 	private AtomicBoolean headerWrited = new AtomicBoolean();
 	private final ReentrantLock writeLock = new ReentrantLock();
 
-	public EngineCtx(NonBlockingSession session) {
+	public EngineCtx(ServerSession session) {
 		this.bachJob = new BatchSQLJob();
 		this.session = session;
 	}
@@ -158,9 +157,8 @@ public class EngineCtx {
 		sc.write(buf);
 		LOGGER.info("write  eof ,packgId:" + eofPckg.packetId);
 	}
-	
 
-	public NonBlockingSession getSession() {
+	public ServerSession getSession() {
 		return session;
 	}
 

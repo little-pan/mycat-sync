@@ -86,7 +86,6 @@ public class MycatServer {
 	private final AtomicBoolean isOnline;
 	private final long startupTime;
 	private ConnectionManager connectionManager;
-	private SocketConnector connector;
 	private BioProcessorPool processorPool;
 	private NameableExecutor businessExecutor;
 	private NameableExecutor timerExecutor;
@@ -155,7 +154,6 @@ public class MycatServer {
         BioAcceptor manager = null, server = null;
         boolean failed = true;
         try {
-            this.connector = new BioConnector( this.businessExecutor);
             String prefix = BufferPool.LOCAL_BUF_THREAD_PREX + "BioProcessorPool";
             this.processorPool = new BioProcessorPool(prefix, initExecutor, processorCount, false);
 
@@ -448,10 +446,6 @@ public class MycatServer {
 
 	public ConnectionManager getConnectionManager() {
 		return this.connectionManager;
-	}
-
-	public SocketConnector getConnector() {
-		return connector;
 	}
 
 	public SQLRecorder getSqlRecorder() {

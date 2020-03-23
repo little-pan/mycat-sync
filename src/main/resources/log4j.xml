@@ -44,7 +44,7 @@
 </logger>
   -->
   <!-- 
-<logger name="org.opencloudb.mysql.nio.handler.MultiNodeQueryHandler" >    
+<logger name="MultiNodeQueryHandler" >
  <level value="debug" /> 
 </logger>
  -->

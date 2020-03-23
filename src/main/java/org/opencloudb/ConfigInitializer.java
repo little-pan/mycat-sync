@@ -43,14 +43,17 @@ import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.UserConfig;
 import org.opencloudb.config.util.ConfigException;
 import org.opencloudb.jdbc.JDBCDatasource;
-import org.opencloudb.mysql.nio.MySQLDataSource;
 import org.opencloudb.sequence.handler.IncrSequenceTimeHandler;
 import org.opencloudb.sequence.handler.IncrSequenceMySQLHandler;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public class ConfigInitializer {
+
+    static final Logger log = LoggerFactory.getLogger(ConfigInitializer.class);
+
 	private volatile SystemConfig system;
 	private volatile MycatCluster cluster;
 	private volatile QuarantineConfig quarantine;
@@ -158,22 +161,18 @@ public class ConfigInitializer {
 			DBHostConfig[] nodes, boolean isRead) {
 		PhysicalDatasource[] dataSources = new PhysicalDatasource[nodes.length];
 		if (dbType.equals("mysql") && dbDriver.equals("native")) {
-			for (int i = 0; i < nodes.length; i++) {
-				nodes[i].setIdleTimeout(system.getIdleTimeout());
-				MySQLDataSource ds = new MySQLDataSource(nodes[i], conf, isRead);
-				dataSources[i] = ds;
-			}
-
-		} else if(dbDriver.equals("jdbc"))
-			{
+            String useDriver = "jdbc";
+            log.warn("dbDriver '{}' is deprecated in {}: changed to {}", dbDriver, dbType, useDriver);
+            dbDriver = useDriver;
+        }
+        if(dbDriver.equals("jdbc")) {
 			for (int i = 0; i < nodes.length; i++) {
 				nodes[i].setIdleTimeout(system.getIdleTimeout());
 				JDBCDatasource ds = new JDBCDatasource(nodes[i], conf, isRead);
 				dataSources[i] = ds;
 			}
-			}
-		else {
-			throw new ConfigException("not supported yet !" + hostName);
+        } else {
+			throw new ConfigException("dbDriver '"+dbDriver+"' in dataHost '"+hostName+"' not supported yet!");
 		}
 		return dataSources;
 	}

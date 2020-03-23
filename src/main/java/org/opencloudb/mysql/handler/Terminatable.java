@@ -21,13 +21,11 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.net;
+package org.opencloudb.mysql.handler;
 
 /**
  * @author mycat
  */
-public interface NIOHandler {
-
-    void handle(byte[] data);
-
+public interface Terminatable {
+    void terminate(Runnable runnable);
 }

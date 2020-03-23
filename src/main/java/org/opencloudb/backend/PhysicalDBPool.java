@@ -31,8 +31,8 @@ import org.opencloudb.MycatServer;
 import org.opencloudb.config.Alarms;
 import org.opencloudb.config.model.DataHostConfig;
 import org.opencloudb.heartbeat.DBHeartbeat;
-import org.opencloudb.mysql.nio.handler.GetConnectionHandler;
-import org.opencloudb.mysql.nio.handler.ResponseHandler;
+import org.opencloudb.mysql.handler.GetConnectionHandler;
+import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.route.RouteResultsetNode;
 import org.slf4j.*;
 
@@ -103,19 +103,6 @@ public class PhysicalDBPool {
 		for (PhysicalDatasource ds : this.allDs) {
 			ds.setDbPool(this);
 		}
-	}
-
-	public PhysicalDatasource findDatasouce(BackendConnection exitsCon) {
-		for (PhysicalDatasource ds : this.allDs) {
-			if (ds.isReadNode() == exitsCon.isFromSlaveDB()) {
-				if (ds.isMyConnection(exitsCon)) {
-					return ds;
-				}
-			}
-		}
-
-		log.warn("Can't find connection in pool {} for con: {}",  this.hostName, exitsCon);
-		return null;
 	}
 
 	public String getHostName() {

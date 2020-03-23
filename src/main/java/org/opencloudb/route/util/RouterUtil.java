@@ -17,7 +17,7 @@ import org.opencloudb.config.model.TableConfig;
 import org.opencloudb.config.model.rule.RuleConfig;
 import org.opencloudb.mpp.ColumnRoutePair;
 import org.opencloudb.mpp.LoadData;
-import org.opencloudb.mysql.nio.handler.FetchStoreNodeOfChildTableHandler;
+import org.opencloudb.mysql.handler.FetchStoreNodeOfChildTableHandler;
 import org.opencloudb.parser.druid.DruidShardingParseInfo;
 import org.opencloudb.parser.druid.RouteCalculateUnit;
 import org.opencloudb.route.RouteResultset;
@@ -445,7 +445,7 @@ public class RouterUtil {
 	}
 
 	public static void processSQL(ServerConnection sc,SchemaConfig schema,String sql,int sqlType){
-		MycatServer.getInstance().getSequnceProcessor().addNewSql(new SessionSQLPair(sc.getSession2(), schema, sql, sqlType));
+		MycatServer.getInstance().getSequnceProcessor().addNewSql(new SessionSQLPair(sc.getSession(), schema, sql, sqlType));
 	}
 
 	public static boolean processInsert(SchemaConfig schema, int sqlType,
@@ -1176,7 +1176,7 @@ public class RouterUtil {
                 }
                 if(processedInsert==false){
                 	rrs.setFinishedRoute(true);
-                    sc.getSession2().execute(rrs, ServerParse.INSERT);
+                    sc.getSession().execute(rrs, ServerParse.INSERT);
                 }
 				return true;
 			}
@@ -1202,7 +1202,7 @@ public class RouterUtil {
 				public void onSuccess(String result) {
 					if (Strings.isNullOrEmpty(result)) {
 						StringBuilder s = new StringBuilder();
-						LOGGER.warn(s.append(sc.getSession2()).append(origSQL).toString() +
+						LOGGER.warn(s.append(sc.getSession()).append(origSQL).toString() +
 								" err:" + "can't find (root) parent sharding node for sql:" + origSQL);
 						sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR, "can't find (root) parent sharding node for sql:" + origSQL);
 						return;
@@ -1222,9 +1222,9 @@ public class RouterUtil {
 		                    sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR , "sequence processInsert error," + e.getMessage());
 						}
                     }
-                    if(processedInsert==false){
+                    if(!processedInsert){
                     	RouteResultset executeRrs = RouterUtil.routeToSingleNode(rrs, result, origSQL);
-    					sc.getSession2().execute(executeRrs, ServerParse.INSERT);
+    					sc.getSession().execute(executeRrs, ServerParse.INSERT);
                     }
 
 				}
@@ -1232,7 +1232,7 @@ public class RouterUtil {
 				@Override
 				public void onFailure(Throwable t) {
 					StringBuilder s = new StringBuilder();
-					LOGGER.warn(s.append(sc.getSession2()).append(origSQL).toString() +
+					LOGGER.warn(s.append(sc.getSession()).append(origSQL).toString() +
 							" err:" + t.getMessage());
 					sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR, t.getMessage() + " " + s.toString());
 				}

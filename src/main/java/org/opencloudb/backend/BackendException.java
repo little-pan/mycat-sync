@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2013, OpenCloudDB/MyCAT and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, OpenCloudDB/MyCAT and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
- * This code is free software;Designed and Developed mainly by many Chinese 
- * opensource volunteers. you can redistribute it and/or modify it under the 
+ * This code is free software;Designed and Developed mainly by many Chinese
+ * opensource volunteers. you can redistribute it and/or modify it under the
  * terms of the GNU General Public License version 2 only, as published by the
  * Free Software Foundation.
  *
@@ -16,18 +16,26 @@
  * You should have received a copy of the GNU General Public License version
  * 2 along with this work; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
- * 
- * Any questions about this component can be directed to it's project Web address 
+ *
+ * Any questions about this component can be directed to it's project Web address
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.postgres;
+package org.opencloudb.backend;
 
-import org.opencloudb.net.factory.BackendConnectionFactory;
-
-/**
- * @author mycat
+/** The backend unchecked exception..
+ *
+ * @author little-pan
+ * @since 2020-03-24
  */
-public class PostgresConnectionFactory extends BackendConnectionFactory {
+public class BackendException extends RuntimeException {
+
+    public BackendException (String message) {
+        super(message);
+    }
+
+    public BackendException (String message, Throwable cause) {
+        super(message, cause);
+    }
 
 }

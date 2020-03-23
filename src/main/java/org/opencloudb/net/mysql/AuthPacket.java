@@ -25,13 +25,11 @@ package org.opencloudb.net.mysql;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 
 import org.opencloudb.config.Capabilities;
 import org.opencloudb.mysql.BufferUtil;
 import org.opencloudb.mysql.MySQLMessage;
 import org.opencloudb.mysql.StreamUtil;
-import org.opencloudb.net.BackendAIOConnection;
 
 /**
  * From client to server during initial handshake.
@@ -47,7 +45,8 @@ import org.opencloudb.net.BackendAIOConnection;
  * n (Length Coded Binary)      scramble_buff (1 + x bytes)
  * n (Null-Terminated String)   databasename (optional)
  * 
- * @see http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#Client_Authentication_Packet
+ * @see <a href="http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#Client_Authentication_Packet">
+ *     Client_Authentication_Packet</a>
  * </pre>
  * 
  * @author mycat
@@ -108,41 +107,6 @@ public class AuthPacket extends MySQLPacket {
         } else {
             StreamUtil.writeWithNull(out, database.getBytes());
         }
-    }
-
-    @Override
-    public void write(BackendAIOConnection c) {
-        ByteBuffer buffer = c.allocate();
-        BufferUtil.writeUB3(buffer, calcPacketSize());
-        buffer.put(packetId);
-        BufferUtil.writeUB4(buffer, clientFlags);
-        BufferUtil.writeUB4(buffer, maxPacketSize);
-        buffer.put((byte) charsetIndex);
-        buffer = c.writeToBuffer(FILLER, buffer);
-        if (user == null) {
-            buffer = c.checkWriteBuffer(buffer, 1,true);
-            buffer.put((byte) 0);
-        } else {
-            byte[] userData = user.getBytes();
-            buffer = c.checkWriteBuffer(buffer, userData.length + 1,true);
-            BufferUtil.writeWithNull(buffer, userData);
-        }
-        if (password == null) {
-            buffer = c.checkWriteBuffer(buffer, 1,true);
-            buffer.put((byte) 0);
-        } else {
-            buffer = c.checkWriteBuffer(buffer, BufferUtil.getLength(password),true);
-            BufferUtil.writeWithLength(buffer, password);
-        }
-        if (database == null) {
-            buffer = c.checkWriteBuffer(buffer, 1,true);
-            buffer.put((byte) 0);
-        } else {
-            byte[] databaseData = database.getBytes();
-            buffer = c.checkWriteBuffer(buffer, databaseData.length + 1,true);
-            BufferUtil.writeWithNull(buffer, databaseData);
-        }
-        c.write(buffer);
     }
 
     @Override

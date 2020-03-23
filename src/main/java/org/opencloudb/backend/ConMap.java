@@ -8,7 +8,6 @@ import java.util.concurrent.ConcurrentMap;
 
 import org.opencloudb.MycatServer;
 import org.opencloudb.jdbc.JDBCConnection;
-import org.opencloudb.mysql.nio.MySQLConnection;
 import org.opencloudb.net.ConnectionManager;
 
 public class ConMap {
@@ -63,16 +62,7 @@ public class ConMap {
 		int total = 0;
 
         for (BackendConnection con : getBackends().values()) {
-            if (con instanceof MySQLConnection) {
-                MySQLConnection mysqlCon = (MySQLConnection) con;
-
-                if (mysqlCon.getSchema().equals(schema)
-                        && mysqlCon.getPool() == dataSouce) {
-                    if (mysqlCon.isBorrowed()) {
-                        total++;
-                    }
-                }
-            }else if (con instanceof JDBCConnection) {
+            if (con instanceof JDBCConnection) {
                 JDBCConnection jdbcCon = (JDBCConnection) con;
                 if (jdbcCon.getSchema().equals(schema) && jdbcCon.getPool() == dataSouce) {
                     if (jdbcCon.isBorrowed()) {
@@ -89,16 +79,7 @@ public class ConMap {
 		int total = 0;
 
         for (BackendConnection con : getBackends().values()) {
-            if (con instanceof MySQLConnection) {
-                MySQLConnection mysqlCon = (MySQLConnection) con;
-
-                if (mysqlCon.getPool() == dataSouce) {
-                    if (mysqlCon.isBorrowed() && !mysqlCon.isClosed()) {
-                        total++;
-                    }
-                }
-
-            } else if (con instanceof JDBCConnection) {
+            if (con instanceof JDBCConnection) {
                 JDBCConnection jdbcCon = (JDBCConnection) con;
                 if (jdbcCon.getPool() == dataSouce) {
                     if (jdbcCon.isBorrowed() && !jdbcCon.isClosed()) {
@@ -117,12 +98,7 @@ public class ConMap {
         while (it.hasNext()) {
             Entry<Long, BackendConnection> entry = it.next();
             BackendConnection con = entry.getValue();
-            if (con instanceof MySQLConnection) {
-                if (((MySQLConnection) con).getPool() == dataSouce) {
-                    con.close(reason);
-                    it.remove();
-                }
-            }else if(con instanceof JDBCConnection){
+            if(con instanceof JDBCConnection){
                 if(((JDBCConnection) con).getPool() == dataSouce){
                     con.close(reason);
                     it.remove();

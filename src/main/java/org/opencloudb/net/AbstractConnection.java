@@ -23,7 +23,6 @@
  */
 package org.opencloudb.net;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SocketChannel;
@@ -33,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.base.Strings;
 import org.opencloudb.mysql.CharsetUtil;
-import org.opencloudb.util.CompressUtil;
+import static org.opencloudb.util.CompressUtil.*;
 import org.opencloudb.util.IoUtil;
 import org.opencloudb.util.TimeUtil;
 import org.slf4j.*;
@@ -41,7 +40,7 @@ import org.slf4j.*;
 /**
  * @author mycat
  */
-public abstract class AbstractConnection implements NIOConnection, ClosableConnection {
+public abstract class AbstractConnection implements ClosableConnection {
 
     static final Logger log = LoggerFactory.getLogger(AbstractConnection.class);
 
@@ -53,16 +52,15 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 	protected volatile int charsetIndex;
 
 	protected final NetworkChannel channel;
-	protected NIOHandler handler;
+	protected Handler handler;
 
 	protected int packetHeaderSize;
 	protected int maxPacketSize;
 	protected volatile ByteBuffer readBuffer;
 	protected volatile ByteBuffer writeBuffer;
-	protected final ConcurrentLinkedQueue<ByteBuffer> writeQueue = new ConcurrentLinkedQueue<ByteBuffer>();
+	protected final ConcurrentLinkedQueue<ByteBuffer> writeQueue = new ConcurrentLinkedQueue<>();
 	protected volatile int readBufferOffset;
 	protected final AtomicBoolean isClosed;
-	protected boolean isSocketClosed;
 	protected long startupTime;
 	protected long lastReadTime;
 	protected long lastWriteTime;
@@ -219,14 +217,13 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 		this.manager.getBufferPool().recycle(buffer);
 	}
 
-	public void setHandler(NIOHandler handler) {
+	public void setHandler(Handler handler) {
 		this.handler = handler;
 	}
 
-	@Override
 	public void handle(byte[] data) {
         if(isSupportCompress()) {
-            List<byte[]> packs= CompressUtil.decompressMysqlPacket(data,decompressUnfinishedDataQueue);
+            List<byte[]> packs = decompressMysqlPacket(data,decompressUnfinishedDataQueue);
             for (byte[] pack : packs) {
 				if(pack.length != 0) {
                     this.handler.handle(pack);
@@ -237,7 +234,7 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
         }
 	}
 
-	public void onReadData(int got) throws IOException {
+	public void onReadData(int got) {
 		if (isClosed()) {
 			return;
 		}
@@ -314,50 +311,26 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 		}
 	}
 
-	public void write(byte[] data) {
-		ByteBuffer buffer = allocate();
-		buffer = writeToBuffer(data, buffer);
-		write(buffer);
-
-	}
-
-	private final void writeNotSend(ByteBuffer buffer) {
-        if(isSupportCompress())
-        {
-            ByteBuffer newBuffer = CompressUtil.compressMysqlPacket(buffer,this,compressUnfinishedDataQueue);
-            writeQueue.offer(newBuffer);
-        }   else
-        {
-            writeQueue.offer(buffer);
-        }
-	}
-
-
-    @Override
-	public final void write(ByteBuffer buffer) {
+    public void write(ByteBuffer buffer) {
         if(isSupportCompress()) {
-            ByteBuffer newBuffer = CompressUtil.compressMysqlPacket(buffer,this,compressUnfinishedDataQueue);
+            ByteBuffer newBuffer = compressMysqlPacket(buffer, this, this.compressUnfinishedDataQueue);
             this.writeQueue.offer(newBuffer);
         } else {
             this.writeQueue.offer(buffer);
         }
-		try {
-            int n = doWrite();
-            log.debug("written {} bytes in conn {}", n, this);
-		} catch (Exception e) {
-            log.warn("Write error", e);
-			this.close("write error: " + e);
-		}
-	}
 
-	private int doWrite () throws IOException {
+        int n = flush();
+        log.debug("written {} bytes in conn {}", n, this);
+    }
+
+    private int flush () {
         SocketChannel channel = (SocketChannel)this.channel;
         ByteBuffer buf = this.writeBuffer;
         int written = 0;
 
         if (buf != null) {
             while (buf.hasRemaining()) {
-                int n = channel.write(buf);
+                int n = write(channel, buf);
                 written += n;
                 this.lastWriteTime = TimeUtil.currentTimeMillis();
                 this.netOutBytes += n;
@@ -376,7 +349,7 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 
             buf.flip();
             while (buf.hasRemaining()) {
-                int n = channel.write(buf);
+                int n =  write(channel, buf);
                 written += n;
                 this.lastWriteTime = TimeUtil.currentTimeMillis();
                 this.netOutBytes += n;
@@ -388,45 +361,59 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
         return written;
     }
 
-	public ByteBuffer checkWriteBuffer(ByteBuffer buffer, int capacity,
-			boolean writeSocketIfFull) {
-		if (capacity > buffer.remaining()) {
-			if (writeSocketIfFull) {
-				writeNotSend(buffer);
-				return this.manager.getBufferPool().allocate(capacity);
-			} else { // Relocate a larger buffer
-				buffer.flip();
-				ByteBuffer newBuf = this.manager.getBufferPool().allocate(capacity + buffer.limit() + 1);
-				newBuf.put(buffer);
-				this.recycle(buffer);
-				return newBuf;
-			}
-		} else {
-			return buffer;
-		}
-	}
+    public ByteBuffer checkWriteBuffer(ByteBuffer buffer, int capacity, boolean writeSocketIfFull) {
+        if (capacity > buffer.remaining()) {
+            if (writeSocketIfFull) {
+                writeNotSend(buffer);
+                return this.manager.getBufferPool().allocate(capacity);
+            } else { // Relocate a larger buffer
+                buffer.flip();
+                ByteBuffer newBuf = this.manager.getBufferPool().allocate(capacity + buffer.limit() + 1);
+                newBuf.put(buffer);
+                this.recycle(buffer);
+                return newBuf;
+            }
+        } else {
+            return buffer;
+        }
+    }
 
-	public ByteBuffer writeToBuffer(byte[] src, ByteBuffer buffer) {
-		int offset = 0;
-		int length = src.length;
-		int remaining = buffer.remaining();
-		while (length > 0) {
-			if (remaining >= length) {
-				buffer.put(src, offset, length);
-				break;
-			} else {
-				buffer.put(src, offset, remaining);
-				writeNotSend(buffer);
-				buffer = allocate();
-				offset += remaining;
-				length -= remaining;
-				remaining = buffer.remaining();
-				continue;
-			}
-		}
+    public ByteBuffer writeToBuffer(byte[] src, ByteBuffer buffer) {
+        int offset = 0;
+        int length = src.length;
+        int remaining = buffer.remaining();
+        while (length > 0) {
+            if (remaining >= length) {
+                buffer.put(src, offset, length);
+                break;
+            }
+            buffer.put(src, offset, remaining);
+            writeNotSend(buffer);
+            buffer = allocate();
+            offset += remaining;
+            length -= remaining;
+            remaining = buffer.remaining();
+        }
 
-		return buffer;
-	}
+        return buffer;
+    }
+
+    protected abstract int write(SocketChannel channel, ByteBuffer buffer);
+
+    public void write(byte[] data) {
+        ByteBuffer buffer = allocate();
+        buffer = writeToBuffer(data, buffer);
+        write(buffer);
+    }
+
+    private void writeNotSend(ByteBuffer buffer) {
+        if(isSupportCompress()) {
+            ByteBuffer newBuffer = compressMysqlPacket(buffer,this, compressUnfinishedDataQueue);
+            writeQueue.offer(newBuffer);
+        } else {
+            writeQueue.offer(buffer);
+        }
+    }
 
 	@Override
 	public void close(String reason) {
@@ -439,7 +426,7 @@ public abstract class AbstractConnection implements NIOConnection, ClosableConne
 			this.cleanup();
 			isSupportCompress=false;
 
-			//ignore null information
+			// Ignore null information
 			if (Strings.isNullOrEmpty(reason)) {
 				return;
 			}

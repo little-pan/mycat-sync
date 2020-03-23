@@ -21,14 +21,15 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.mysql.nio.handler;
+package org.opencloudb.mysql.handler;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.opencloudb.backend.BackendConnection;
-import org.opencloudb.mysql.nio.MySQLConnection;
+import org.opencloudb.backend.BackendException;
 import org.opencloudb.net.mysql.ErrorPacket;
-import org.opencloudb.server.NonBlockingSession;
+import org.opencloudb.server.ServerSession;
 import org.opencloudb.server.ServerConnection;
 import org.slf4j.*;
 
@@ -39,27 +40,15 @@ public class CommitNodeHandler implements ResponseHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(CommitNodeHandler.class);
 
-	private final NonBlockingSession session;
+	private final ServerSession session;
 
-	public CommitNodeHandler(NonBlockingSession session) {
+	public CommitNodeHandler(ServerSession session) {
 		this.session = session;
 	}
 
-	public void commit(BackendConnection conn) {
+	public void commit(BackendConnection conn) throws BackendException {
 		conn.setResponseHandler(this);
-	   if(conn instanceof MySQLConnection) {
-		   MySQLConnection mysqlCon = (MySQLConnection) conn;
-		   if (mysqlCon.getXaStatus() == 1) {
-			   String xaTxId = session.getXaTXID();
-			   String[] cmds = new String[]{"XA END " + xaTxId,
-					   "XA PREPARE " + xaTxId};
-			   mysqlCon.execBatchCmd(cmds);
-		   } else {
-			   conn.commit();
-		   }
-	   } else {
-		   conn.commit();
-	   }
+		conn.commit();
 	}
 
 	@Override
@@ -69,22 +58,6 @@ public class CommitNodeHandler implements ResponseHandler {
 
 	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
-		if(conn instanceof MySQLConnection) {
-			MySQLConnection mysqlCon = (MySQLConnection) conn;
-			switch (mysqlCon.getXaStatus()) {
-				case 1:
-					if (mysqlCon.batchCmdFinished()) {
-						String xaTxId = session.getXaTXID();
-						mysqlCon.execCmd("XA COMMIT " + xaTxId);
-						mysqlCon.setXaStatus(2);
-					}
-					return;
-				case 2: {
-					mysqlCon.setXaStatus(0);
-					break;
-				}
-			}
-		}
 		session.clearResources(false);
 		ServerConnection source = session.getSource();
 		source.write(ok);

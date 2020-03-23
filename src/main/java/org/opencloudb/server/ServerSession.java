@@ -24,6 +24,7 @@
 package org.opencloudb.server;
 
 import java.nio.ByteBuffer;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -32,18 +33,16 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
 import org.opencloudb.backend.BackendConnection;
-import org.opencloudb.backend.PhysicalDBNode;
+import org.opencloudb.backend.BackendException;
 import org.opencloudb.config.ErrorCode;
-import org.opencloudb.mysql.nio.handler.CommitNodeHandler;
-import org.opencloudb.mysql.nio.handler.KillConnectionHandler;
-import org.opencloudb.mysql.nio.handler.MultiNodeCoordinator;
-import org.opencloudb.mysql.nio.handler.MultiNodeQueryHandler;
-import org.opencloudb.mysql.nio.handler.RollbackNodeHandler;
-import org.opencloudb.mysql.nio.handler.RollbackReleaseHandler;
-import org.opencloudb.mysql.nio.handler.SingleNodeHandler;
+import org.opencloudb.mysql.handler.CommitNodeHandler;
+import org.opencloudb.mysql.handler.MultiNodeCoordinator;
+import org.opencloudb.mysql.handler.MultiNodeQueryHandler;
+import org.opencloudb.mysql.handler.RollbackNodeHandler;
+import org.opencloudb.mysql.handler.RollbackReleaseHandler;
+import org.opencloudb.mysql.handler.SingleNodeHandler;
 import org.opencloudb.net.FrontendConnection;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.route.RouteResultset;
@@ -53,11 +52,10 @@ import org.slf4j.*;
 
 /**
  * @author mycat
- * @author mycat
  */
-public class NonBlockingSession implements Session {
+public class ServerSession implements Session {
 
-    static final Logger log = LoggerFactory.getLogger(NonBlockingSession.class);
+    static final Logger log = LoggerFactory.getLogger(ServerSession.class);
 
 	private final ServerConnection source;
 	private final ConcurrentHashMap<RouteResultsetNode, BackendConnection> target;
@@ -69,7 +67,7 @@ public class NonBlockingSession implements Session {
 	private final CommitNodeHandler commitHandler;
 	private volatile String xaTXID;
 
-	public NonBlockingSession(ServerConnection source) {
+	public ServerSession(ServerConnection source) {
 		this.source = source;
 		this.target = new ConcurrentHashMap<>(2, 0.75f);
 		multiNodeCoordinator = new MultiNodeCoordinator(this);
@@ -138,7 +136,7 @@ public class NonBlockingSession implements Session {
 	}
 
 	@Override
-	public void commit() {
+	public void commit()  {
 		final int initCount = this.target.size();
 
 		if (initCount <= 0) {
@@ -156,6 +154,7 @@ public class NonBlockingSession implements Session {
 		}
 	}
 
+	@Override
 	public void rollback() {
 		final int initCount = this.target.size();
 		if (initCount <= 0) {
@@ -205,7 +204,7 @@ public class NonBlockingSession implements Session {
 		}
 	}
 
-	public void releaseConnection(RouteResultsetNode rrn, final boolean needRollback) {
+	private void releaseConnection(RouteResultsetNode rrn, boolean needRollback) {
 		BackendConnection c = target.remove(rrn);
 		if (c != null) {
             log.debug("release backend {}", c);
@@ -215,38 +214,35 @@ public class NonBlockingSession implements Session {
 			if (!c.isClosedOrQuit()) {
 				if (c.isAutocommit()) {
 					c.release();
-				} else
-              //  if (needRollback)
-              {
+				} else {
 					c.setResponseHandler(new RollbackReleaseHandler());
-					c.rollback();
-			}
-  //              else {
-//					c.release();
-//				}
+                    try {
+                        c.rollback();
+                    } catch (BackendException e) {
+                        c.close("rollback failed when releasing: " + e);
+                    }
+                }
 			}
 		}
 	}
 
-	public void releaseConnections(final boolean needRollback) {
-		for (RouteResultsetNode rrn : target.keySet()) {
+	public void releaseConnections(boolean needRollback) {
+		for (RouteResultsetNode rrn : this.target.keySet()) {
 			releaseConnection(rrn, needRollback);
 		}
 	}
 
 	public void releaseConnection(BackendConnection con) {
-		Iterator<Entry<RouteResultsetNode, BackendConnection>> itor = target
-				.entrySet().iterator();
-		while (itor.hasNext()) {
-			BackendConnection theCon = itor.next().getValue();
+		Iterator<Entry<RouteResultsetNode, BackendConnection>> it = target.entrySet().iterator();
+		while (it.hasNext()) {
+			BackendConnection theCon = it.next().getValue();
 			if (theCon == con) {
-				itor.remove();
+                it.remove();
 				con.release();
                 log.debug("release backend {}", con);
 				break;
 			}
 		}
-
 	}
 
 	/**
@@ -276,7 +272,7 @@ public class NonBlockingSession implements Session {
 		boolean hooked = false;
 		AtomicInteger count = null;
 		Map<RouteResultsetNode, BackendConnection> killees = null;
-		for (RouteResultsetNode node : target.keySet()) {
+		for (RouteResultsetNode node: target.keySet()) {
 			BackendConnection c = target.get(node);
 			if (c != null) {
 				if (!hooked) {
@@ -289,19 +285,7 @@ public class NonBlockingSession implements Session {
 			}
 		}
 		if (hooked) {
-			for (Entry<RouteResultsetNode, BackendConnection> en : killees.entrySet()) {
-				RouteResultsetNode rrs = en.getKey();
-				BackendConnection exitsCon = en.getValue();
-				KillConnectionHandler kill = new KillConnectionHandler(exitsCon, this);
-				MycatConfig conf = MycatServer.getInstance().getConfig();
-				PhysicalDBNode dn = conf.getDataNodes().get(rrs.getName());
-				try {
-					dn.getConnectionFromSameSource(null,true, rrs, exitsCon, kill, rrs);
-				} catch (Exception e) {
-					log.error("get killer connection failed for " + rrs, e);
-					kill.connectionError(e, null);
-				}
-			}
+			throw new BackendException("Kill unsupported");
 		}
 	}
 

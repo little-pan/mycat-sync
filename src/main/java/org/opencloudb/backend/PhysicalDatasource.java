@@ -29,17 +29,17 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.Alarms;
 import org.opencloudb.config.model.DBHostConfig;
 import org.opencloudb.config.model.DataHostConfig;
 import org.opencloudb.heartbeat.DBHeartbeat;
-import org.opencloudb.mysql.nio.MySQLConnection;
-import org.opencloudb.mysql.nio.handler.ConnectionHeartBeatHandler;
-import org.opencloudb.mysql.nio.handler.DelegateResponseHandler;
-import org.opencloudb.mysql.nio.handler.NewConnectionRespHandler;
-import org.opencloudb.mysql.nio.handler.ResponseHandler;
+import org.opencloudb.mysql.handler.ConnectionHeartBeatHandler;
+import org.opencloudb.mysql.handler.DelegateResponseHandler;
+import org.opencloudb.mysql.handler.NewConnectionRespHandler;
+import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.util.NameableExecutor;
 import org.opencloudb.util.TimeUtil;
@@ -51,8 +51,10 @@ import org.slf4j.*;
 public abstract class PhysicalDatasource {
 
 	private static final Logger log = LoggerFactory.getLogger(PhysicalDatasource.class);
+
 	private static final int INIT_SOURCE_WAIT_SECONDS =
 			Integer.getInteger("org.opencloudb.backend.initSourceWaitSeconds", 2);
+	public static final AtomicLong ID_GENERATOR = new AtomicLong();
 
 	private final String name;
 	private final int size;
@@ -72,15 +74,6 @@ public abstract class PhysicalDatasource {
 		this.hostConfig = hostConfig;
         this.heartbeat = this.createHeartBeat();
 		this.readNode = isReadNode;
-	}
-
-	public boolean isMyConnection(BackendConnection con) {
-		if (con instanceof MySQLConnection) {
-			return ((MySQLConnection) con).getPool() == this;
-		} else {
-			return false;
-		}
-
 	}
 
 	public DataHostConfig getHostConfig() {

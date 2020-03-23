@@ -1,9 +1,9 @@
 package org.opencloudb.backend;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.sql.SQLException;
 
-import org.opencloudb.mysql.nio.handler.ResponseHandler;
+import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.net.ClosableConnection;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.ServerConnection;
@@ -32,19 +32,20 @@ public interface BackendConnection extends ClosableConnection {
 
 	boolean setResponseHandler(ResponseHandler commandHandler);
 
-	void commit();
+	void commit() throws BackendException;
 
  	void query(String sql) throws UnsupportedOperationException;
 
 	Object getAttachment();
 
-	void execute(RouteResultsetNode node, ServerConnection source, boolean autocommit) throws IOException;
+	void execute(RouteResultsetNode node, ServerConnection source, boolean autocommit)
+			throws IOException;
 
 	void recordSql(String host, String schema, String statement);
 
     boolean syncAndExcute();
 
-    void rollback();
+    void rollback() throws BackendException;
 
     boolean isBorrowed();
 
@@ -55,7 +56,5 @@ public interface BackendConnection extends ClosableConnection {
     boolean isAutocommit();
 
     long getId();
-
-     void discardClose(String reason);
 
 }

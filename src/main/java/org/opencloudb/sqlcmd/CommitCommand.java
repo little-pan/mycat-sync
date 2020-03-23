@@ -2,18 +2,17 @@ package org.opencloudb.sqlcmd;
 
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.net.mysql.ErrorPacket;
-import org.opencloudb.server.NonBlockingSession;
+import org.opencloudb.server.ServerSession;
 
 public class CommitCommand implements SQLCtrlCommand {
 
 	@Override
-	public void sendCommand(NonBlockingSession session, BackendConnection con) {
+	public void sendCommand(ServerSession session, BackendConnection con) {
 		con.commit();
 	}
 
 	@Override
-	public void errorResponse(NonBlockingSession session, byte[] err,
-			int total, int failed) {
+	public void errorResponse(ServerSession session, byte[] err, int total, int failed) {
 		ErrorPacket errPkg = new ErrorPacket();
 		errPkg.read(err);
 		String errInfo = "total " + total + " failed " + failed + " detail:"
@@ -23,7 +22,7 @@ public class CommitCommand implements SQLCtrlCommand {
 	}
 
 	@Override
-	public void okResponse(NonBlockingSession session, byte[] ok) {
+	public void okResponse(ServerSession session, byte[] ok) {
 		session.getSource().write(ok);
 	}
 

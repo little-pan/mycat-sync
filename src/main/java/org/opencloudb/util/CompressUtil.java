@@ -14,7 +14,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
-
 /**
  * 压缩数据包协议
  * 
@@ -70,14 +69,13 @@ public class CompressUtil {
 	 * @return
 	 */
 	private static ByteBuffer compressMysqlPacket(byte[] data, AbstractConnection con,
-			ConcurrentLinkedQueue<byte[]> compressUnfinishedDataQueue) {
+												  ConcurrentLinkedQueue<byte[]> compressUnfinishedDataQueue) {
 
 		ByteBuffer byteBuf = con.allocate();
-		byteBuf = con.checkWriteBuffer(byteBuf, data.length, false); //TODO: 数据量大的时候, 此处是是性能的堵点
+		byteBuf = con.checkWriteBuffer(byteBuf, data.length, false); // TODO: 数据量大的时候, 此处是是性能的堵点
 		
 		MySQLMessage msg = new MySQLMessage(data);
 		while ( msg.hasRemaining() ) {
-			
 			//包体的长度
 			int packetLength = 0;
 			
@@ -95,7 +93,6 @@ public class CompressUtil {
 					compressUnfinishedDataQueue.add(packet);		//不完整的包
 				}
 			} else {
-				
 				byte[] packet = msg.readBytes(packetLength + 4);
 				if ( packet.length != 0 ) {
 					
@@ -105,8 +102,7 @@ public class CompressUtil {
 						BufferUtil.writeUB3(byteBuf, 0);  				//压缩前的长度设置为0
 						byteBuf.put(packet);							//包体
 
-					} else {						
-						
+					} else {
 						byte[] compress = compress(packet);				//压缩
 						
 						BufferUtil.writeUB3(byteBuf, compress.length);

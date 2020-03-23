@@ -53,7 +53,7 @@ public class ServerConnection extends FrontendConnection {
 	private volatile boolean txInterrupted;
 	private volatile String txInterrputMsg = "";
 	private long lastInsertId;
-	private NonBlockingSession session;
+	private ServerSession session;
 
 	public ServerConnection(NetworkChannel channel)
 			throws IOException {
@@ -110,11 +110,12 @@ public class ServerConnection extends FrontendConnection {
 	{
 		return txInterrupted;
 	}
-	public NonBlockingSession getSession2() {
+
+	public ServerSession getSession() {
 		return session;
 	}
 
-	public void setSession2(NonBlockingSession session2) {
+	public void setSession(ServerSession session2) {
 		this.session = session2;
 	}
 

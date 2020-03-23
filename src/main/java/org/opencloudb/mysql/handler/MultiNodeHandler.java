@@ -21,7 +21,7 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.mysql.nio.handler;
+package org.opencloudb.mysql.handler;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
@@ -30,7 +30,7 @@ import org.apache.log4j.Logger;
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.net.mysql.ErrorPacket;
-import org.opencloudb.server.NonBlockingSession;
+import org.opencloudb.server.ServerSession;
 import org.opencloudb.util.StringUtil;
 
 /**
@@ -40,14 +40,14 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 	private static final Logger LOGGER = Logger
 			.getLogger(MultiNodeHandler.class);
 	protected final ReentrantLock lock = new ReentrantLock();
-	protected final NonBlockingSession session;
+	protected final ServerSession session;
 	private AtomicBoolean isFailed = new AtomicBoolean(false);
 	protected volatile String error;
 	protected byte packetId;
 	protected final AtomicBoolean errorRepsponsed = new AtomicBoolean(false);
 	protected final AtomicBoolean isClosedByDiscard = new AtomicBoolean(false);
 
-	public MultiNodeHandler(NonBlockingSession session) {
+	public MultiNodeHandler(ServerSession session) {
 		if (session == null) {
 			throw new IllegalArgumentException("session is null!");
 		}
@@ -128,7 +128,7 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 		this.tryErrorFinished(this.decrementCountBy(1));
 	}
 
-	public boolean clearIfSessionClosed(NonBlockingSession session) {
+	public boolean clearIfSessionClosed(ServerSession session) {
 		if (session.closed()) {
 			if (LOGGER.isDebugEnabled()) {
 				LOGGER.debug("session closed ,clear resources " + session);

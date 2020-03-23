@@ -42,7 +42,7 @@ public final class BeginHandler {
             c.write(c.writeToBuffer(AC_OFF, c.allocate()));
         } else {
             log.debug("committing");
-            c.getSession2().commit() ;
+            c.getSession().commit() ;
         }
     }
 

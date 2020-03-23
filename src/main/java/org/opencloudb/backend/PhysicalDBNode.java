@@ -23,7 +23,7 @@
  */
 package org.opencloudb.backend;
 
-import org.opencloudb.mysql.nio.handler.ResponseHandler;
+import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.route.RouteResultsetNode;
 
 import java.io.IOException;
@@ -50,23 +50,6 @@ public class PhysicalDBNode {
 
 	public String getDatabase() {
 		return database;
-	}
-
-	/**
-	 * get connection from the same datasource
-	 * 
-	 * @param exitsCon
-	 * @throws Exception
-	 */
-	public void getConnectionFromSameSource(String schema, boolean autocommit, RouteResultsetNode rrs,
-			BackendConnection exitsCon, ResponseHandler handler,
-			Object attachment) throws Exception {
-		PhysicalDatasource ds = this.dbPool.findDatasouce(exitsCon);
-		if (ds == null) {
-			throw new RuntimeException("can't find exits connection, maybe finished: " + exitsCon);
-		} else {
-			ds.getConnection(schema, autocommit, rrs, handler, attachment);
-		}
 	}
 
 	private void checkRequest(String schema){

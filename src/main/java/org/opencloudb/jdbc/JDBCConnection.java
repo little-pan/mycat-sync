@@ -1,6 +1,5 @@
 package org.opencloudb.jdbc;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -9,10 +8,11 @@ import java.sql.Statement;
 import java.util.*;
 
 import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.backend.BackendException;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.Isolations;
-import org.opencloudb.mysql.nio.handler.ConnectionHeartBeatHandler;
-import org.opencloudb.mysql.nio.handler.ResponseHandler;
+import org.opencloudb.mysql.handler.ConnectionHeartBeatHandler;
+import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.ErrorPacket;
@@ -67,7 +67,7 @@ public class JDBCConnection implements BackendConnection {
 
 	@Override
 	public void close(String reason) {
-    	log.debug("{}: close backend {}", reason, this);
+    	log.info("{}: close backend {}", reason, this);
 		IoUtil.close(this.con);
 		if(this.manager != null){
 			this.manager.removeConnection(this);
@@ -214,14 +214,14 @@ public class JDBCConnection implements BackendConnection {
 	}
 
 	@Override
-	public void commit() {
+	public void commit() throws BackendException {
 		try {
 		    log.debug("committing");
 			this.con.commit();
             log.debug("committed");
 			this.respHandler.okResponse(OkPacket.OK, this);
 		} catch (SQLException e) {
-			throw new RuntimeException(e);
+			throw new BackendException("Commit failed", e);
 		}
 	}
 
@@ -402,7 +402,7 @@ public class JDBCConnection implements BackendConnection {
 	}
 
 	@Override
-	public void execute(RouteResultsetNode rrn, ServerConnection sc, boolean autocommit) throws IOException {
+	public void execute(RouteResultsetNode rrn, ServerConnection sc, boolean autocommit) {
         String origin = rrn.getStatement();
         log.debug("execute sql '{}' from {} ", origin, sc);
         if (!modifiedSQLExecuted && rrn.isModifySQL()) {
@@ -467,15 +467,15 @@ public class JDBCConnection implements BackendConnection {
 	}
 
 	@Override
-	public void rollback() {
-		try {
-		    log.debug("rollbacking");
-			this.con.rollback();
+	public void rollback() throws BackendException {
+        try {
+            log.debug("rollbacking");
+            this.con.rollback();
             log.debug("rollbacked");
-			this.respHandler.okResponse(OkPacket.OK, this);
-		} catch (SQLException e) {
-			throw new RuntimeException(e);
-		}
+            this.respHandler.okResponse(OkPacket.OK, this);
+        } catch (SQLException e) {
+            throw new BackendException("Rollback failed", e);
+        }
 	}
 
 	public boolean isRunning() {
@@ -523,6 +523,14 @@ public class JDBCConnection implements BackendConnection {
 		return id;
 	}
 
+	public ConnectionManager getManager() {
+		return this.manager;
+	}
+
+	public void setManager (ConnectionManager manager) {
+		this.manager = manager;
+	}
+
 	@Override
     public String toString() {
         return "JDBCConnection [id=" + id +",autocommit="+this.isAutocommit()+",pool=" + pool + ", schema=" + schema
@@ -531,19 +539,6 @@ public class JDBCConnection implements BackendConnection {
                 + ", respHandler=" + respHandler + ", attachement=" + attachement + ", headerOutputed="
                 + headerOutputed + ", modifiedSQLExecuted=" + modifiedSQLExecuted + ", startTime=" + startTime
                 + ", lastTime=" + lastTime + ", isSpark=" + isSpark + ", manager=" + manager + "]";
-    }
-
-	@Override
-	public void discardClose(String reason) {
-
-	}
-
-    public ConnectionManager getManager() {
-        return this.manager;
-    }
-	
-	public void setManager (ConnectionManager manager) {
-	    this.manager = manager;
     }
 
 }

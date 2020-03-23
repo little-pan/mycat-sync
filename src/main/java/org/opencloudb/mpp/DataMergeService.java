@@ -40,12 +40,12 @@ import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.mpp.sorter.RowSorter;
 import org.opencloudb.mysql.BufferUtil;
-import org.opencloudb.mysql.nio.handler.MultiNodeQueryHandler;
+import org.opencloudb.mysql.handler.MultiNodeQueryHandler;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.route.RouteResultset;
-import org.opencloudb.server.NonBlockingSession;
 import org.opencloudb.server.ServerConnection;
+import org.opencloudb.server.ServerSession;
 import org.opencloudb.util.StringUtil;
 
 /**
@@ -84,7 +84,7 @@ public class DataMergeService implements Runnable {
 		return this.rrs;
 	}
 
-	public void outputMergeResult(NonBlockingSession session, byte[] eof) {
+	public void outputMergeResult(ServerSession session, byte[] eof) {
 		packs.add(END_FLAG_PACK);
 	}
 

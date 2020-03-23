@@ -1,7 +1,7 @@
 package org.opencloudb.sqlcmd;
 
 import org.opencloudb.backend.BackendConnection;
-import org.opencloudb.server.NonBlockingSession;
+import org.opencloudb.server.ServerSession;
 
 /**
  * sql command like set xxxx ,only return OK /Err Pacakage,can't return restult
@@ -17,16 +17,16 @@ public interface SQLCtrlCommand {
 	
 	boolean relaseConOnOK();
 	
-	void sendCommand(NonBlockingSession session, BackendConnection con);
+	void sendCommand(ServerSession session, BackendConnection con);
 
 	/**
 	 * 收到错误数据包的响应处理
 	 */
-	void errorResponse(NonBlockingSession session,byte[] err,int total,int failed);
+	void errorResponse(ServerSession session,byte[] err,int total,int failed);
 
 	/**
 	 * 收到OK数据包的响应处理
 	 */
-	void okResponse(NonBlockingSession session, byte[] ok);
+	void okResponse(ServerSession session, byte[] ok);
 
 }

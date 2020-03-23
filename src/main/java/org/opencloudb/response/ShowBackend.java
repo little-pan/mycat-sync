@@ -31,8 +31,6 @@ import org.opencloudb.config.Fields;
 import org.opencloudb.jdbc.JDBCConnection;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
-import org.opencloudb.mysql.nio.MySQLConnection;
-import org.opencloudb.net.BackendAIOConnection;
 import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
@@ -51,8 +49,7 @@ import org.opencloudb.util.TimeUtil;
 public class ShowBackend {
 
 	private static final int FIELD_COUNT = 16;
-	private static final ResultSetHeaderPacket header = PacketUtil
-			.getHeader(FIELD_COUNT);
+	private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
 	private static final FieldPacket[] fields = new FieldPacket[FIELD_COUNT];
 	private static final EOFPacket eof = new EOFPacket();
 	static {
@@ -126,18 +123,13 @@ public class ShowBackend {
 
 	private static RowDataPacket getRow(BackendConnection c, String charset) {
 		RowDataPacket row = new RowDataPacket(FIELD_COUNT);
-		if (c instanceof BackendAIOConnection) {
-			row.add(((BackendAIOConnection) c).getManager().getName().getBytes());
-		} else if(c instanceof JDBCConnection){
+		if (c instanceof JDBCConnection) {
 		    row.add(((JDBCConnection)c).getManager().getName().getBytes());
-		}else{
+		} else{
 		    row.add("N/A".getBytes());
 		}
 		row.add(LongUtil.toBytes(c.getId()));
 		long threadId = 0;
-		if (c instanceof MySQLConnection) {
-			threadId = ((MySQLConnection) c).getThreadId();
-		}
 		row.add(LongUtil.toBytes(threadId));
 		row.add(StringUtil.encode(c.getHost(), charset));
 		row.add(IntegerUtil.toBytes(c.getPort()));
@@ -155,19 +147,12 @@ public class ShowBackend {
 		String txLevel = "";
 		String txAutommit = "";
 
-		if (c instanceof MySQLConnection) {
-			MySQLConnection mysqlC = (MySQLConnection) c;
-			writeQueueSize = mysqlC.getWriteQueue().size();
-			schema = mysqlC.getSchema();
-			charsetInf = mysqlC.getCharset() + ":" + mysqlC.getCharsetIndex();
-			txLevel = mysqlC.getTxIsolation() + "";
-			txAutommit = mysqlC.isAutocommit() + "";
-		}
 		row.add(IntegerUtil.toBytes(writeQueueSize));
 		row.add(schema.getBytes());
 		row.add(charsetInf.getBytes());
 		row.add(txLevel.getBytes());
 		row.add(txAutommit.getBytes());
+
 		return row;
 	}
 

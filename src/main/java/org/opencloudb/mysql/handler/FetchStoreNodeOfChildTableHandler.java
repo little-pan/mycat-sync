@@ -21,7 +21,7 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.mysql.nio.handler;
+package org.opencloudb.mysql.handler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +32,6 @@ import org.apache.log4j.Logger;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
 import org.opencloudb.backend.BackendConnection;
-import org.opencloudb.backend.ConnectionMeta;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.cache.CachePool;
 import org.opencloudb.net.mysql.ErrorPacket;

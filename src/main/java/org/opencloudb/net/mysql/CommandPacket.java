@@ -24,14 +24,10 @@
 package org.opencloudb.net.mysql;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 
-import org.opencloudb.mysql.BufferUtil;
 import org.opencloudb.mysql.MySQLMessage;
 import org.opencloudb.mysql.StreamUtil;
-import org.opencloudb.net.BackendAIOConnection;
 
 /**
  * From client to server whenever the client wants the server to do something.
@@ -85,7 +81,7 @@ import org.opencloudb.net.BackendAIOConnection;
  *               the size can be calculated from the packet size,
  *               and the MySQL client appends '\0' when receiving.
  *               
- * @see http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#Command_Packet_.28Overview.29
+ * @see <a href="http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#Command_Packet_.28Overview.29>Command_Packet_</a>
  * </pre>
  * 
  * @author mycat
@@ -103,23 +99,11 @@ public class CommandPacket extends MySQLPacket {
         arg = mm.readBytes();
     }
 
-
-
     public void write(OutputStream out) throws IOException {
         StreamUtil.writeUB3(out, calcPacketSize());
         StreamUtil.write(out, packetId);
         StreamUtil.write(out, command);
         out.write(arg);
-    }
-
-    @Override
-    public void write(BackendAIOConnection c) {
-        ByteBuffer buffer = c.allocate();
-        BufferUtil.writeUB3(buffer, calcPacketSize());
-        buffer.put(packetId);
-        buffer.put(command);
-        buffer = c.writeToBuffer(arg, buffer);
-        c.write(buffer);
     }
 
     @Override

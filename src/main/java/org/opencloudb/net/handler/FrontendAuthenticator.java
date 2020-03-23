@@ -33,7 +33,7 @@ import org.opencloudb.config.ErrorCode;
 import org.opencloudb.mysql.SecurityUtil;
 import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.FrontendConnection;
-import org.opencloudb.net.NIOHandler;
+import org.opencloudb.net.Handler;
 import org.opencloudb.net.mysql.AuthPacket;
 import org.opencloudb.net.mysql.MySQLPacket;
 import org.opencloudb.net.mysql.QuitPacket;
@@ -44,7 +44,7 @@ import org.slf4j.*;
  * 
  * @author mycat
  */
-public class FrontendAuthenticator implements NIOHandler {
+public class FrontendAuthenticator implements Handler {
 	
     private static final Logger log = LoggerFactory.getLogger(FrontendAuthenticator.class);
     private static final byte[] AUTH_OK = new byte[] { 7, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0 };

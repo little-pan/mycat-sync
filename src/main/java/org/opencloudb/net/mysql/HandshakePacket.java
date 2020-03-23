@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import org.opencloudb.mysql.BufferUtil;
 import org.opencloudb.mysql.MySQLMessage;
 import org.opencloudb.net.FrontendConnection;
+import org.opencloudb.net.FrontendException;
 
 /**
  * From server to client during initial handshake.
@@ -46,7 +47,8 @@ import org.opencloudb.net.FrontendConnection;
  * 13                           (filler) always 0x00 ...
  * 13                           rest of scramble_buff (4.1)
  * 
- * @see http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#Handshake_Initialization_Packet
+ * @see <a href="http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#Handshake_Initialization_Packet>
+ *     Handshake_Initialization_Packet</a>
  * </pre>
  * 
  * @author mycat
@@ -93,7 +95,7 @@ public class HandshakePacket extends MySQLPacket {
         restOfScrambleBuff = mm.readBytesWithNull();
     }
 
-    public void write(FrontendConnection c) {
+    public void write(FrontendConnection c) throws FrontendException {
         ByteBuffer buffer = c.allocate();
         BufferUtil.writeUB3(buffer, calcPacketSize());
         buffer.put(packetId);

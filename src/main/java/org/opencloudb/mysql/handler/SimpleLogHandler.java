@@ -21,61 +21,67 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.mysql.nio.handler;
+package org.opencloudb.mysql.handler;
 
 import java.util.List;
 
+import org.apache.log4j.Logger;
 import org.opencloudb.backend.BackendConnection;
-import org.slf4j.*;
 
-public class NewConnectionRespHandler implements ResponseHandler {
-
-	private static final Logger log = LoggerFactory.getLogger(NewConnectionRespHandler.class);
-
+public class SimpleLogHandler implements ResponseHandler{
+	private static final Logger LOGGER = Logger
+			.getLogger(SimpleLogHandler.class);
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
-		log.warn("Connection failed", e);
+		LOGGER.warn(conn+" connectionError "+e);
+		
 	}
 
 	@Override
 	public void connectionAcquired(BackendConnection conn) {
-		conn.release();
-		log.debug("Acquired backend {}", conn);
+		LOGGER.info("connectionAcquired "+conn);
+		
 	}
 
 	@Override
 	public void errorResponse(byte[] err, BackendConnection conn) {
-		log.warn("Caught error '{}' in backend {}", new String(err), conn);
+		LOGGER.warn("caught error resp: " + conn + " " + new String(err));
 	}
 
 	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
-		log.debug("okResponse in backend {}", conn);
+		LOGGER.info("okResponse: " + conn );
+		
 	}
 
 	@Override
 	public void fieldEofResponse(byte[] header, List<byte[]> fields,
 			byte[] eof, BackendConnection conn) {
-		log.debug("fieldEofResponse in backend {}", conn);
+		LOGGER.info("fieldEofResponse: " + conn );
+		
 	}
 
 	@Override
 	public void rowResponse(byte[] row, BackendConnection conn) {
-		log.debug("rowResponse in backend {}", conn);
+		LOGGER.info("rowResponse: " + conn );
+		
 	}
 
 	@Override
 	public void rowEofResponse(byte[] eof, BackendConnection conn) {
-		log.debug("rowEofResponse in backend {}", conn);
+		LOGGER.info("rowEofResponse: " + conn );
+		
 	}
 
 	@Override
 	public void writeQueueAvailable() {
-
+		
+		
 	}
 
 	@Override
 	public void connectionClose(BackendConnection conn, String reason) {
+		
 		
 	}
 

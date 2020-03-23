@@ -1,4 +1,4 @@
-package org.opencloudb.mysql.nio.handler;
+package org.opencloudb.mysql.handler;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.log4j.Logger;
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.route.RouteResultsetNode;
-import org.opencloudb.server.NonBlockingSession;
+import org.opencloudb.server.ServerSession;
 import org.opencloudb.sqlcmd.SQLCtrlCommand;
 
 public class MultiNodeCoordinator implements ResponseHandler {
@@ -16,11 +16,11 @@ public class MultiNodeCoordinator implements ResponseHandler {
 	private final AtomicInteger runningCount = new AtomicInteger(0);
 	private final AtomicInteger faileCount = new AtomicInteger(0);
 	private volatile int nodeCount;
-	private final NonBlockingSession session;
+	private final ServerSession session;
 	private SQLCtrlCommand cmdHandler;
 	private final AtomicBoolean failed = new AtomicBoolean(false);
 
-	public MultiNodeCoordinator(NonBlockingSession session) {
+	public MultiNodeCoordinator(ServerSession session) {
 		this.session = session;
 	}
 

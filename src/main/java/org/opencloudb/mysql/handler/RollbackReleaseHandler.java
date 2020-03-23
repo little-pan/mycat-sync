@@ -21,7 +21,7 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.mysql.nio.handler;
+package org.opencloudb.mysql.handler;
 
 import java.util.List;
 
@@ -32,8 +32,8 @@ import org.opencloudb.backend.BackendConnection;
  * @author mycat
  */
 public class RollbackReleaseHandler implements ResponseHandler {
-	private static final Logger logger = Logger
-			.getLogger(RollbackReleaseHandler.class);
+
+	private static final Logger logger = Logger.getLogger(RollbackReleaseHandler.class);
 
 	public RollbackReleaseHandler() {
 	}

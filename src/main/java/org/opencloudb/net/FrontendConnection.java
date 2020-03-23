@@ -41,11 +41,13 @@ import org.slf4j.*;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SocketChannel;
 import java.util.List;
 import java.util.Set;
+
 
 /**
  * @author mycat
@@ -58,7 +60,6 @@ public abstract class FrontendConnection extends AbstractConnection {
 	protected String host;
 	protected int port;
 	protected int localPort;
-	protected long idleTimeout;
 	protected byte[] seed;
 	protected String user;
 	protected String schema;
@@ -202,7 +203,6 @@ public abstract class FrontendConnection extends AbstractConnection {
 	}
 	
 	public void initDB(byte[] data) {
-		
 		MySQLMessage mm = new MySQLMessage(data);
 		mm.position(5);
 		String db = mm.readString();
@@ -227,7 +227,6 @@ public abstract class FrontendConnection extends AbstractConnection {
 			writeErrMessage(ErrorCode.ER_DBACCESS_DENIED_ERROR, s);
 		}
 	}
-
 
 	public void loadDataInfileStart(String sql) {
 		if (loadDataInfileHandler != null) {
@@ -284,8 +283,6 @@ public abstract class FrontendConnection extends AbstractConnection {
 				writeErrMessage(ErrorCode.ER_NOT_ALLOWED_COMMAND, "Empty SQL");
 				return;
 			}
-
-			// sql = StringUtil.replace(sql, "`", "");
 
 			// remove last ';'
 			if (sql.endsWith(";")) {
@@ -363,8 +360,7 @@ public abstract class FrontendConnection extends AbstractConnection {
 		writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, "Unknown command");
 	}
 
-	@Override
-	public void register() throws IOException {
+	public void register() throws FrontendException {
 		if (!isClosed.get()) {
 			// 生成认证数据
 			byte[] rand1 = RandomUtil.randomBytes(8);
@@ -399,14 +395,12 @@ public abstract class FrontendConnection extends AbstractConnection {
 				if (pack.length != 0)
 					rawHandle(pack);
 			}
-			
 		} else {
 			rawHandle(data);
 		}
 	}
 
 	public void rawHandle(final byte[] data) {
-
 		//load data infile  客户端会发空包 长度为4
 		if (data.length == 4 && data[0] == 0 && data[1] == 0 && data[2] == 0) {
 			// load in data空包
@@ -447,13 +441,14 @@ public abstract class FrontendConnection extends AbstractConnection {
 		return flag;
 	}
 
-	protected boolean isConnectionReset(Throwable t) {
-		if (t instanceof IOException) {
-			String msg = t.getMessage();
-			return (msg != null && msg.contains("Connection reset by peer"));
-		}
-		return false;
-	}
+    @Override
+    protected int write(SocketChannel channel, ByteBuffer buffer) {
+        try {
+            return channel.write(buffer);
+        } catch (IOException e) {
+            throw new FrontendException("Channel write failed", e);
+        }
+    }
 
 	@Override
 	public String toString() {
@@ -482,4 +477,5 @@ public abstract class FrontendConnection extends AbstractConnection {
 	public void close(String reason) {
 		super.close(isAuthenticated ? reason : "");
 	}
+
 }

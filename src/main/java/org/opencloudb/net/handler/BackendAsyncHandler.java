@@ -25,12 +25,12 @@ package org.opencloudb.net.handler;
 
 import java.util.concurrent.Executor;
 
-import org.opencloudb.net.NIOHandler;
+import org.opencloudb.net.Handler;
 
 /**
  * @author mycat
  */
-public abstract class BackendAsyncHandler implements NIOHandler {
+public abstract class BackendAsyncHandler implements Handler {
 
 protected void offerData(byte[] data, Executor executor) {
 		handleData(data);

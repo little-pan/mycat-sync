@@ -21,43 +21,13 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.mysql.nio;
-
-import java.io.IOException;
-
-import org.opencloudb.backend.PhysicalDatasource;
-import org.opencloudb.config.model.DBHostConfig;
-import org.opencloudb.config.model.DataHostConfig;
-import org.opencloudb.heartbeat.DBHeartbeat;
-import org.opencloudb.heartbeat.MySQLHeartbeat;
-import org.opencloudb.mysql.nio.handler.ResponseHandler;
+package org.opencloudb.net;
 
 /**
  * @author mycat
  */
-public class MySQLDataSource extends PhysicalDatasource {
+public interface Handler {
 
-	private final MySQLConnectionFactory factory;
-
-	public MySQLDataSource(DBHostConfig config, DataHostConfig hostConfig,
-			boolean isReadNode) {
-		super(config, hostConfig, isReadNode);
-		this.factory = new MySQLConnectionFactory();
-
-	}
-
-	@Override
-	public void createNewConnection(ResponseHandler handler,String schema) throws IOException {
-		factory.make(this, handler,schema);
-	}
-
-	@Override
-	public DBHeartbeat createHeartBeat() {
-		return new MySQLHeartbeat(this);
-	}
-
-	
-
-	
+    void handle(byte[] data);
 
 }

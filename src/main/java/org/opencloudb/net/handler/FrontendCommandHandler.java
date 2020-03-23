@@ -26,7 +26,7 @@ package org.opencloudb.net.handler;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.mysql.MySQLMessage;
 import org.opencloudb.net.FrontendConnection;
-import org.opencloudb.net.NIOHandler;
+import org.opencloudb.net.Handler;
 import org.opencloudb.net.mysql.MySQLPacket;
 import org.opencloudb.statistic.CommandCount;
 
@@ -35,7 +35,7 @@ import org.opencloudb.statistic.CommandCount;
  *
  * @author mycat
  */
-public class FrontendCommandHandler implements NIOHandler
+public class FrontendCommandHandler implements Handler
 {
 
     protected final FrontendConnection source;

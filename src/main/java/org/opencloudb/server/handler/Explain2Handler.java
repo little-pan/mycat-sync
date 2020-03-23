@@ -28,7 +28,7 @@ import java.nio.ByteBuffer;
 import org.apache.log4j.Logger;
 import org.opencloudb.config.Fields;
 import org.opencloudb.mysql.PacketUtil;
-import org.opencloudb.mysql.nio.handler.SingleNodeHandler;
+import org.opencloudb.mysql.handler.SingleNodeHandler;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
@@ -75,7 +75,7 @@ public class Explain2Handler {
 			RouteResultset	rrs =  new RouteResultset(sql, ServerParse.SELECT);
 			EMPTY_ARRAY[0] = node; 
 			rrs.setNodes(EMPTY_ARRAY);
-			SingleNodeHandler singleNodeHandler = new SingleNodeHandler(rrs, c.getSession2());
+			SingleNodeHandler singleNodeHandler = new SingleNodeHandler(rrs, c.getSession());
 			singleNodeHandler.execute();
 		} catch (Exception e) {
 			logger.error(e.getMessage(), e.getCause());

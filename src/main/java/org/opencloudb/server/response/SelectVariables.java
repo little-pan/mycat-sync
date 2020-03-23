@@ -25,31 +25,24 @@ package org.opencloudb.server.response;
 
 import com.google.common.base.Splitter;
 import org.apache.log4j.Logger;
-import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.config.Fields;
 import org.opencloudb.mysql.PacketUtil;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
-import org.opencloudb.server.NonBlockingSession;
 import org.opencloudb.server.ServerConnection;
-import org.opencloudb.util.LongUtil;
-import org.opencloudb.util.StringUtil;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * @author mycat
  */
-public final class SelectVariables
-{
+public final class SelectVariables {
     private static final Logger LOGGER = Logger.getLogger(SelectVariables.class);
 
 
@@ -104,8 +97,6 @@ public final class SelectVariables
         row.packetId = ++packetId;
         buffer = row.write(buffer, c,true);
 
-
-
         // write lastEof
         EOFPacket lastEof = new EOFPacket();
         lastEof.packetId = ++packetId;
@@ -133,12 +124,7 @@ public final class SelectVariables
          {
              return out;
          }
-
-
     }
-
-
-
 
     private static final Map<String, String> variables = new HashMap<String, String>();
     static {

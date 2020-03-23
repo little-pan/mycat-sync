@@ -21,13 +21,13 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.mysql.nio.handler;
+package org.opencloudb.mysql.handler;
 
 import java.util.List;
 
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.route.RouteResultsetNode;
-import org.opencloudb.server.NonBlockingSession;
+import org.opencloudb.server.ServerSession;
 import org.slf4j.*;
 
 /**
@@ -37,7 +37,7 @@ public class RollbackNodeHandler extends MultiNodeHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(RollbackNodeHandler.class);
 
-	public RollbackNodeHandler(NonBlockingSession session) {
+	public RollbackNodeHandler(ServerSession session) {
 		super(session);
 	}
 

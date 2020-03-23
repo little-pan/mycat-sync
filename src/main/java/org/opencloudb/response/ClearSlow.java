@@ -32,6 +32,8 @@ import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.net.mysql.OkPacket;
 
+import java.io.IOException;
+
 /**
  * @author mycat
  */
@@ -41,7 +43,6 @@ public class ClearSlow {
     	PhysicalDBNode dn = MycatServer.getInstance().getConfig().getDataNodes().get(name);
     	PhysicalDBPool ds = null;
         if (dn != null && ((ds = dn.getDbPool())!= null)) {
-           // ds.getSqlRecorder().clear();
             c.write(c.writeToBuffer(OkPacket.OK, c.allocate()));
         } else {
             c.writeErrMessage(ErrorCode.ER_YES, "Invalid DataNode:" + name);
@@ -52,14 +53,6 @@ public class ClearSlow {
         MycatConfig conf = MycatServer.getInstance().getConfig();
         SchemaConfig schema = conf.getSchemas().get(name);
         if (schema != null) {
-//            Map<String, MySQLDataNode> dataNodes = conf.getDataNodes();
-//            for (String n : schema.getAllDataNodes()) {
-//                MySQLDataNode dn = dataNodes.get(n);
-//                MySQLDataSource ds = null;
-//                if (dn != null && (ds = dn.getSource()) != null) {
-//                    ds.getSqlRecorder().clear();
-//                }
-//            }
             c.write(c.writeToBuffer(OkPacket.OK, c.allocate()));
         } else {
             c.writeErrMessage(ErrorCode.ER_YES, "Invalid Schema:" + name);

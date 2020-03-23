@@ -21,7 +21,7 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.mysql.nio.handler;
+package org.opencloudb.mysql.handler;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -34,13 +34,12 @@ import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.model.SchemaConfig;
-import org.opencloudb.mysql.LoadDataUtil;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.route.RouteResultset;
 import org.opencloudb.route.RouteResultsetNode;
-import org.opencloudb.server.NonBlockingSession;
+import org.opencloudb.server.ServerSession;
 import org.opencloudb.server.ServerConnection;
 
 import org.opencloudb.server.parser.ServerParse;
@@ -63,7 +62,7 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 	private final RouteResultsetNode node;
 	private final RouteResultset rrs;
-	private final NonBlockingSession session;
+	private final ServerSession session;
 	// only one thread access at one time no need lock
 	private volatile byte packetId;
 	private volatile ByteBuffer buffer;
@@ -75,7 +74,7 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
     private volatile boolean isDefaultNodeShowFullTable;
     private  Set<String> shardingTablesSet;
 	
-	public SingleNodeHandler(RouteResultset rrs, NonBlockingSession session) {
+	public SingleNodeHandler(RouteResultset rrs, ServerSession session) {
 		this.rrs = rrs;
 		this.node = rrs.getNodes()[0];
 		if (this.node == null) {
@@ -193,8 +192,7 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 		ErrorPacket err = new ErrorPacket();
 		err.packetId = ++packetId;
 		err.errno = ErrorCode.ER_NEW_ABORTING_CONNECTION;
-		err.message = StringUtil.encode(e.getMessage(), session.getSource()
-				.getCharset());
+		err.message = StringUtil.encode(e.getMessage(), session.getSource().getCharset());
 		ServerConnection source = session.getSource();
 		source.write(err.write(allocBuffer(), source, true));
 	}
@@ -359,13 +357,12 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 	@Override
 	public void requestDataResponse(byte[] data, BackendConnection conn) {
-		LoadDataUtil.requestFileDataResponse(data, conn);
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
 	public String toString() {
-		return "SingleNodeHandler [node=" + node + ", packetId=" + packetId
-				+ "]";
+		return "SingleNodeHandler [node=" + node + ", packetId=" + packetId + "]";
 	}
 
 }

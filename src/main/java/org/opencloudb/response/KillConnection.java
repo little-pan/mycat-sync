@@ -24,34 +24,34 @@
 package org.opencloudb.response;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.FrontendConnection;
-import org.opencloudb.net.NIOConnection;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.util.SplitUtil;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public final class KillConnection {
 
-    private static final Logger logger = Logger.getLogger(KillConnection.class);
+    private static final Logger log = LoggerFactory.getLogger(KillConnection.class);
 
     public static void response(String stmt, int offset, ManagerConnection mc) {
+        List<FrontendConnection> list = getList(stmt, offset);
         int count = 0;
-        List<FrontendConnection> list = getList(stmt, offset, mc);
-        if (list != null)
-            for (NIOConnection c : list) {
-                StringBuilder s = new StringBuilder();
-                logger.warn(s.append(c).append("killed by manager").toString());
-                c.close("kill by manager");
-                count++;
-            }
+
+        for (FrontendConnection c : list) {
+            log.debug("{} killed by manager", c);
+            c.close("kill by manager");
+            count++;
+        }
+
         OkPacket packet = new OkPacket();
         packet.packetId = 1;
         packet.affectedRows = count;
@@ -59,14 +59,15 @@ public final class KillConnection {
         packet.write(mc);
     }
 
-    private static List<FrontendConnection> getList(String stmt, int offset, ManagerConnection mc) {
+    private static List<FrontendConnection> getList(String stmt, int offset) {
         String ids = stmt.substring(offset).trim();
+
         if (ids.length() > 0) {
             String[] idList = SplitUtil.split(ids, ',', true);
-            List<FrontendConnection> fcList = new ArrayList<FrontendConnection>(idList.length);
+            List<FrontendConnection> fcList = new ArrayList<>(idList.length);
             ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
             for (String id : idList) {
-                long value = 0;
+                long value;
                 try {
                     value = Long.parseLong(id);
                 } catch (NumberFormatException e) {
@@ -79,7 +80,8 @@ public final class KillConnection {
             }
             return fcList;
         }
-        return null;
+
+        return Collections.emptyList();
     }
 
 }

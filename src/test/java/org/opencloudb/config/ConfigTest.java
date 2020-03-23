@@ -18,7 +18,6 @@ import org.opencloudb.config.model.TableConfig;
 import org.opencloudb.config.model.UserConfig;
 import org.opencloudb.config.util.ConfigException;
 import org.opencloudb.jdbc.JDBCDatasource;
-import org.opencloudb.mysql.nio.MySQLDataSource;
 
 import junit.framework.Assert;
 
@@ -109,24 +108,16 @@ public class ConfigTest {
 			String hostName, String dbType, String dbDriver,
 			DBHostConfig[] nodes, boolean isRead) {
 		PhysicalDatasource[] dataSources = new PhysicalDatasource[nodes.length];
-		if (dbType.equals("mysql") && dbDriver.equals("native")) {
-			for (int i = 0; i < nodes.length; i++) {
-				nodes[i].setIdleTimeout(system.getIdleTimeout());
-				MySQLDataSource ds = new MySQLDataSource(nodes[i], conf, isRead);
-				dataSources[i] = ds;
-			}
-
-		} else if(dbDriver.equals("jdbc"))
-			{
+		if (dbDriver.equals("jdbc") || dbType.equals("mysql") && dbDriver.equals("native")) {
 			for (int i = 0; i < nodes.length; i++) {
 				nodes[i].setIdleTimeout(system.getIdleTimeout());
 				JDBCDatasource ds = new JDBCDatasource(nodes[i], conf, isRead);
 				dataSources[i] = ds;
 			}
-			}
-		else {
+		} else {
 			throw new ConfigException("not supported yet !" + hostName);
 		}
+
 		return dataSources;
 	}
 

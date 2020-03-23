@@ -14,7 +14,7 @@ import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
-import org.opencloudb.server.NonBlockingSession;
+import org.opencloudb.server.ServerSession;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.util.StringUtil;
 
@@ -26,8 +26,8 @@ import org.opencloudb.util.StringUtil;
  */
 public class ShowSession {
 	private static final int FIELD_COUNT = 3;
-	private static final ResultSetHeaderPacket header = PacketUtil
-			.getHeader(FIELD_COUNT);
+	private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
+
 	private static final FieldPacket[] fields = new FieldPacket[FIELD_COUNT];
 	private static final EOFPacket eof = new EOFPacket();
 	static {
@@ -86,9 +86,8 @@ public class ShowSession {
 
 	private static RowDataPacket getRow(ServerConnection sc, String charset) {
 		StringBuilder sb = new StringBuilder();
-		NonBlockingSession ssesion = sc.getSession2();
-		Collection<BackendConnection> backConnections = ssesion.getTargetMap()
-				.values();
+        ServerSession session = sc.getSession();
+		Collection<BackendConnection> backConnections = session.getTargetMap().values();
 		int cncount = backConnections.size();
 		if (cncount == 0) {
 			return null;
