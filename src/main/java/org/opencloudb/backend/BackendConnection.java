@@ -1,7 +1,6 @@
 package org.opencloudb.backend;
 
 import java.io.IOException;
-import java.sql.SQLException;
 
 import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.net.ClosableConnection;

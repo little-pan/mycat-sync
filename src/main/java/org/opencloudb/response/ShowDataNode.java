@@ -36,7 +36,7 @@ import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.backend.PhysicalDBPool;
-import org.opencloudb.backend.PhysicalDatasource;
+import org.opencloudb.backend.PhysicalDataSource;
 import org.opencloudb.config.Fields;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.manager.ManagerConnection;
@@ -164,7 +164,7 @@ public final class ShowDataNode {
 				node.getDbPool().getHostName() + '/' + node.getDatabase(),
 				charset));
 		PhysicalDBPool pool = node.getDbPool();
-		PhysicalDatasource ds = pool.getSource();
+		PhysicalDataSource ds = pool.getSource();
 		if (ds != null) {
 			int active = ds.getActiveCountForSchema(node.getDatabase());
 			int idle = ds.getIdleCountForSchema(node.getDatabase());

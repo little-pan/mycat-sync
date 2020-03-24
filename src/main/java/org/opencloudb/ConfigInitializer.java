@@ -29,7 +29,7 @@ import java.util.Set;
 
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.backend.PhysicalDBPool;
-import org.opencloudb.backend.PhysicalDatasource;
+import org.opencloudb.backend.PhysicalDataSource;
 import org.opencloudb.config.loader.ConfigLoader;
 import org.opencloudb.config.loader.SchemaLoader;
 import org.opencloudb.config.loader.xml.XMLConfigLoader;
@@ -42,7 +42,7 @@ import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.UserConfig;
 import org.opencloudb.config.util.ConfigException;
-import org.opencloudb.jdbc.JDBCDatasource;
+import org.opencloudb.jdbc.JDBCDataSource;
 import org.opencloudb.sequence.handler.IncrSequenceTimeHandler;
 import org.opencloudb.sequence.handler.IncrSequenceMySQLHandler;
 import org.slf4j.*;
@@ -146,20 +146,20 @@ public class ConfigInitializer {
 	}
 
 	private Map<String, PhysicalDBPool> initDataHosts(ConfigLoader configLoader) {
-		Map<String, DataHostConfig> nodeConfs = configLoader.getDataHosts();
-		Map<String, PhysicalDBPool> nodes = new HashMap<String, PhysicalDBPool>(
-				nodeConfs.size());
-		for (DataHostConfig conf : nodeConfs.values()) {
+		Map<String, DataHostConfig> nodeConfigs = configLoader.getDataHosts();
+		Map<String, PhysicalDBPool> nodes = new HashMap<>(nodeConfigs.size());
+		for (DataHostConfig conf : nodeConfigs.values()) {
 			PhysicalDBPool pool = getPhysicalDBPool(conf, configLoader);
 			nodes.put(pool.getHostName(), pool);
 		}
+
 		return nodes;
 	}
 
-	private PhysicalDatasource[] createDataSource(DataHostConfig conf,
-			String hostName, String dbType, String dbDriver,
-			DBHostConfig[] nodes, boolean isRead) {
-		PhysicalDatasource[] dataSources = new PhysicalDatasource[nodes.length];
+	private PhysicalDataSource[] createDataSource(DataHostConfig conf,
+                                                  String hostName, String dbType, String dbDriver,
+                                                  DBHostConfig[] nodes, boolean isRead) {
+		PhysicalDataSource[] dataSources = new PhysicalDataSource[nodes.length];
 		if (dbType.equals("mysql") && dbDriver.equals("native")) {
             String useDriver = "jdbc";
             log.warn("dbDriver '{}' is deprecated in {}: changed to {}", dbDriver, dbType, useDriver);
@@ -168,27 +168,27 @@ public class ConfigInitializer {
         if(dbDriver.equals("jdbc")) {
 			for (int i = 0; i < nodes.length; i++) {
 				nodes[i].setIdleTimeout(system.getIdleTimeout());
-				JDBCDatasource ds = new JDBCDatasource(nodes[i], conf, isRead);
+				JDBCDataSource ds = new JDBCDataSource(nodes[i], conf, isRead);
 				dataSources[i] = ds;
 			}
         } else {
 			throw new ConfigException("dbDriver '"+dbDriver+"' in dataHost '"+hostName+"' not supported yet!");
 		}
+
 		return dataSources;
 	}
 
-	private PhysicalDBPool getPhysicalDBPool(DataHostConfig conf,
-			ConfigLoader configLoader) {
+	private PhysicalDBPool getPhysicalDBPool(DataHostConfig conf, ConfigLoader configLoader) {
 		String name = conf.getName();
 		String dbType = conf.getDbType();
 		String dbDriver = conf.getDbDriver();
-		PhysicalDatasource[] writeSources = createDataSource(conf, name,
+		PhysicalDataSource[] writeSources = createDataSource(conf, name,
 				dbType, dbDriver, conf.getWriteHosts(), false);
 		Map<Integer, DBHostConfig[]> readHostsMap = conf.getReadHosts();
-		Map<Integer, PhysicalDatasource[]> readSourcesMap = new HashMap<Integer, PhysicalDatasource[]>(
+		Map<Integer, PhysicalDataSource[]> readSourcesMap = new HashMap<Integer, PhysicalDataSource[]>(
 				readHostsMap.size());
 		for (Map.Entry<Integer, DBHostConfig[]> entry : readHostsMap.entrySet()) {
-			PhysicalDatasource[] readSources = createDataSource(conf, name,
+			PhysicalDataSource[] readSources = createDataSource(conf, name,
 					dbType, dbDriver, entry.getValue(), true);
 			readSourcesMap.put(entry.getKey(), readSources);
 		}

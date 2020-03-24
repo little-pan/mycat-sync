@@ -9,7 +9,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.PhysicalDatasource;
+import org.opencloudb.backend.PhysicalDataSource;
 import org.opencloudb.config.model.DBHostConfig;
 import org.opencloudb.config.model.DataHostConfig;
 import org.opencloudb.heartbeat.DBHeartbeat;
@@ -19,9 +19,9 @@ import org.opencloudb.util.IoUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class JDBCDatasource extends PhysicalDatasource {
+public class JDBCDataSource extends PhysicalDataSource {
 
-    static final Logger log = LoggerFactory.getLogger(JDBCDatasource.class);
+    static final Logger log = LoggerFactory.getLogger(JDBCDataSource.class);
 
 	static {
 		List<String> drivers = Arrays.asList("com.mysql.jdbc.Driver", "org.postgresql.Driver",
@@ -38,7 +38,8 @@ public class JDBCDatasource extends PhysicalDatasource {
 			}
 		}
 	}
-	public JDBCDatasource(DBHostConfig config, DataHostConfig hostConfig, boolean isReadNode) {
+
+	public JDBCDataSource(DBHostConfig config, DataHostConfig hostConfig, boolean isReadNode) {
 		super(config, hostConfig, isReadNode);
 	}
 
@@ -61,7 +62,7 @@ public class JDBCDatasource extends PhysicalDatasource {
 			c.setSchema(schema);
 			c.setDbType(cfg.getDbType());
 			c.setManager(manager);
-			c.setId(PhysicalDatasource.ID_GENERATOR.incrementAndGet());
+			c.setId(PhysicalDataSource.ID_GENERATOR.incrementAndGet());
 
 			Connection con = getConnection();
 			c.setCon(con);

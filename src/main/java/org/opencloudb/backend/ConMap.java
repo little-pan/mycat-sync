@@ -58,7 +58,7 @@ public class ConMap {
 		return items.values();
 	}
 
-	public int getActiveCountForSchema(String schema, PhysicalDatasource dataSouce) {
+	public int getActiveCountForSchema(String schema, PhysicalDataSource dataSouce) {
 		int total = 0;
 
         for (BackendConnection con : getBackends().values()) {
@@ -75,7 +75,7 @@ public class ConMap {
         return total;
     }
 
-	public int getActiveCountForDs(PhysicalDatasource dataSouce) {
+	public int getActiveCountForDs(PhysicalDataSource dataSouce) {
 		int total = 0;
 
         for (BackendConnection con : getBackends().values()) {
@@ -92,7 +92,7 @@ public class ConMap {
         return total;
     }
 
-    public void clearConnections(String reason, PhysicalDatasource dataSouce) {
+    public void clearConnections(String reason, PhysicalDataSource dataSouce) {
         ConcurrentMap<Long, BackendConnection> map = getBackends();
         Iterator<Entry<Long, BackendConnection>> it = map.entrySet().iterator();
         while (it.hasNext()) {

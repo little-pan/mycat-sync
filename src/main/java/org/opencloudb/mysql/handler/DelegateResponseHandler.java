@@ -23,7 +23,6 @@
  */
 package org.opencloudb.mysql.handler;
 
-import java.io.IOException;
 import java.util.List;
 
 import org.opencloudb.backend.BackendConnection;
@@ -32,7 +31,8 @@ import org.opencloudb.backend.BackendConnection;
  * @author mycat
  */
 public class DelegateResponseHandler implements ResponseHandler {
-    private final ResponseHandler target;
+
+    protected final ResponseHandler target;
 
     public DelegateResponseHandler(ResponseHandler target) {
         if (target == null) {
@@ -43,49 +43,48 @@ public class DelegateResponseHandler implements ResponseHandler {
 
     @Override
     public void connectionAcquired(BackendConnection conn) {
-        target.connectionAcquired(conn);
+        this.target.connectionAcquired(conn);
     }
 
     @Override
     public void connectionError(Throwable e, BackendConnection conn) {
-        target.connectionError(e, conn);
+        this.target.connectionError(e, conn);
     }
 
     @Override
     public void okResponse(byte[] ok, BackendConnection conn) {
-        target.okResponse(ok, conn);
+        this.target.okResponse(ok, conn);
     }
 
     @Override
     public void errorResponse(byte[] err, BackendConnection conn) {
-        target.errorResponse(err, conn);
+        this.target.errorResponse(err, conn);
     }
 
     @Override
     public void fieldEofResponse(byte[] header, List<byte[]> fields, byte[] eof, BackendConnection conn) {
-        target.fieldEofResponse(header, fields, eof, conn);
+        this.target.fieldEofResponse(header, fields, eof, conn);
     }
 
     @Override
     public void rowResponse(byte[] row, BackendConnection conn) {
-        target.rowResponse(row, conn);
+        this.target.rowResponse(row, conn);
     }
 
     @Override
     public void rowEofResponse(byte[] eof, BackendConnection conn) {
-        target.rowEofResponse(eof, conn);
+        this.target.rowEofResponse(eof, conn);
     }
 
 	@Override
 	public void writeQueueAvailable() {
-		target.writeQueueAvailable();
+        this.target.writeQueueAvailable();
 		
 	}
 
 	@Override
 	public void connectionClose(BackendConnection conn, String reason) {
-		target.connectionClose(conn, reason);
+        this.target.connectionClose(conn, reason);
 	}
 
-	
 }

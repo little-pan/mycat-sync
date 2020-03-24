@@ -31,7 +31,7 @@ import java.util.Map;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
 import org.opencloudb.backend.PhysicalDBPool;
-import org.opencloudb.backend.PhysicalDatasource;
+import org.opencloudb.backend.PhysicalDataSource;
 import org.opencloudb.config.Fields;
 import org.opencloudb.heartbeat.DBHeartbeat;
 import org.opencloudb.manager.ManagerConnection;
@@ -129,7 +129,7 @@ public class ShowHeartbeat {
 		// host nodes
 		Map<String, PhysicalDBPool> dataHosts = conf.getDataHosts();
 		for (PhysicalDBPool pool : dataHosts.values()) {
-			for (PhysicalDatasource ds : pool.getAllDataSources()) {
+			for (PhysicalDataSource ds : pool.getAllDataSources()) {
 				DBHeartbeat hb = ds.getHeartbeat();
 				RowDataPacket row = new RowDataPacket(FIELD_COUNT);
 				row.add(ds.getName().getBytes());

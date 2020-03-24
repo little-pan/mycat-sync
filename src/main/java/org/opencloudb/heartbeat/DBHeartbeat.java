@@ -29,6 +29,9 @@ import org.opencloudb.statistic.DataSourceSyncRecorder;
 import org.opencloudb.statistic.HeartbeatRecorder;
 
 public abstract class DBHeartbeat {
+
+	static final String HEARTBEAT_TIMEOUT_PROP = "org.opencloudb.heartbeat.timeout";
+
 	public static final int DB_SYN_ERROR = -1;
 	public static final int DB_SYN_NORMAL = 1;
 
@@ -36,10 +39,11 @@ public abstract class DBHeartbeat {
 	public static final int ERROR_STATUS = -1;
 	public static final int TIMEOUT_STATUS = -2;
 	public static final int INIT_STATUS = 0;
-	private static final long DEFAULT_HEARTBEAT_TIMEOUT = 30 * 1000L;
-	private static final int DEFAULT_HEARTBEAT_RETRY = 10;
+	public static final int DEFAULT_HEARTBEAT_TIMEOUT = Integer.getInteger(HEARTBEAT_TIMEOUT_PROP, 1000);
+	public static final int DEFAULT_HEARTBEAT_RETRY = 10;
+
 	// heartbeat config
-	protected long heartbeatTimeout = DEFAULT_HEARTBEAT_TIMEOUT; // 心跳超时时间
+	protected int heartbeatTimeout = DEFAULT_HEARTBEAT_TIMEOUT; // 心跳超时时间
 	protected int heartbeatRetry = DEFAULT_HEARTBEAT_RETRY; // 检查连接发生异常到切换，重试次数
 	protected String heartbeatSQL;// 静态心跳语句
 	protected final AtomicBoolean isStop = new AtomicBoolean(true);
@@ -98,11 +102,11 @@ public abstract class DBHeartbeat {
 
 	public abstract void heartbeat();
 
-	public long getHeartbeatTimeout() {
-		return heartbeatTimeout;
+	public int getHeartbeatTimeout() {
+		return this.heartbeatTimeout;
 	}
 
-	public void setHeartbeatTimeout(long heartbeatTimeout) {
+	public void setHeartbeatTimeout(int heartbeatTimeout) {
 		this.heartbeatTimeout = heartbeatTimeout;
 	}
 

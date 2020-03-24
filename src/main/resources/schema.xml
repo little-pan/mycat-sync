@@ -51,7 +51,7 @@
 
     <dataHost name="localhost2" maxCon="50" minCon="0" balance="0" writeType="0" dbType="h2" dbDriver="jdbc"
               switchType="1"  slaveThreshold="100">
-        <heartbeat>select 1</heartbeat>
+        <heartbeat></heartbeat>
         <!-- can have multi write hosts -->
         <writeHost host="hostM2" url="jdbc:h2:mem:db2" user="sa" password="">
             <!-- can have multi read hosts -->
@@ -60,7 +60,7 @@
 
     <dataHost name="localhost3" maxCon="50" minCon="0" balance="0" writeType="0" dbType="h2" dbDriver="jdbc"
               switchType="1"  slaveThreshold="100">
-        <heartbeat>select 1</heartbeat>
+        <heartbeat></heartbeat>
         <!-- can have multi write hosts -->
         <writeHost host="hostM3" url="jdbc:h2:mem:db3" user="sa" password="">
             <!-- can have multi read hosts -->

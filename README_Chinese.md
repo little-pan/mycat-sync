@@ -1,6 +1,6 @@
 # [Mycat-sync](https://github.com/little-pan/mycat-sync)介绍
 
-[MyCAT](http://mycat.io/)的一个分支。 Mycat sync server为了简单性和数据库分片、读写分离这一最重要目标，使用阻塞IO（BIO）
+[MyCAT](https://github.com/MyCATApache/Mycat-Server)的一个分支。 Mycat sync server为了简单性和数据库分片、读写分离这一最重要目标，使用阻塞IO（BIO）
 而不是复杂的易出错的非阻塞IO（NIO）。
 
 NIO是非常复杂、晦涩难懂，对类似mycat这样的数据库中间件没有多大好处。对于数据库产品，太多的连接只会极大地消耗系统资源，
@@ -12,7 +12,7 @@ Mycat sync server使用BIO，保持少量的线程和几十到几百的连接，
 ## Mycat的关键特性：
 
 *	保持简单、稳定
-*	支持[MyCAT](http://mycat.io/)最重要的特性
+*	支持[MyCAT](https://github.com/MyCATApache/Mycat-Server)最重要的特性，如分库分表、读写分离
 
 ## 文档：
 

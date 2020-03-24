@@ -6,7 +6,7 @@ import java.util.Map;
 
 import org.junit.Test;
 import org.opencloudb.backend.PhysicalDBPool;
-import org.opencloudb.backend.PhysicalDatasource;
+import org.opencloudb.backend.PhysicalDataSource;
 import org.opencloudb.config.loader.ConfigLoader;
 import org.opencloudb.config.loader.xml.XMLConfigLoader;
 import org.opencloudb.config.loader.xml.XMLSchemaLoader;
@@ -17,7 +17,7 @@ import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.TableConfig;
 import org.opencloudb.config.model.UserConfig;
 import org.opencloudb.config.util.ConfigException;
-import org.opencloudb.jdbc.JDBCDatasource;
+import org.opencloudb.jdbc.JDBCDataSource;
 
 import junit.framework.Assert;
 
@@ -72,11 +72,11 @@ public class ConfigTest {
     @Test
     public void testReadHostWeight() throws Exception {
     	
-    	ArrayList<PhysicalDatasource> okSources = new ArrayList<PhysicalDatasource>();
+    	ArrayList<PhysicalDataSource> okSources = new ArrayList<PhysicalDataSource>();
     	
     	PhysicalDBPool pool = this.dataHosts.get("localhost2");   
     	okSources.addAll(pool.getAllDataSources());    	
-    	PhysicalDatasource source = pool.randomSelect( okSources );
+    	PhysicalDataSource source = pool.randomSelect( okSources );
   
     	Assert.assertTrue( source != null );
     }
@@ -104,14 +104,14 @@ public class ConfigTest {
 		return nodes;
 	}
     
-    private PhysicalDatasource[] createDataSource(DataHostConfig conf,
-			String hostName, String dbType, String dbDriver,
-			DBHostConfig[] nodes, boolean isRead) {
-		PhysicalDatasource[] dataSources = new PhysicalDatasource[nodes.length];
+    private PhysicalDataSource[] createDataSource(DataHostConfig conf,
+                                                  String hostName, String dbType, String dbDriver,
+                                                  DBHostConfig[] nodes, boolean isRead) {
+		PhysicalDataSource[] dataSources = new PhysicalDataSource[nodes.length];
 		if (dbDriver.equals("jdbc") || dbType.equals("mysql") && dbDriver.equals("native")) {
 			for (int i = 0; i < nodes.length; i++) {
 				nodes[i].setIdleTimeout(system.getIdleTimeout());
-				JDBCDatasource ds = new JDBCDatasource(nodes[i], conf, isRead);
+				JDBCDataSource ds = new JDBCDataSource(nodes[i], conf, isRead);
 				dataSources[i] = ds;
 			}
 		} else {
@@ -126,13 +126,13 @@ public class ConfigTest {
 		String name = conf.getName();
 		String dbType = conf.getDbType();
 		String dbDriver = conf.getDbDriver();
-		PhysicalDatasource[] writeSources = createDataSource(conf, name,
+		PhysicalDataSource[] writeSources = createDataSource(conf, name,
 				dbType, dbDriver, conf.getWriteHosts(), false);
 		Map<Integer, DBHostConfig[]> readHostsMap = conf.getReadHosts();
-		Map<Integer, PhysicalDatasource[]> readSourcesMap = new HashMap<Integer, PhysicalDatasource[]>(
+		Map<Integer, PhysicalDataSource[]> readSourcesMap = new HashMap<Integer, PhysicalDataSource[]>(
 				readHostsMap.size());
 		for (Map.Entry<Integer, DBHostConfig[]> entry : readHostsMap.entrySet()) {
-			PhysicalDatasource[] readSources = createDataSource(conf, name,
+			PhysicalDataSource[] readSources = createDataSource(conf, name,
 					dbType, dbDriver, entry.getValue(), true);
 			readSourcesMap.put(entry.getKey(), readSources);
 		}

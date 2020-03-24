@@ -32,7 +32,7 @@ import java.util.Map;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
 import org.opencloudb.backend.PhysicalDBNode;
-import org.opencloudb.backend.PhysicalDatasource;
+import org.opencloudb.backend.PhysicalDataSource;
 import org.opencloudb.config.Fields;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
@@ -113,11 +113,11 @@ public final class ShowDataSource {
 		// write rows
 		byte packetId = eof.packetId;
 		MycatConfig conf = MycatServer.getInstance().getConfig();
-		Map<String, List<PhysicalDatasource>> dataSources = new HashMap<String, List<PhysicalDatasource>>();
+		Map<String, List<PhysicalDataSource>> dataSources = new HashMap<String, List<PhysicalDataSource>>();
 		if (null != name) {
 			PhysicalDBNode dn = conf.getDataNodes().get(name);
 			if (dn != null) {
-				List<PhysicalDatasource> dslst = new LinkedList<PhysicalDatasource>();
+				List<PhysicalDataSource> dslst = new LinkedList<PhysicalDataSource>();
 				dslst.addAll(dn.getDbPool().getAllDataSources());
 				dataSources.put(dn.getName(), dslst);
 			}
@@ -126,17 +126,17 @@ public final class ShowDataSource {
 			// add all
 
 			for (PhysicalDBNode dn : conf.getDataNodes().values()) {
-				List<PhysicalDatasource> dslst = new LinkedList<PhysicalDatasource>();
+				List<PhysicalDataSource> dslst = new LinkedList<PhysicalDataSource>();
 				dslst.addAll(dn.getDbPool().getAllDataSources());
 				dataSources.put(dn.getName(), dslst);
 			}
 
 		}
 
-		for (Map.Entry<String, List<PhysicalDatasource>> dsEntry : dataSources
+		for (Map.Entry<String, List<PhysicalDataSource>> dsEntry : dataSources
 				.entrySet()) {
 			String dnName = dsEntry.getKey();
-			for (PhysicalDatasource ds : dsEntry.getValue()) {
+			for (PhysicalDataSource ds : dsEntry.getValue()) {
 				RowDataPacket row = getRow(dnName, ds, c.getCharset());
 				row.packetId = ++packetId;
 				buffer = row.write(buffer, c,true);
@@ -152,7 +152,7 @@ public final class ShowDataSource {
 		c.write(buffer);
 	}
 
-	private static RowDataPacket getRow(String dataNode, PhysicalDatasource ds,
+	private static RowDataPacket getRow(String dataNode, PhysicalDataSource ds,
 			String charset) {
 		RowDataPacket row = new RowDataPacket(FIELD_COUNT);
 		row.add(StringUtil.encode(dataNode, charset));

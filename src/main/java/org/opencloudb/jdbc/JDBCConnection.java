@@ -30,7 +30,7 @@ public class JDBCConnection implements BackendConnection {
 
 	protected static final Logger log = LoggerFactory.getLogger(JDBCConnection.class);
 
-	private JDBCDatasource pool;
+	private JDBCDataSource pool;
 	private volatile String schema;
 	private volatile String dbType;
 	private volatile String oldSchema;
@@ -78,11 +78,11 @@ public class JDBCConnection implements BackendConnection {
         this.id = id;
     }
 	
-	public JDBCDatasource getPool() {
+	public JDBCDataSource getPool() {
         return pool;
     }
 
-    public void setPool(JDBCDatasource pool) {
+    public void setPool(JDBCDataSource pool) {
 		this.pool = pool;
 	}
 
@@ -375,12 +375,15 @@ public class JDBCConnection implements BackendConnection {
 	}
 
 	private void heartbeat(String sql) {
-		try (Statement stmt = this.con.createStatement()) {
-			stmt.execute(sql);
-			if(!isAutocommit()){ // 如果在写库上，如果是事务方式的连接，需要进行手动commit
-				this.con.commit();
+		try {
+			int timeout = this.pool.getHeartbeat().getHeartbeatTimeout();
+			JDBCHeartbeatCaller caller = new JDBCHeartbeatCaller(sql);
+
+			if (caller.call(this.con, timeout)) {
+				this.respHandler.okResponse(OkPacket.OK, this);
+			} else {
+				throw new SQLException("Invalid connection");
 			}
-			this.respHandler.okResponse(OkPacket.OK, this);
 		} catch (SQLException e) {
 			String msg = e.getMessage();
 			ErrorPacket error = new ErrorPacket();
@@ -507,14 +510,14 @@ public class JDBCConnection implements BackendConnection {
 
 	@Override
 	public boolean isAutocommit() {
-		if (con == null) {
-			return true;
-		} else {
-			try {
-				return con.getAutoCommit();
-			} catch (SQLException e) {
-                return true;
+		try {
+			if (this.con == null) {
+				return true;
+			} else {
+				return this.con.getAutoCommit();
 			}
+		} catch (SQLException e) {
+			throw new BackendException("Can't get autocommit state", e);
 		}
 	}
 

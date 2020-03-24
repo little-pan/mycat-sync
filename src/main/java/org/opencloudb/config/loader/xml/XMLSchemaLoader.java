@@ -109,7 +109,6 @@ public class XMLSchemaLoader implements SchemaLoader {
 		} catch (Exception e) {
 			throw new ConfigException(e);
 		} finally {
-			
 			if (dtd != null) {
 				try {
 					dtd.close();
@@ -136,7 +135,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 			String sqlMaxLimitStr = schemaElement.getAttribute("sqlMaxLimit");
 			int sqlMaxLimit = -1;
 			if (sqlMaxLimitStr != null && !sqlMaxLimitStr.isEmpty()) {
-				sqlMaxLimit = Integer.valueOf(sqlMaxLimitStr);
+				sqlMaxLimit = Integer.parseInt(sqlMaxLimitStr);
 			}
 			
 			// check dataNode already exists or not
@@ -632,7 +631,13 @@ public class XMLSchemaLoader implements SchemaLoader {
 			String filters = element.getAttribute("filters");
 			String logTimeStr = element.getAttribute("logTime");
 			long logTime = "".equals(logTimeStr) ? PhysicalDBPool.LONG_TIME : Long.parseLong(logTimeStr) ;
-			String heartbeatSQL = element.getElementsByTagName("heartbeat").item(0).getTextContent();
+
+			String heartbeatSQL = ""; // default: use jdbc4 validation
+			NodeList heartbeats = element.getElementsByTagName("heartbeat");
+			if (heartbeats.getLength() > 0) {
+				heartbeatSQL = heartbeats.item(0).getTextContent();
+			}
+
 			NodeList connectionInitSqlList = element.getElementsByTagName("connectionInitSql");
 			String initConSQL = null;
 			if (connectionInitSqlList.getLength() > 0) {
@@ -666,6 +671,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 			hostConf.setConnectionInitSql(initConSQL);
 			hostConf.setFilters(filters);
 			hostConf.setLogTime(logTime);
+
 			dataHosts.put(hostConf.getName(), hostConf);
 		}
 	}

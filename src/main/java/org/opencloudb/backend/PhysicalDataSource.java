@@ -48,9 +48,9 @@ import org.slf4j.*;
 /**
  * A physical represent of {read|write}Host.
  */
-public abstract class PhysicalDatasource {
+public abstract class PhysicalDataSource {
 
-	private static final Logger log = LoggerFactory.getLogger(PhysicalDatasource.class);
+	private static final Logger log = LoggerFactory.getLogger(PhysicalDataSource.class);
 
 	private static final int INIT_SOURCE_WAIT_SECONDS =
 			Integer.getInteger("org.opencloudb.backend.initSourceWaitSeconds", 2);
@@ -60,14 +60,14 @@ public abstract class PhysicalDatasource {
 	private final int size;
 	private final DBHostConfig config;
 	private final ConMap conMap = new ConMap();
-	private DBHeartbeat heartbeat;
+	private final DBHeartbeat heartbeat;
 	private final boolean readNode;
 	private volatile long heartbeatRecoveryTime;
 	private final DataHostConfig hostConfig;
 	private final ConnectionHeartBeatHandler conHeartBeatHandler = new ConnectionHeartBeatHandler();
 	private PhysicalDBPool dbPool;
 
-	public PhysicalDatasource(DBHostConfig config, DataHostConfig hostConfig, boolean isReadNode) {
+	public PhysicalDataSource(DBHostConfig config, DataHostConfig hostConfig, boolean isReadNode) {
 		this.size = config.getMaxCon();
 		this.config = config;
 		this.name = config.getHostName();
@@ -103,7 +103,7 @@ public abstract class PhysicalDatasource {
 	}
 
 	public int getInitSourceWaitSeconds () {
-		return PhysicalDatasource.INIT_SOURCE_WAIT_SECONDS;
+		return PhysicalDataSource.INIT_SOURCE_WAIT_SECONDS;
 	}
 
 	public long getExecuteCount() {
@@ -177,11 +177,11 @@ public abstract class PhysicalDatasource {
 		}
 	}
 
-	public int getIndex(){
+	public int getIndex() {
 		int currentIndex = 0;
 		for(int i = 0; i < dbPool.getSources().length; i++){
-			PhysicalDatasource writeHostDatasource = dbPool.getSources()[i];
-			if(writeHostDatasource.getName().equals(getName())){
+			PhysicalDataSource writeSource = dbPool.getSources()[i];
+			if(writeSource.getName().equals(getName())){
 				currentIndex = i;
 				break;
 			}
@@ -319,7 +319,7 @@ public abstract class PhysicalDatasource {
 		ConQueue queue = conMap.getSchemaConQueue(schema);
 		queue.incExecuteCount();
 		conn.setAttachment(attachment);
-        // 每次取连接的时候，更新下lasttime，防止在前端连接检查的时候，关闭连接，导致sql执行失败
+        // 每次取连接的时候，更新下lastTime，防止在前端连接检查的时候，关闭连接，导致sql执行失败
 		conn.setLastTime(System.currentTimeMillis());
 		handler.connectionAcquired(conn);
 		return conn;
@@ -333,13 +333,8 @@ public abstract class PhysicalDatasource {
 				try {
 					createNewConnection(new DelegateResponseHandler(handler) {
 						@Override
-						public void connectionError(Throwable e, BackendConnection conn) {
-							handler.connectionError(e, conn);
-						}
-
-						@Override
 						public void connectionAcquired(BackendConnection conn) {
-							takeCon(conn, handler, attachment, schema);
+							takeCon(conn, super.target, attachment, schema);
 						}
 					}, schema);
 				} catch (IOException e) {
@@ -381,15 +376,15 @@ public abstract class PhysicalDatasource {
 		c.setLastTime(TimeUtil.currentTimeMillis());
 		ConQueue queue = this.conMap.getSchemaConQueue(c.getSchema());
 
-		boolean ok = false;
+		boolean ok;
 		if (c.isAutocommit()) {
 			ok = queue.getAutoCommitCons().offer(c);
 		} else {
 			ok = queue.getManCommitCons().offer(c);
 		}
 		if (!ok) {
-			log.warn("Can't return to pool, so close con {}", c);
-			c.close("can't return to pool ");
+			log.warn("Can't return to pool, so close backend connection {}", c);
+			c.close("Can't return to pool");
 		}
 	}
 

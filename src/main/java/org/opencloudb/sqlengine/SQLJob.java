@@ -6,7 +6,7 @@ import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.backend.PhysicalDBNode;
-import org.opencloudb.backend.PhysicalDatasource;
+import org.opencloudb.backend.PhysicalDataSource;
 import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.route.RouteResultsetNode;
@@ -28,7 +28,7 @@ public class SQLJob implements ResponseHandler, Runnable {
 	private BackendConnection connection;
 	private final SQLJobHandler jobHandler;
 	private final EngineCtx ctx;
-	private final PhysicalDatasource ds;
+	private final PhysicalDataSource ds;
 	private final int id;
 	private volatile boolean finished;
 
@@ -44,7 +44,7 @@ public class SQLJob implements ResponseHandler, Runnable {
 	}
 
 	public SQLJob(String sql, String databaseName, SQLJobHandler jobHandler,
-			PhysicalDatasource ds) {
+			PhysicalDataSource ds) {
 		super();
 		this.id = 0;
 		this.sql = sql;
