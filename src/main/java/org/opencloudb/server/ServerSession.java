@@ -119,14 +119,8 @@ public class ServerSession implements Session {
 			this.singleNodeHandler = new SingleNodeHandler(rrs, this);
 			this.singleNodeHandler.execute();
 		} else {
-			boolean autocommit = source.isAutocommit();
-            this.multiNodeHandler = new MultiNodeQueryHandler(type, rrs, autocommit, this);
-			try {
-                this.multiNodeHandler.execute();
-			} catch (Exception e) {
-				log.warn(rrs + " in source " + this.source, e);
-				source.writeErrMessage(ErrorCode.ERR_HANDLE_DATA, e.toString());
-			}
+            this.multiNodeHandler = new MultiNodeQueryHandler(type, rrs, this);
+			this.multiNodeHandler.execute();
 		}
 	}
 
@@ -304,7 +298,7 @@ public class ServerSession implements Session {
 	}
 
 	public boolean closed() {
-		return source.isClosed();
+		return this.source.isClosed();
 	}
 
 	private String genXATXID() {

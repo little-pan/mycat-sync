@@ -139,7 +139,7 @@ public class FetchStoreNodeOfChildTableHandler implements ResponseHandler {
 
 	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
-		boolean executeResponse = conn.syncAndExcute();
+		boolean executeResponse = conn.syncAndExecute();
 		if (executeResponse) {
 			finished.incrementAndGet();
 			conn.release();

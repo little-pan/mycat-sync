@@ -23,29 +23,38 @@
  */
 package org.opencloudb.mysql.handler;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.config.ErrorCode;
+import org.opencloudb.net.FrontendException;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.server.ServerSession;
 import org.opencloudb.util.StringUtil;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
-	private static final Logger LOGGER = Logger
-			.getLogger(MultiNodeHandler.class);
+
+	private static final Logger log = LoggerFactory.getLogger(MultiNodeHandler.class);
+
 	protected final ReentrantLock lock = new ReentrantLock();
 	protected final ServerSession session;
 	private AtomicBoolean isFailed = new AtomicBoolean(false);
 	protected volatile String error;
 	protected byte packetId;
-	protected final AtomicBoolean errorRepsponsed = new AtomicBoolean(false);
+	protected final AtomicBoolean errorResponsed = new AtomicBoolean(false);
 	protected final AtomicBoolean isClosedByDiscard = new AtomicBoolean(false);
+
+	private int nodeCount;
+	private CountDownLatch completeLatch;
+	private Runnable terminateCallBack;
 
 	public MultiNodeHandler(ServerSession session) {
 		if (session == null) {
@@ -63,16 +72,12 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 		return isFailed.get();
 	}
 
-	private int nodeCount;
-
-	private Runnable terminateCallBack;
-
 	@Override
 	public void terminate(Runnable terminateCallBack) {
 		boolean zeroReached = false;
 		lock.lock();
 		try {
-			if (nodeCount > 0) {
+			if (this.nodeCount > 0) {
 				this.terminateCallBack = terminateCallBack;
 			} else {
 				zeroReached = true;
@@ -86,12 +91,12 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 	}
 
 	protected boolean canClose(BackendConnection conn, boolean tryErrorFinish) {
-		// realse this connection if safe
-		session.releaseConnectionIfSafe(conn, false);
+		// release this connection if safe
+		this.session.releaseConnectionIfSafe(conn, false);
 		boolean allFinished = false;
 		if (tryErrorFinish) {
-			allFinished = this.decrementCountBy(1);
-			this.tryErrorFinished(allFinished);
+			allFinished = decrementCountBy(1);
+			tryErrorFinished(allFinished);
 		}
 
 		return allFinished;
@@ -101,7 +106,7 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 		Runnable callback;
 		lock.lock();
 		try {
-			nodeCount = 0;
+			this.nodeCount = 0;
 			callback = this.terminateCallBack;
 			this.terminateCallBack = null;
 		} finally {
@@ -112,45 +117,50 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 		}
 	}
 
+	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
-		boolean canClose = decrementCountBy(1);
-		this.tryErrorFinished(canClose);
+		boolean allEnd = decrementCountBy(1);
+		tryErrorFinished(allEnd);
 	}
 
+	@Override
 	public void errorResponse(byte[] data, BackendConnection conn) {
-		session.releaseConnectionIfSafe(conn, false);
+		this.session.releaseConnectionIfSafe(conn, false);
+
 		ErrorPacket err = new ErrorPacket();
 		err.read(data);
 		String errmsg = new String(err.message);
-		this.setFail(errmsg);
-		LOGGER.warn("error response from " + conn + " err " + errmsg + " code:" + err.errno);
+		setFail(errmsg);
+		log.warn("Error response: errmsg '{}',  errno {} in backend {}" , errmsg, err.errno, conn);
 
-		this.tryErrorFinished(this.decrementCountBy(1));
+		boolean allEnd = decrementCountBy(1);
+		tryErrorFinished(allEnd);
 	}
 
 	public boolean clearIfSessionClosed(ServerSession session) {
 		if (session.closed()) {
-			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug("session closed ,clear resources " + session);
-			}
-
+			log.debug("session closed, clear resources in session {} ", session);
 			session.clearResources(true);
-			this.clearResources();
+			clearResources();
 			return true;
 		} else {
 			return false;
 		}
-
 	}
 
-	protected boolean decrementCountBy(int finished) {
-		boolean zeroReached = false;
+	protected boolean decrementCountBy(final int count) {
+		final boolean zeroReached;
 		Runnable callback = null;
+
 		lock.lock();
 		try {
-			if (zeroReached = --nodeCount == 0) {
+			this.nodeCount -= count;
+			if (zeroReached = this.nodeCount <= 0) {
 				callback = this.terminateCallBack;
 				this.terminateCallBack = null;
+			}
+			for (int i = 0; i < count; ++i) {
+				this.completeLatch.countDown();
 			}
 		} finally {
 			lock.unlock();
@@ -161,64 +171,80 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 		return zeroReached;
 	}
 
+	protected void join() throws FrontendException {
+		try {
+			this.completeLatch.await();
+		} catch (InterruptedException e) {
+			throw new FrontendException("Multi-node query interrupted", e);
+		}
+	}
+
+	protected void join(long timeout, TimeUnit unit) throws FrontendException {
+		try {
+			if (!this.completeLatch.await(timeout, unit)) {
+				Throwable cause = new TimeoutException();
+				throw new FrontendException("Multi-node query timeout", cause);
+			}
+		} catch (InterruptedException e) {
+			throw new FrontendException("Multi-node query interrupted", e);
+		}
+	}
+
 	protected void reset(int initCount) {
-		nodeCount = initCount;
-		isFailed.set(false);
-		error = null;
-		packetId = 0;
+		this.nodeCount = initCount;
+		this.isFailed.set(false);
+		this.error = null;
+		this.packetId = 0;
+		this.completeLatch = new CountDownLatch(this.nodeCount);
 	}
 
 	protected ErrorPacket createErrPkg(String errmgs) {
 		ErrorPacket err = new ErrorPacket();
 		lock.lock();
 		try {
-			err.packetId = ++packetId;
+			err.packetId = ++this.packetId;
 		} finally {
 			lock.unlock();
 		}
 		err.errno = ErrorCode.ER_UNKNOWN_ERROR;
-		err.message = StringUtil.encode(errmgs, session.getSource()
-				.getCharset());
+		err.message = StringUtil.encode(errmgs, session.getSource().getCharset());
 		return err;
 	}
 
 	protected void tryErrorFinished(boolean allEnd) {
-		if (allEnd && !session.closed()) {
-			if (errorRepsponsed.compareAndSet(false, true)) {
-				createErrPkg(this.error).write(session.getSource());
+		if (allEnd && !this.session.closed()) {
+			if (this.errorResponsed.compareAndSet(false, true)) {
+				createErrPkg(this.error).write(this.session.getSource());
 			}
-			// clear session resources,release all
-			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug("error all end ,clear session resource ");
-			}
-			if (session.getSource().isAutocommit()) {
-				session.closeAndClearResources(error);
+			// clear session resources, release all
+			log.debug("error all end, clear session resource in session {}", this.session);
+			if (this.session.getSource().isAutocommit()) {
+				this.session.closeAndClearResources(this.error);
 			} else {
-				session.getSource().setTxInterrupt(this.error);
-				// clear resouces
+				this.session.getSource().setTxInterrupt(this.error);
+				// clear resources
 				clearResources();
 			}
-
 		}
-
 	}
 
 	public void connectionClose(BackendConnection conn, String reason) {
-		if(isClosedByDiscard.get()){
-			LOGGER.info(reason);
+		if(this.isClosedByDiscard.get()){
+			log.debug("Close backend but 'isClosedByDiscard' is set:" +
+						" close reason '{}', backend {}", reason, conn);
 			return;
 		}
-		this.setFail("closed connection:" + reason + " con:" + conn);
+
+		setFail("closed connection: " + reason + ",  backend: " + conn);
 		boolean finished = false;
 		lock.lock();
 		try {
 			finished = (this.nodeCount == 0);
-
 		} finally {
 			lock.unlock();
 		}
-		if (finished == false) {
-			finished = this.decrementCountBy(1);
+		if (!finished) {
+			finished = decrementCountBy(1);
 		}
 		if (error == null) {
 			error = "back connection closed ";
@@ -227,5 +253,7 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 	}
 
 	public void clearResources() {
+
 	}
+
 }

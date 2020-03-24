@@ -105,7 +105,7 @@ public class ConnectionHeartBeatHandler implements ResponseHandler {
 
 	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
-		boolean executeResponse = conn.syncAndExcute();
+		boolean executeResponse = conn.syncAndExecute();
 		if (executeResponse) {
 			removeFinished(conn);
 			conn.release();

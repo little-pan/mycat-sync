@@ -320,7 +320,7 @@ public abstract class PhysicalDataSource {
 			// need do schema syn in before sql send
 			conn.setSchema(schema);
 		}
-		ConQueue queue = conMap.getSchemaConQueue(schema);
+		ConQueue queue = this.conMap.getSchemaConQueue(schema);
 		queue.incExecuteCount();
 		conn.setAttachment(attachment);
         // 每次取连接的时候，更新下lastTime，防止在前端连接检查的时候，关闭连接，导致sql执行失败
@@ -347,8 +347,8 @@ public abstract class PhysicalDataSource {
 			}
 		};
 
-		if (rrs != null && rrs.getTotalNodeSize() == 1) {
-			// sync create connection
+		if (isSingleNode(rrs)) {
+			// sync create connection when single node
 			connectTask.run();
 		} else {
 			// async create connection
@@ -357,11 +357,25 @@ public abstract class PhysicalDataSource {
 		}
 	}
 
-    public void getConnection(String schema, boolean autocommit, RouteResultsetNode rrs,
-							  ResponseHandler handler, final Object attachment) {
-        BackendConnection con = this.conMap.tryTakeCon(schema,autocommit);
+	protected static boolean isSingleNode(RouteResultsetNode rrs) {
+		return (rrs != null && rrs.getTotalNodeSize() == 1);
+	}
+
+    public void getConnection(final String schema, boolean autocommit, RouteResultsetNode rrs,
+							  final ResponseHandler handler, final Object attachment) {
+		final BackendConnection con = this.conMap.tryTakeCon(schema,autocommit);
         if (con != null) {
-            takeCon(con, handler, attachment, schema);
+        	Runnable executeTask = new Runnable() {
+				@Override
+				public void run() {
+					takeCon(con, handler, attachment, schema);
+				}
+			};
+        	if (isSingleNode(rrs)) {
+				executeTask.run();
+			} else {
+				con.getManager().getExecutor().execute(executeTask);
+			}
         } else {
             int activeCons = this.getActiveCount(); // 当前最大活动连接
             if(activeCons + 1 > this.size) { // 下一个连接大于最大连接数

@@ -34,20 +34,16 @@ import java.nio.channels.SocketChannel;
  * @author little-pan
  * @since 2020-03-21
  */
-public class BioProcessor implements Runnable {
+public class BioProcessor extends AbstractProcessor {
 
     static final Logger log = LoggerFactory.getLogger(BioProcessor.class);
-
-    protected final String name;
-    protected final FrontendConnection source;
 
     public BioProcessor(FrontendConnection source) {
         this("BioProcessor-" + source.getId(), source);
     }
 
     public BioProcessor(String name, FrontendConnection source) {
-        this.name = name;
-        this.source = source;
+        super(name, source);
     }
 
     @Override
@@ -73,10 +69,6 @@ public class BioProcessor implements Runnable {
             log.debug(this.name + " process failed", e);
             con.close("Program error:" + e);
         }
-    }
-
-    public String getName () {
-        return this.name;
     }
 
 }

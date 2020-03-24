@@ -4,6 +4,7 @@ import java.io.IOException;
 
 import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.net.ClosableConnection;
+import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.ServerConnection;
 
@@ -37,12 +38,11 @@ public interface BackendConnection extends ClosableConnection {
 
 	Object getAttachment();
 
-	void execute(RouteResultsetNode node, ServerConnection source, boolean autocommit)
-			throws IOException;
+	void execute(RouteResultsetNode node, ServerConnection source, boolean autocommit);
 
 	void recordSql(String host, String schema, String statement);
 
-    boolean syncAndExcute();
+    boolean syncAndExecute();
 
     void rollback() throws BackendException;
 
@@ -55,5 +55,7 @@ public interface BackendConnection extends ClosableConnection {
     boolean isAutocommit();
 
     long getId();
+
+	ConnectionManager getManager();
 
 }

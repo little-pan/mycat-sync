@@ -157,7 +157,8 @@ public abstract class AbstractConnection implements ClosableConnection {
 	}
 
 	public boolean isIdleTimeout() {
-		return TimeUtil.currentTimeMillis() > Math.max(lastWriteTime, lastReadTime) + idleTimeout;
+		long lastIoTime = Math.max(this.lastWriteTime, this.lastReadTime);
+		return TimeUtil.currentTimeMillis() > lastIoTime + this.idleTimeout;
 	}
 
 	public NetworkChannel getChannel() {
@@ -417,28 +418,25 @@ public abstract class AbstractConnection implements ClosableConnection {
 
 	@Override
 	public void close(String reason) {
-		if (!isClosed.get()) {
+		if (!isClosed()) {
 			closeSocket();
-			isClosed.set(true);
+			this.isClosed.set(true);
 			if (this.manager != null) {
                 this.manager.removeConnection(this);
 			}
 			this.cleanup();
-			isSupportCompress=false;
+			this.isSupportCompress=false;
 
 			// Ignore null information
 			if (Strings.isNullOrEmpty(reason)) {
 				return;
 			}
 			log.info("Close connection, reason: {}, conn: {}", reason, this);
-			if (reason.contains("connection,reason:java.net.ConnectException")) {
-				throw new RuntimeException("Connection error");
-			}
 		}
 	}
 
 	public boolean isClosed() {
-		return isClosed.get();
+		return this.isClosed.get();
 	}
 
     @Override

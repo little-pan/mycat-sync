@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.opencloudb.net.AbstractProcessor;
 import org.slf4j.*;
 
 /**
@@ -39,9 +40,7 @@ public final class BufferPool {
 	private static final Logger log = LoggerFactory.getLogger(BufferPool.class);
     static final boolean DIRECT = Boolean.getBoolean("org.opencloudb.buffer.direct");
 
-	// This value not changed ,isLocalCacheThread use it
-	public static final String LOCAL_BUF_THREAD_PREX = "$_";
-	private  final ThreadLocalBufferPool localBufferPool;
+	private final ThreadLocalBufferPool localBufferPool;
 
 	private final int chunkSize;
 	private final ConcurrentLinkedQueue<ByteBuffer> items = new ConcurrentLinkedQueue<ByteBuffer>();
@@ -62,11 +61,6 @@ public final class BufferPool {
 		this.localBufferPool = new ThreadLocalBufferPool(this.threadLocalCount);
 	}
 
-	private static final boolean isLocalCacheThread() {
-		final String threadName = Thread.currentThread().getName();
-		return (threadName.startsWith(LOCAL_BUF_THREAD_PREX));
-	}
-
 	public int getChunkSize() {
 		return chunkSize;
 	}
@@ -84,9 +78,9 @@ public final class BufferPool {
 	}
 
 	public ByteBuffer allocate() {
-		ByteBuffer node = null;
-		if (isLocalCacheThread()) {
-			// allocate from threadlocal
+		ByteBuffer node;
+		if (AbstractProcessor.isProcessorThread()) {
+			// allocate from thread-local
 			node = this.localBufferPool.get().poll();
 			if (node != null) {
 				return node;
@@ -123,7 +117,7 @@ public final class BufferPool {
 			return;
 		}
 
-		if (isLocalCacheThread()) {
+		if (AbstractProcessor.isProcessorThread()) {
 			BufferQueue localQueue = this.localBufferPool.get();
 			if (localQueue.snapshotSize() < this.threadLocalCount) {
 				localQueue.put(buffer);

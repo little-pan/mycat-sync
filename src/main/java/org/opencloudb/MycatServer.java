@@ -41,6 +41,7 @@ import org.opencloudb.backend.PhysicalDBPool;
 import org.opencloudb.buffer.BufferPool;
 import org.opencloudb.cache.CacheService;
 import org.opencloudb.classloader.DynaClassLoader;
+import org.opencloudb.config.Isolations;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.interceptor.SQLInterceptor;
 import org.opencloudb.manager.ManagerConnectionFactory;
@@ -132,6 +133,7 @@ public class MycatServer {
                         "buffer pool capacity(bufferPool / bufferChunk) is: {}",
                 system.getProcessors(), system.getProcessorExecutor(),
                 system.getProcessorBufferChunk(), system.getProcessorBufferPool() / system.getProcessorBufferChunk());
+        log.info("Transaction isolation level: {}", Isolations.getName(system.getTxIsolation()));
         log.info("Sysconfig params: {}", system);
 
 		// startup processors
@@ -154,7 +156,7 @@ public class MycatServer {
         BioAcceptor manager = null, server = null;
         boolean failed = true;
         try {
-            String prefix = BufferPool.LOCAL_BUF_THREAD_PREX + "BioProcessorPool";
+            String prefix = BioProcessor.PROCESSOR_THREAD_PREFIX + "BioProcessorPool";
             this.processorPool = new BioProcessorPool(prefix, initExecutor, processorCount, false);
 
 			// init dataHost

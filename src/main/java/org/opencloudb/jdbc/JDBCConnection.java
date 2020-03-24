@@ -105,7 +105,8 @@ public class JDBCConnection implements BackendConnection {
 
 	@Override
 	public void idleCheck() {
-	    if(TimeUtil.currentTimeMillis() > lastTime + pool.getConfig().getIdleTimeout()){
+    	long idleTimeout = this.pool.getConfig().getIdleTimeout();
+	    if(TimeUtil.currentTimeMillis() > this.lastTime + idleTimeout) {
 	        close(" idle check");
 	    }
 	}
@@ -408,14 +409,14 @@ public class JDBCConnection implements BackendConnection {
 	public void execute(RouteResultsetNode rrn, ServerConnection sc, boolean autocommit) {
         String origin = rrn.getStatement();
         log.debug("execute sql '{}' from {} ", origin, sc);
-        if (!modifiedSQLExecuted && rrn.isModifySQL()) {
-            modifiedSQLExecuted = true;
+        if (!this.modifiedSQLExecuted && rrn.isModifySQL()) {
+			this.modifiedSQLExecuted = true;
         }
 
         try {
             if (!this.schema.equals(this.oldSchema)) {
                 log.debug("set catalog to {}", this.schema);
-                con.setCatalog(this.schema);
+				this.con.setCatalog(this.schema);
                 this.oldSchema = this.schema;
             }
 
@@ -465,7 +466,7 @@ public class JDBCConnection implements BackendConnection {
 	}
 
 	@Override
-	public boolean syncAndExcute() {
+	public boolean syncAndExecute() {
 		return true;
 	}
 
@@ -526,6 +527,7 @@ public class JDBCConnection implements BackendConnection {
 		return id;
 	}
 
+	@Override
 	public ConnectionManager getManager() {
 		return this.manager;
 	}

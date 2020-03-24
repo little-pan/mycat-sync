@@ -224,7 +224,7 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 	@Override
 	public void okResponse(byte[] data, BackendConnection conn) {        
-		boolean executeResponse = conn.syncAndExcute();		
+		boolean executeResponse = conn.syncAndExecute();
 		if (executeResponse) {			
 			session.releaseConnectionIfSafe(conn, false);
 			endRunning();
