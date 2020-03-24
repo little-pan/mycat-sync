@@ -63,7 +63,7 @@ public class PhysicalDBNode {
 	}
 
 	public void getConnection(String schema, boolean autoCommit, RouteResultsetNode rrs,
-			ResponseHandler handler, Object attachment) throws Exception {
+							  ResponseHandler handler, Object attachment) {
 		checkRequest(schema);
 		if (this.dbPool.isInitSuccess()) {
 			if (rrs.canRunINReadDB(autoCommit)) {
@@ -72,7 +72,9 @@ public class PhysicalDBNode {
 				this.dbPool.getSource().getConnection(schema, autoCommit, rrs, handler, attachment);
 			}
 		} else {
-			throw new IOException("Invalid DataSource: " + this.dbPool.getActivedIndex());
+			String errmsg = String.format("Uninitialized dataHost '%s': active node host index %s",
+					this.dbPool.getHostName(), this.dbPool.getActivedIndex());
+			handler.connectionError(new IOException(errmsg), null);
 		}
 	}
 

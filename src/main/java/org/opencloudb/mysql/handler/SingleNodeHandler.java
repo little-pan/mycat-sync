@@ -118,10 +118,10 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 	private void endRunning() {
 		Runnable callback = null;
-		if (isRunning) {
-			isRunning = false;
-			callback = terminateCallBack;
-			terminateCallBack = null;
+		if (this.isRunning) {
+			this.isRunning = false;
+			callback = this.terminateCallBack;
+			this.terminateCallBack = null;
 		}
 
 		if (callback != null) {
@@ -130,22 +130,22 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 	}
 
 	private void recycleResources() {
-		ByteBuffer buf = buffer;
+		ByteBuffer buf = this.buffer;
 		if (buf != null) {
-			buffer = null;
-			session.getSource().recycle(buffer);
+			this.buffer = null;
+			this.session.getSource().recycle(this.buffer);
 		}
 	}
 
-	public void execute() throws Exception {
-	    log.debug("execute SQL in node {}", this.node);
+	public void execute() {
+	    log.debug("execute SQL in node '{}'", this.node);
 		this.startTime = System.currentTimeMillis();
 		ServerConnection sc = this.session.getSource();
 		this.isRunning = true;
 		this.packetId = 0;
 		final BackendConnection conn = this.session.getTarget(this.node);
 		if (this.session.tryExistsCon(conn, this.node)) {
-			_execute(conn);
+			executeOn(conn);
 		} else {
 			// create new connection
 			MycatConfig conf = MycatServer.getInstance().getConfig();
@@ -158,10 +158,10 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 	public void connectionAcquired(final BackendConnection conn) {
 	    log.debug("acquire a backend {} in node {}, and bind it into session", conn, this.node);
 		this.session.bindConnection(this.node, conn);
-		_execute(conn);
+		executeOn(conn);
 	}
 
-	private void _execute(BackendConnection conn) {
+	private void executeOn(BackendConnection conn) {
 		if (this.session.closed()) {
 			endRunning();
             this.session.clearResources(true);

@@ -270,7 +270,7 @@ public class ServerConnection extends FrontendConnection {
 	@Override
 	public String toString() {
 		return "ServerConnection [id=" + id + ", schema=" + schema + ", host="
-				+ host + ", user=" + user + ",txIsolation=" + txIsolation
+				+ host + ", user=" + user + ", txIsolation=" + txIsolation
 				+ ", autocommit=" + autocommit + ", schema=" + schema + "]";
 	}
 

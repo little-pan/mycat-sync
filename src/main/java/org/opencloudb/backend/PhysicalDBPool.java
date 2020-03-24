@@ -375,38 +375,38 @@ public class PhysicalDBPool {
 	 * @throws Exception
 	 */
 	public void getRWBalanceCon(String schema, boolean autocommit, RouteResultsetNode rrs,
-			ResponseHandler handler, Object attachment, String database) throws Exception {
-		PhysicalDataSource theNode = null;
-		ArrayList<PhysicalDataSource> okSources = null;
+			ResponseHandler handler, Object attachment, String database) {
+		PhysicalDataSource selectedSource;
+		ArrayList<PhysicalDataSource> okSources;
 		switch (this.balance) {
 		case BALANCE_ALL_BACK: {			
 			// all read nodes and the standard by masters
 			okSources = getAllActiveRWSources(true, false, checkSlaveSynStatus());
 			if (okSources.isEmpty()) {
-				theNode = this.getSource();
+				selectedSource = this.getSource();
 			} else {
-				theNode = randomSelect(okSources);
+				selectedSource = randomSelect(okSources);
 			}
 			break;
 		}
 		case BALANCE_ALL: {
 			okSources = getAllActiveRWSources(true, true, checkSlaveSynStatus());
-			theNode = randomSelect(okSources);
+			selectedSource = randomSelect(okSources);
 			break;
 		}
         case BALANCE_ALL_READ: {
             okSources = getAllActiveRWSources(false, false, checkSlaveSynStatus());
-            theNode = randomSelect(okSources);
+			selectedSource = randomSelect(okSources);
             break;
         }
 		case BALANCE_NONE:
 		default:
 			// return default write data source
-			theNode = this.getSource();
+			selectedSource = this.getSource();
 		}
 
-        log.debug("select read node '{}' in dataHost '{}'",  theNode.getName(), this.getHostName());
-		theNode.getConnection(schema, autocommit, rrs, handler, attachment);
+        log.debug("select read node '{}' in dataHost '{}'",  selectedSource.getName(), this.getHostName());
+		selectedSource.getConnection(schema, autocommit, rrs, handler, attachment);
 	}
 
 	private boolean checkSlaveSynStatus() {

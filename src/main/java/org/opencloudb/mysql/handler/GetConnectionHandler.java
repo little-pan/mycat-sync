@@ -95,7 +95,7 @@ public class GetConnectionHandler implements ResponseHandler {
 	public void connectionError(Throwable e, BackendConnection conn) {
 		this.finishLatch.countDown();
 		if (log.isWarnEnabled()) {
-            log.warn("Connect error in conn " + conn, e);
+            log.warn("Connection error in conn " + conn, e);
         }
 	}
 

@@ -24,7 +24,6 @@
 package org.opencloudb.server;
 
 import java.nio.ByteBuffer;
-import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -110,19 +109,15 @@ public class ServerSession implements Session {
 		RouteResultsetNode[] nodes = rrs.getNodes();
 		if (nodes == null || nodes.length == 0 || nodes[0].getName() == null
 				|| nodes[0].getName().equals("")) {
-			source.writeErrMessage(ErrorCode.ER_NO_DB_ERROR,
-					"No dataNode found ,please check tables defined in schema:"
-							+ source.getSchema());
+			this.source.writeErrMessage(ErrorCode.ER_NO_DB_ERROR,
+					"No dataNode found, please check tables defined in schema: "
+							+ this.source.getSchema());
 			return;
 		}
+
 		if (nodes.length == 1) {
 			this.singleNodeHandler = new SingleNodeHandler(rrs, this);
-			try {
-                this.singleNodeHandler.execute();
-			} catch (Exception e) {
-				log.warn(rrs + " in source " + this.source, e);
-				source.writeErrMessage(ErrorCode.ERR_HANDLE_DATA, e.toString());
-			}
+			this.singleNodeHandler.execute();
 		} else {
 			boolean autocommit = source.isAutocommit();
             this.multiNodeHandler = new MultiNodeQueryHandler(type, rrs, autocommit, this);

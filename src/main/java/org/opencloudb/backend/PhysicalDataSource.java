@@ -358,15 +358,16 @@ public abstract class PhysicalDataSource {
 	}
 
     public void getConnection(String schema, boolean autocommit, RouteResultsetNode rrs,
-							  ResponseHandler handler, final Object attachment) throws IOException {
+							  ResponseHandler handler, final Object attachment) {
         BackendConnection con = this.conMap.tryTakeCon(schema,autocommit);
         if (con != null) {
             takeCon(con, handler, attachment, schema);
         } else {
             int activeCons = this.getActiveCount(); // 当前最大活动连接
-            if(activeCons + 1 > size){ // 下一个连接大于最大连接数
-                log.error("The max activeConnections size can not be max than max connections");
-                throw new IOException("the max activeConnections size can not be max than max connections");
+            if(activeCons + 1 > this.size) { // 下一个连接大于最大连接数
+                log.debug("Max activeConnections size can not be max than max connections");
+                Throwable cause = new IOException("the max activeConnections size can not be max than max connections");
+                handler.connectionError(cause, null);
             }else{            // create connection
                 log.debug("No idle connection in pool, create new connection for '{}' of schema '{}'", this.name, schema);
                 createNewConnection(rrs, handler, attachment, schema);

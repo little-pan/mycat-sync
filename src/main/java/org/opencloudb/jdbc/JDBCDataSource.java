@@ -17,8 +17,7 @@ import org.opencloudb.heartbeat.DBHeartbeat;
 import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.util.IoUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.slf4j.*;
 
 public class JDBCDataSource extends PhysicalDataSource {
 
@@ -33,10 +32,10 @@ public class JDBCDataSource extends PhysicalDataSource {
                 "org.opencloudb.jdbc.sequoiadb.SequoiaDriver",        "org.apache.hive.jdbc.HiveDriver");
 		for (String driver : drivers) {
 			try {
+				Class.forName(driver);
 				if ("org.h2.Driver".equals(driver)) {
 					System.setProperty("h2.socketConnectTimeout", CONNECT_TIMEOUT + "");
 				}
-				Class.forName(driver);
 			} catch (ClassNotFoundException e) {
                 log.debug("JDBC driver '{}' not in classpath", driver);
 			}
