@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Properties;
 
 import org.opencloudb.MycatServer;
 import org.opencloudb.backend.PhysicalDataSource;
@@ -32,6 +33,9 @@ public class JDBCDataSource extends PhysicalDataSource {
                 "org.opencloudb.jdbc.sequoiadb.SequoiaDriver",        "org.apache.hive.jdbc.HiveDriver");
 		for (String driver : drivers) {
 			try {
+				if ("org.h2.Driver".equals(driver)) {
+					System.setProperty("h2.socketConnectTimeout", CONNECT_TIMEOUT + "");
+				}
 				Class.forName(driver);
 			} catch (ClassNotFoundException e) {
                 log.debug("JDBC driver '{}' not in classpath", driver);
@@ -74,20 +78,57 @@ public class JDBCDataSource extends PhysicalDataSource {
 	}
 
     Connection getConnection() throws SQLException {
-        DBHostConfig cfg = getConfig();
-		Connection connection = DriverManager.getConnection(cfg.getUrl(), cfg.getUser(), cfg.getPassword());
+		Connection con;
 		String initSql = getHostConfig().getConnectionInitSql();
-		if(initSql != null && !"".equals(initSql)) {
-		    Statement statement = null;
-			try {
-				 statement = connection.createStatement();
-				 statement.execute(initSql);
-			} finally {
-				IoUtil.close(statement);
+        DBHostConfig cfg = getConfig();
+
+		Properties props = new Properties();
+		props.put("user", cfg.getUser());
+		props.put("password", cfg.getPassword());
+		addConnProps(props, cfg.getDbType());
+
+		con = DriverManager.getConnection(cfg.getUrl(), props);
+		boolean failed = true;
+		try {
+			if (initSql != null && !"".equals(initSql)) {
+				log.info("Execute init sql '{}'", initSql);
+				try (Statement s = con.createStatement()) {
+					s.execute(initSql);
+				}
+			}
+			failed = false;
+			return con;
+		} finally {
+			if (failed) {
+				IoUtil.close(con);
 			}
 		}
-
-		return connection;
     }
+
+    private void addConnProps (Properties props, String dbType) {
+		int seconds = CONNECT_TIMEOUT / 1000;
+		String prop;
+
+		switch (dbType.toLowerCase()) {
+			case "mysql":
+			case "mariadb":
+				props.put(prop = "connectTimeout", CONNECT_TIMEOUT);
+				break;
+			case "postgresql":
+			case "pg":
+				props.put(prop = "connectTimeout", seconds);
+				break;
+			case "oracle":
+				props.put(prop = "oracle.net.CONNECT_TIMEOUT", CONNECT_TIMEOUT);
+				break;
+			case "hsqldb":
+			case "hsql":
+				props.put(prop = "loginTimeout", seconds);
+				break;
+			default:
+				return;
+		}
+		log.debug("add property {}={}ms for {} connection", prop, CONNECT_TIMEOUT, dbType);
+	}
 
 }

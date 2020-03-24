@@ -52,8 +52,12 @@ public abstract class PhysicalDataSource {
 
 	private static final Logger log = LoggerFactory.getLogger(PhysicalDataSource.class);
 
-	private static final int INIT_SOURCE_WAIT_SECONDS =
-			Integer.getInteger("org.opencloudb.backend.initSourceWaitSeconds", 2);
+	protected static final String INIT_WAIT_SECONDS_PROP = "org.opencloudb.backend.initWaitSeconds";
+	protected static final int INIT_WAIT_SECONDS = Integer.getInteger(INIT_WAIT_SECONDS_PROP, 5);
+
+	protected static final String CONNECT_TIMEOUT_PROP = "org.opencloudb.backend.connectTimeout";
+	protected static final int CONNECT_TIMEOUT = Integer.getInteger(CONNECT_TIMEOUT_PROP, 3000);
+
 	public static final AtomicLong ID_GENERATOR = new AtomicLong();
 
 	private final String name;
@@ -102,8 +106,8 @@ public abstract class PhysicalDataSource {
 		return name;
 	}
 
-	public int getInitSourceWaitSeconds () {
-		return PhysicalDataSource.INIT_SOURCE_WAIT_SECONDS;
+	public int getInitWaitSeconds () {
+		return PhysicalDataSource.INIT_WAIT_SECONDS;
 	}
 
 	public long getExecuteCount() {

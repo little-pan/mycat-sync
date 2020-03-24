@@ -283,8 +283,8 @@ public class PhysicalDBPool {
 		} while (++i < initSize);
 
 		// waiting for finish
-		int waitSeconds = ds.getInitSourceWaitSeconds();
-		log.debug("Wait for init connections: max wait {} seconds", waitSeconds);
+		int waitSeconds = ds.getInitWaitSeconds();
+		log.debug("Wait for dataSource init: max wait {} seconds", waitSeconds);
 		if (waitSeconds <= 0) {
 			getConHandler.await();
 		} else {

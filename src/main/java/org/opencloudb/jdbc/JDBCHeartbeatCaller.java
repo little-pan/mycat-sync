@@ -61,21 +61,22 @@ public class JDBCHeartbeatCaller {
         try {
             setNetworkTimeout(c, heartbeatTimeout);
 
-            int heartbeatSeconds = (int) Math.max(1000, heartbeatTimeout) / 1000;
+            int heartbeatSeconds = Math.max(1000, heartbeatTimeout) / 1000;
             if (this.useJdbc4Validation) {
-                log.debug("jdbc4 validate '{}'", c);
+                log.debug("validate connection '{}' by jdbc4 isValid()", c);
                 if (!c.isValid(heartbeatSeconds)) {
                     // ER
-                    log.error("JDBCHeartBeat error: invalid '{}' by jdbc4", c);
+                    log.error("JDBCHeartBeat error: invalid connection '{}' by jdbc4 isValid()", c);
                     return false;
                 }
                 // OK
             } else {
+                log.debug("validate connection '{}' by sql '{}'", c, this.sql);
                 try (Statement s = c.createStatement()) {
                     if (!this.networkTimeoutSupported) {
                         s.setQueryTimeout(heartbeatSeconds);
                     }
-                    s.execute(sql);
+                    s.execute(this.sql);
                 }
                 if (!c.getAutoCommit()) {
                     c.commit();

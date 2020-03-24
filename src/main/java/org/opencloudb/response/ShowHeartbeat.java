@@ -135,7 +135,8 @@ public class ShowHeartbeat {
 				row.add(ds.getName().getBytes());
 				row.add(ds.getConfig().getDbType().getBytes());
 				if (hb != null) {
-					row.add(ds.getConfig().getIp().getBytes());
+					String ip = ds.getConfig().getIp();
+					row.add(ip == null? null: ip.getBytes());
 					row.add(IntegerUtil.toBytes(ds.getConfig().getPort()));
 					row.add(IntegerUtil.toBytes(hb.getStatus()));
 					row.add(IntegerUtil.toBytes(hb.getErrorCount()));
