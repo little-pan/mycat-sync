@@ -23,6 +23,9 @@
  */
 package org.opencloudb.util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /** An IO util.
  *
  * @author little-pan
@@ -30,11 +33,14 @@ package org.opencloudb.util;
  */
 public final class IoUtil {
 
+    static final Logger log = LoggerFactory.getLogger(IoUtil.class);
+
     private IoUtil() {}
 
     public static void close(AutoCloseable closeable) {
         if (closeable != null) {
             try {
+                log.debug("Close resource: {}", closeable);
                 closeable.close();
             } catch (Exception e) {}
         }

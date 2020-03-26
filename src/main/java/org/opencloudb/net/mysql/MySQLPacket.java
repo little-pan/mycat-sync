@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.net.FrontendConnection;
+import org.opencloudb.net.NioBackendConnection;
 
 /**
  * @author mycat
@@ -190,6 +191,13 @@ public abstract class MySQLPacket {
      * 把数据包写到buffer中，如果buffer满了就把buffer通过前端连接写出 (writeSocketIfFull=true)。
      */
     public ByteBuffer write(ByteBuffer buffer, FrontendConnection c, boolean writeSocketIfFull) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * 把数据包通过后端连接写出，一般使用buffer机制来提高写的吞吐量。
+     */
+    public void write(NioBackendConnection c) {
         throw new UnsupportedOperationException();
     }
 

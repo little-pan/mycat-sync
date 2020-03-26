@@ -25,6 +25,7 @@ package org.opencloudb.server;
 
 import java.io.IOException;
 import java.nio.channels.NetworkChannel;
+import java.nio.channels.SocketChannel;
 
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.ErrorCode;
@@ -55,8 +56,7 @@ public class ServerConnection extends FrontendConnection {
 	private long lastInsertId;
 	private ServerSession session;
 
-	public ServerConnection(NetworkChannel channel)
-			throws IOException {
+	public ServerConnection(SocketChannel channel) throws IOException {
 		super(channel);
 		this.txInterrupted = false;
 		this.autocommit = true;

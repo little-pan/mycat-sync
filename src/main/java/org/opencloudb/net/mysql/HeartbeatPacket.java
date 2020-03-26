@@ -25,6 +25,9 @@ package org.opencloudb.net.mysql;
 
 import org.opencloudb.mysql.BufferUtil;
 import org.opencloudb.mysql.MySQLMessage;
+import org.opencloudb.net.NioBackendConnection;
+
+import java.nio.ByteBuffer;
 
 /**
  * From client to server when the client do heartbeat between mycat cluster.
@@ -48,6 +51,16 @@ public class HeartbeatPacket extends MySQLPacket {
         packetId = mm.read();
         command = mm.read();
         id = mm.readLength();
+    }
+
+    @Override
+    public void write(NioBackendConnection c) {
+        ByteBuffer buffer = c.allocate();
+        BufferUtil.writeUB3(buffer, calcPacketSize());
+        buffer.put(this.packetId);
+        buffer.put(this.command);
+        BufferUtil.writeLength(buffer, this.id);
+        c.write(buffer);
     }
 
     @Override

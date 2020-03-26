@@ -21,38 +21,39 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb;
+package org.opencloudb.mysql.nio;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-
-import org.apache.log4j.LogManager;
-import org.apache.log4j.helpers.FileWatchdog;
-import org.apache.log4j.xml.DOMConfigurator;
+import org.opencloudb.backend.PhysicalDataSource;
+import org.opencloudb.config.model.DBHostConfig;
+import org.opencloudb.config.model.DataHostConfig;
+import org.opencloudb.heartbeat.DBHeartbeat;
+import org.opencloudb.heartbeat.MySQLHeartbeat;
+import org.opencloudb.mysql.handler.ResponseHandler;
 
 /**
  * @author mycat
  */
-public final class Log4jInitializer {
-    private static final String format = "yyyy-MM-dd HH:mm:ss";
-    public static void configureAndWatch(String filename, long delay) {
-        XMLWatchdog xdog = new XMLWatchdog(filename);
-        xdog.setName("Log4jWatchdog");
-        xdog.setDelay(delay);
-        xdog.start();
-    }
+public class MySQLDataSource extends PhysicalDataSource {
 
-    private static final class XMLWatchdog extends FileWatchdog {
+	private final MySQLConnectionFactory factory;
 
-        public XMLWatchdog(String filename) {
-            super(filename);
-        }
+	public MySQLDataSource(DBHostConfig config, DataHostConfig hostConfig, boolean isReadNode) {
+		super(config, hostConfig, isReadNode);
+		this.factory = new MySQLConnectionFactory();
+	}
 
-        @Override
-        public void doOnChange() {
-            new DOMConfigurator().doConfigure(filename, LogManager.getLoggerRepository());
-            System.out.println("log4j "+new SimpleDateFormat(format).format(new Date()) + " [" + filename + "] load completed.");
-        }
-    }
+	@Override
+	public void createNewConnection(ResponseHandler handler, String schema) {
+		try {
+			factory.make(this, handler, schema);
+		} catch (Throwable cause) {
+			handler.connectionError(cause, null);
+		}
+	}
+
+	@Override
+	public DBHeartbeat createHeartBeat() {
+		return new MySQLHeartbeat(this);
+	}
 
 }

@@ -23,13 +23,16 @@
  */
 package org.opencloudb.net;
 
-public class ConnectionException extends RuntimeException {
+import org.opencloudb.backend.BackendException;
+
+public class ConnectionException extends BackendException {
 
 	private static final long serialVersionUID = 1L;
 	private final int code;
 	private final String msg;
 
 	public ConnectionException(int code, String msg) {
+		super(msg);
 		this.code = code;
 		this.msg = msg;
 	}

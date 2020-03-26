@@ -33,11 +33,9 @@ public abstract class AbstractProcessor implements Runnable {
     public static final String PROCESSOR_THREAD_PREFIX = "$_";
 
     protected final String name;
-    protected final FrontendConnection source;
 
-    protected AbstractProcessor(String name, FrontendConnection source) {
+    protected AbstractProcessor(String name) {
         this.name = name;
-        this.source = source;
     }
 
     @Override

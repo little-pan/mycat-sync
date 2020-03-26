@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.opencloudb.MycatServer;
 import org.opencloudb.config.Alarms;
 import org.opencloudb.config.model.DBHostConfig;
 import org.opencloudb.config.model.DataHostConfig;
@@ -40,8 +39,8 @@ import org.opencloudb.mysql.handler.ConnectionHeartBeatHandler;
 import org.opencloudb.mysql.handler.DelegateResponseHandler;
 import org.opencloudb.mysql.handler.NewConnectionRespHandler;
 import org.opencloudb.mysql.handler.ResponseHandler;
+import org.opencloudb.net.NioProcessor;
 import org.opencloudb.route.RouteResultsetNode;
-import org.opencloudb.util.NameableExecutor;
 import org.opencloudb.util.TimeUtil;
 import org.slf4j.*;
 
@@ -314,7 +313,9 @@ public abstract class PhysicalDataSource {
 	}
 
 	private BackendConnection takeCon(BackendConnection conn, final ResponseHandler handler,
-									  final Object attachment, String schema) {
+									  final Object attachment, String schema, boolean isNew) {
+		NioProcessor processor = NioProcessor.ensureRunInProcessor();
+
 		conn.setBorrowed(true);
 		if (!conn.getSchema().equals(schema)) {
 			// need do schema syn in before sql send
@@ -325,6 +326,12 @@ public abstract class PhysicalDataSource {
 		conn.setAttachment(attachment);
         // 每次取连接的时候，更新下lastTime，防止在前端连接检查的时候，关闭连接，导致sql执行失败
 		conn.setLastTime(System.currentTimeMillis());
+
+		if (!isNew) {
+			// Note: new connection has been registered when finishConnect() in processor,
+			// here register again for binding connection into current processor.
+			processor.register(conn, false);
+		}
 		handler.connectionAcquired(conn);
 		return conn;
 	}
@@ -332,52 +339,42 @@ public abstract class PhysicalDataSource {
 	private void createNewConnection(RouteResultsetNode rrs, final ResponseHandler handler,
 			final Object attachment, final String schema) {
 
+		final PhysicalDataSource self = this;
 		Runnable connectTask = new Runnable() {
 			public void run() {
 				try {
-					createNewConnection(new DelegateResponseHandler(handler) {
+					ResponseHandler delegateHandler = new DelegateResponseHandler(handler) {
 						@Override
 						public void connectionAcquired(BackendConnection conn) {
-							takeCon(conn, super.target, attachment, schema);
+							log.debug(">> Acquire a new backend {}", conn);
+							self.takeCon(conn, super.target, attachment, schema, true);
 						}
-					}, schema);
+					};
+					self.createNewConnection(delegateHandler, schema);
 				} catch (IOException e) {
 					handler.connectionError(e, null);
 				}
 			}
 		};
 
-		if (isSingleNode(rrs)) {
-			// sync create connection when single node
-			connectTask.run();
-		} else {
-			// async create connection
-			NameableExecutor executor = MycatServer.getInstance().getBusinessExecutor();
-			executor.execute(connectTask);
-		}
-	}
-
-	protected static boolean isSingleNode(RouteResultsetNode rrs) {
-		return (rrs != null && rrs.getTotalNodeSize() == 1);
+		NioProcessor.runInProcessor(connectTask);
 	}
 
     public void getConnection(final String schema, boolean autocommit, RouteResultsetNode rrs,
 							  final ResponseHandler handler, final Object attachment) {
-		final BackendConnection con = this.conMap.tryTakeCon(schema,autocommit);
+		final PhysicalDataSource self = this;
+		final BackendConnection con = this.conMap.tryTakeCon(schema, autocommit);
         if (con != null) {
         	Runnable executeTask = new Runnable() {
 				@Override
 				public void run() {
-					takeCon(con, handler, attachment, schema);
+					log.debug(">> Acquire a pooled backend {}", con);
+					self.takeCon(con, handler, attachment, schema, false);
 				}
 			};
-        	if (isSingleNode(rrs)) {
-				executeTask.run();
-			} else {
-				con.getManager().getExecutor().execute(executeTask);
-			}
+			NioProcessor.runInProcessor(executeTask);
         } else {
-            int activeCons = this.getActiveCount(); // 当前最大活动连接
+            int activeCons = getActiveCount(); // 当前最大活动连接
             if(activeCons + 1 > this.size) { // 下一个连接大于最大连接数
                 log.debug("Max activeConnections size can not be max than max connections");
                 Throwable cause = new IOException("the max activeConnections size can not be max than max connections");
@@ -408,7 +405,7 @@ public abstract class PhysicalDataSource {
 	}
 
 	public void releaseChannel(BackendConnection c) {
-        log.debug("release channel {}", c);
+        log.debug("<< Release a backend {}", c);
 		// release connection
 		returnCon(c);
 	}

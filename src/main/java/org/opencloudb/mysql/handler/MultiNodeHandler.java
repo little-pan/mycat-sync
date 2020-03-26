@@ -23,15 +23,11 @@
  */
 package org.opencloudb.mysql.handler;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.config.ErrorCode;
-import org.opencloudb.net.FrontendException;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.server.ServerSession;
 import org.opencloudb.util.StringUtil;
@@ -53,7 +49,6 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 	protected final AtomicBoolean isClosedByDiscard = new AtomicBoolean(false);
 
 	private int nodeCount;
-	private CountDownLatch completeLatch;
 	private Runnable terminateCallBack;
 
 	public MultiNodeHandler(ServerSession session) {
@@ -64,12 +59,12 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 	}
 
 	public void setFail(String errMsg) {
-		isFailed.set(true);
-		error = errMsg;
+		this.isFailed.set(true);
+		this.error = errMsg;
 	}
 
 	public boolean isFail() {
-		return isFailed.get();
+		return this.isFailed.get();
 	}
 
 	@Override
@@ -90,11 +85,11 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 		}
 	}
 
-	protected boolean canClose(BackendConnection conn, boolean tryErrorFinish) {
+	protected boolean canClose(BackendConnection conn, boolean failed) {
 		// release this connection if safe
 		this.session.releaseConnectionIfSafe(conn, false);
 		boolean allFinished = false;
-		if (tryErrorFinish) {
+		if (failed) {
 			allFinished = decrementCountBy(1);
 			tryErrorFinished(allFinished);
 		}
@@ -119,6 +114,7 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
+		setFail("Connection failed: " + e);
 		boolean allEnd = decrementCountBy(1);
 		tryErrorFinished(allEnd);
 	}
@@ -159,9 +155,6 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 				callback = this.terminateCallBack;
 				this.terminateCallBack = null;
 			}
-			for (int i = 0; i < count; ++i) {
-				this.completeLatch.countDown();
-			}
 		} finally {
 			lock.unlock();
 		}
@@ -171,31 +164,11 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 		return zeroReached;
 	}
 
-	protected void join() throws FrontendException {
-		try {
-			this.completeLatch.await();
-		} catch (InterruptedException e) {
-			throw new FrontendException("Multi-node query interrupted", e);
-		}
-	}
-
-	protected void join(long timeout, TimeUnit unit) throws FrontendException {
-		try {
-			if (!this.completeLatch.await(timeout, unit)) {
-				Throwable cause = new TimeoutException();
-				throw new FrontendException("Multi-node query timeout", cause);
-			}
-		} catch (InterruptedException e) {
-			throw new FrontendException("Multi-node query interrupted", e);
-		}
-	}
-
 	protected void reset(int initCount) {
 		this.nodeCount = initCount;
 		this.isFailed.set(false);
 		this.error = null;
 		this.packetId = 0;
-		this.completeLatch = new CountDownLatch(this.nodeCount);
 	}
 
 	protected ErrorPacket createErrPkg(String errmgs) {

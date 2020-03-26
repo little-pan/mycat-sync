@@ -80,7 +80,7 @@ public interface ResponseHandler {
 	void writeQueueAvailable();
 
 	/**
-	 * on connetion close event
+	 * on connection close event
 	 */
 	void connectionClose(BackendConnection conn, String reason);
 

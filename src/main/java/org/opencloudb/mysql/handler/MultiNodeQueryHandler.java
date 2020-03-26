@@ -118,22 +118,13 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 		for (final RouteResultsetNode node : this.rrs.getNodes()) {
 			final BackendConnection conn = this.session.getTarget(node);
 			if (this.session.tryExistsCon(conn, node)) {
-				Runnable executeTask = new Runnable() {
-					@Override
-					public void run() {
-						executeOn(conn, node);
-					}
-				};
-				source.getManager().getExecutor().execute(executeTask);
+				executeOn(conn, node);
 			} else {
 				// Acquire a new connection
 				PhysicalDBNode dn = conf.getDataNodes().get(node.getName());
 				dn.getConnection(dn.getDatabase(), this.autocommit, node, this, node);
 			}
 		}
-
-		// wait util all node complete, frontend idle timeout or killed
-		super.join();
 	}
 
 	private void executeOn(BackendConnection conn, RouteResultsetNode node) {
@@ -169,9 +160,11 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 		if (executeResponse) {
 			if (clearIfSessionClosed(this.session)) {
 				return;
-			} else if (canClose(conn, false)) {
+			}
+			if (canClose(conn, isFail())) {
 				return;
 			}
+
 			ServerConnection source = this.session.getSource();
 			OkPacket ok = new OkPacket();
 			ok.read(data);

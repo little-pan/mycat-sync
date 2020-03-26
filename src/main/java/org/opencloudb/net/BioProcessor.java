@@ -38,12 +38,15 @@ public class BioProcessor extends AbstractProcessor {
 
     static final Logger log = LoggerFactory.getLogger(BioProcessor.class);
 
+    private final FrontendConnection source;
+
     public BioProcessor(FrontendConnection source) {
         this("BioProcessor-" + source.getId(), source);
     }
 
     public BioProcessor(String name, FrontendConnection source) {
-        super(name, source);
+        super(name);
+        this.source = source;
     }
 
     @Override
@@ -53,7 +56,7 @@ public class BioProcessor extends AbstractProcessor {
 
         log.debug("{} started", this.name);
         try {
-            con.register();
+            con.onRegister(true);
             for (;!con.isClosed();) {
                 ByteBuffer buf = con.readBuffer;
                 if (buf == null) {

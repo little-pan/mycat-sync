@@ -1,7 +1,5 @@
 package org.opencloudb.backend;
 
-import java.io.IOException;
-
 import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.net.ClosableConnection;
 import org.opencloudb.net.ConnectionManager;
@@ -30,7 +28,9 @@ public interface BackendConnection extends ClosableConnection {
 
 	void release();
 
-	boolean setResponseHandler(ResponseHandler commandHandler);
+	boolean setResponseHandler(ResponseHandler responseHandler);
+
+	ResponseHandler getResponseHandler ();
 
 	void commit() throws BackendException;
 

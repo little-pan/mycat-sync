@@ -209,9 +209,14 @@ public class JDBCConnection implements BackendConnection {
 	}
 
 	@Override
-	public boolean setResponseHandler(ResponseHandler commandHandler) {
-		respHandler = commandHandler;
+	public boolean setResponseHandler(ResponseHandler responseHandler) {
+		this.respHandler = responseHandler;
 		return false;
+	}
+
+	@Override
+	public ResponseHandler getResponseHandler() {
+		return this.respHandler;
 	}
 
 	@Override

@@ -25,6 +25,7 @@ package org.opencloudb.server;
 
 import java.io.IOException;
 import java.nio.channels.NetworkChannel;
+import java.nio.channels.SocketChannel;
 
 import org.opencloudb.MycatPrivileges;
 import org.opencloudb.MycatServer;
@@ -39,7 +40,7 @@ import org.opencloudb.server.handler.ServerLoadDataInfileHandler;
 public class ServerConnectionFactory extends FrontendConnectionFactory {
 
     @Override
-    protected FrontendConnection getConnection(NetworkChannel channel) throws IOException {
+    protected FrontendConnection getConnection(SocketChannel channel) throws IOException {
         SystemConfig sys = MycatServer.getInstance().getConfig().getSystem();
         ServerConnection c = new ServerConnection(channel);
         MycatServer.getInstance().getConfig().setSocketParams(c, true);

@@ -14,7 +14,7 @@ import org.opencloudb.server.parser.ServerParse;
 import org.slf4j.*;
 
 /**
- * asyn execute in EngineCtx or standalone (EngineCtx=null)
+ * Async execute in EngineCtx or standalone (EngineCtx = null)
  * 
  * @author wuzhih
  * 
@@ -25,16 +25,15 @@ public class SQLJob implements ResponseHandler, Runnable {
 
 	private final String sql;
 	private final String dataNodeOrDatabase;
-	private BackendConnection connection;
 	private final SQLJobHandler jobHandler;
 	private final EngineCtx ctx;
 	private final PhysicalDataSource ds;
 	private final int id;
+
+	private BackendConnection connection;
 	private volatile boolean finished;
 
-	public SQLJob(int id, String sql, String dataNode,
-			SQLJobHandler jobHandler, EngineCtx ctx) {
-		super();
+	public SQLJob(int id, String sql, String dataNode, SQLJobHandler jobHandler, EngineCtx ctx) {
 		this.id = id;
 		this.sql = sql;
 		this.dataNodeOrDatabase = dataNode;
@@ -43,9 +42,7 @@ public class SQLJob implements ResponseHandler, Runnable {
 		this.ds = null;
 	}
 
-	public SQLJob(String sql, String databaseName, SQLJobHandler jobHandler,
-			PhysicalDataSource ds) {
-		super();
+	public SQLJob(String sql, String databaseName, SQLJobHandler jobHandler, PhysicalDataSource ds) {
 		this.id = 0;
 		this.sql = sql;
 		this.dataNodeOrDatabase = databaseName;
@@ -58,13 +55,13 @@ public class SQLJob implements ResponseHandler, Runnable {
 	public void run() {
 		try {
 			if (this.ds == null) {
-				RouteResultsetNode node = new RouteResultsetNode(dataNodeOrDatabase, ServerParse.SELECT, sql);
+				RouteResultsetNode node = new RouteResultsetNode(this.dataNodeOrDatabase, ServerParse.SELECT, this.sql);
 				// create new connection
 				MycatConfig conf = MycatServer.getInstance().getConfig();
 				PhysicalDBNode dn = conf.getDataNodes().get(node.getName());
 				dn.getConnection(dn.getDatabase(), true, node, this, node);
 			} else {
-				this.ds.getConnection(dataNodeOrDatabase, true, null, this, null);
+				this.ds.getConnection(this.dataNodeOrDatabase, true, null, this, null);
 			}
 		} catch (Exception e) {
 			log.warn("can't get connection for sql job", e);
@@ -81,33 +78,34 @@ public class SQLJob implements ResponseHandler, Runnable {
 
 	@Override
 	public void connectionAcquired(final BackendConnection conn) {
-		log.debug("con query sql: '{}' to con: {}", this.sql, conn);
-
-		conn.setResponseHandler(this);
+		log.debug("Query sql '{}' in backend {}", this.sql, conn);
 		try {
+			this.connection = conn;
+			conn.setResponseHandler(this);
 			conn.query(sql);
-			connection = conn;
-		} catch (Exception e) {
-			doFinished(true);
-		}
-	}
-
-	public boolean isFinished() {
-		return finished;
-	}
-
-	private void doFinished(boolean failed) {
-		finished = true;
-		jobHandler.finished(dataNodeOrDatabase, failed);
-		if (ctx != null) {
-			ctx.onJobFinished(this);
+		} catch (Throwable cause) {
+			try {
+				log.warn("Execute sql job failed", cause);
+				conn.close("Execute sql job failed: " + cause);
+			} finally {
+				doFinished(true);
+			}
 		}
 	}
 
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
-		log.warn("Can't get connection for sql: '" + sql + "'", e);
-		doFinished(true);
+		if (log.isWarnEnabled()) {
+			log.warn("Can't get connection for sql '" + sql + "'", e);
+		}
+
+		try {
+			if (conn != null) {
+				conn.close("Connection failed: " + e);
+			}
+		} finally {
+			doFinished(true);
+		}
 	}
 
 	@Override
@@ -125,20 +123,21 @@ public class SQLJob implements ResponseHandler, Runnable {
 
 	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
+		log.debug("ok response in {}", conn);
 		conn.syncAndExecute();
 	}
 
 	@Override
 	public void fieldEofResponse(byte[] header, List<byte[]> fields,
 			byte[] eof, BackendConnection conn) {
-		jobHandler.onHeader(dataNodeOrDatabase, header, fields);
+		this.jobHandler.onHeader(dataNodeOrDatabase, header, fields);
 	}
 
 	@Override
 	public void rowResponse(byte[] row, BackendConnection conn) {
 		boolean finished = jobHandler.onRowData(dataNodeOrDatabase, row);
 		if (finished) {
-			conn.close("not needed by user proc");
+			conn.close("not needed by user process");
 			doFinished(false);
 		}
 	}
@@ -161,6 +160,18 @@ public class SQLJob implements ResponseHandler, Runnable {
 
 	public int getId() {
 		return id;
+	}
+
+	public boolean isFinished() {
+		return finished;
+	}
+
+	private void doFinished(boolean failed) {
+		this.finished = true;
+		this.jobHandler.finished(this.dataNodeOrDatabase, failed);
+		if (this.ctx != null) {
+			this.ctx.onJobFinished(this);
+		}
 	}
 
 	@Override

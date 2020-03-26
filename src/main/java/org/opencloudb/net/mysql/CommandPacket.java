@@ -25,9 +25,12 @@ package org.opencloudb.net.mysql;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
+import org.opencloudb.mysql.BufferUtil;
 import org.opencloudb.mysql.MySQLMessage;
 import org.opencloudb.mysql.StreamUtil;
+import org.opencloudb.net.NioBackendConnection;
 
 /**
  * From client to server whenever the client wants the server to do something.
@@ -104,6 +107,16 @@ public class CommandPacket extends MySQLPacket {
         StreamUtil.write(out, packetId);
         StreamUtil.write(out, command);
         out.write(arg);
+    }
+
+    @Override
+    public void write(NioBackendConnection c) {
+        ByteBuffer buffer = c.allocate();
+        BufferUtil.writeUB3(buffer, calcPacketSize());
+        buffer.put(packetId);
+        buffer.put(command);
+        buffer = c.writeToBuffer(arg, buffer);
+        c.write(buffer);
     }
 
     @Override

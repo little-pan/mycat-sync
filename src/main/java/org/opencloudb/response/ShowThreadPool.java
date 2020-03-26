@@ -129,12 +129,10 @@ public final class ShowThreadPool {
 
 	private static List<NameableExecutor> getExecutors() {
 		MycatServer server = MycatServer.getInstance();
-		List<NameableExecutor> list = new ArrayList<>(3);
-		NameableExecutor processorExecutor = server.getProcessorPool().getExecutor();
+		List<NameableExecutor> list = new ArrayList<>(2);
 
 		list.add(server.getTimerExecutor());
 		list.add(server.getBusinessExecutor());
-		list.add(processorExecutor);
 		return list;
 	}
 

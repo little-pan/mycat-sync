@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.Queue;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
@@ -51,7 +51,7 @@ public class CompressUtil {
 	 * @return
 	 */
 	public static ByteBuffer compressMysqlPacket(ByteBuffer input, AbstractConnection con,
-			ConcurrentLinkedQueue<byte[]> compressUnfinishedDataQueue) {
+												 Queue<byte[]> compressUnfinishedDataQueue) {
 		
 		byte[] byteArrayFromBuffer = getByteArrayFromBuffer(input);
 		con.recycle(input);
@@ -69,10 +69,11 @@ public class CompressUtil {
 	 * @return
 	 */
 	private static ByteBuffer compressMysqlPacket(byte[] data, AbstractConnection con,
-												  ConcurrentLinkedQueue<byte[]> compressUnfinishedDataQueue) {
+												  Queue<byte[]> compressUnfinishedDataQueue) {
 
 		ByteBuffer byteBuf = con.allocate();
-		byteBuf = con.checkWriteBuffer(byteBuf, data.length, false); // TODO: 数据量大的时候, 此处是是性能的堵点
+		// TODO: 数据量大的时候, 此处是是性能的堵点
+		byteBuf = con.checkWriteBuffer(byteBuf, data.length, false);
 		
 		MySQLMessage msg = new MySQLMessage(data);
 		while ( msg.hasRemaining() ) {
@@ -124,7 +125,7 @@ public class CompressUtil {
 	 * @return
 	 */
 	public static List<byte[]> decompressMysqlPacket(byte[] data,
-			ConcurrentLinkedQueue<byte[]> decompressUnfinishedDataQueue) {
+						Queue<byte[]> decompressUnfinishedDataQueue) {
 		
 		MySQLMessage msg = new MySQLMessage(data);
 		
@@ -157,7 +158,7 @@ public class CompressUtil {
 	 * @param decompressUnfinishedDataQueue
 	 * @return
 	 */
-	private static List<byte[]> splitPack(byte[] in, ConcurrentLinkedQueue<byte[]> decompressUnfinishedDataQueue) {
+	private static List<byte[]> splitPack(byte[] in, Queue<byte[]> decompressUnfinishedDataQueue) {
 		
 		//合并
 		in = mergeBytes(in, decompressUnfinishedDataQueue);
@@ -194,7 +195,7 @@ public class CompressUtil {
 	/**
 	 * 合并 解压未完成的字节
 	 */
-	private static byte[] mergeBytes(byte[] in, ConcurrentLinkedQueue<byte[]> decompressUnfinishedDataQueue) {
+	private static byte[] mergeBytes(byte[] in, Queue<byte[]> decompressUnfinishedDataQueue) {
 		
 		if ( !decompressUnfinishedDataQueue.isEmpty() ) {
 			

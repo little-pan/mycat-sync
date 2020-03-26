@@ -42,7 +42,7 @@ public final class SystemConfig {
 
 	private static final String DEFAULT_SQL_PARSER = "druidparser"; // fdbparser
 	private static final int DEFAULT_BUFFER_CHUNK_SIZE = 4096;
-	private static final int DEFAULT_PROCESSORS = 100;
+	private static final int DEFAULT_PROCESSORS = Runtime.getRuntime().availableProcessors() * 2 + 1;
 
     private int processorBufferLocalPercent;
 	private int frontSocketSoRcvbuf = 1024 * 1024;
@@ -131,9 +131,9 @@ public final class SystemConfig {
 
 		this.processorBufferChunk = DEFAULT_BUFFER_CHUNK_SIZE;
 		this.processorBufferPool = DEFAULT_BUFFER_CHUNK_SIZE *  this.processors * 1000;
-		this.processorBufferLocalPercent = 2;
+		this.processorBufferLocalPercent = 100;
 
-		this.processorExecutor = this.processors * 4;
+		this.processorExecutor = Math.max(this.processors / 2, 2);
 		this.managerExecutor = 2;
 		this.timerExecutor = 2;
 

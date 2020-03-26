@@ -41,13 +41,9 @@ import org.slf4j.*;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.AsynchronousSocketChannel;
-import java.nio.channels.NetworkChannel;
 import java.nio.channels.SocketChannel;
 import java.util.List;
 import java.util.Set;
-
 
 /**
  * @author mycat
@@ -72,134 +68,81 @@ public abstract class FrontendConnection extends AbstractConnection {
 	protected boolean isAccepted;
 	protected boolean isAuthenticated;
 
-	public FrontendConnection(NetworkChannel channel) throws IOException {
+	public FrontendConnection(SocketChannel channel) throws IOException {
 		super(channel);
-		InetSocketAddress localAddr = (InetSocketAddress) channel.getLocalAddress();
-		InetSocketAddress remoteAddr = null;
-		if (channel instanceof SocketChannel) {
-			remoteAddr = (InetSocketAddress) ((SocketChannel) channel).getRemoteAddress();	
-			
-		} else if (channel instanceof AsynchronousSocketChannel) {
-			remoteAddr = (InetSocketAddress) ((AsynchronousSocketChannel) channel).getRemoteAddress();
-		}
-		
-		this.host = remoteAddr.getHostString();
-		this.port = localAddr.getPort();
-		this.localPort = remoteAddr.getPort();
+		InetSocketAddress local = (InetSocketAddress) channel.getLocalAddress();
+		InetSocketAddress remote = (InetSocketAddress)channel.getRemoteAddress();
+		this.host = local.getHostString();
+		this.port = local.getPort();
+		this.localPort = remote.getPort();
 		this.handler = new FrontendAuthenticator(this);
 	}
 
-	public long getId() {
-		return id;
+	@Override
+	public void onRegister(boolean autoRead) throws FrontendException {
+		if (this.isAuthenticated) {
+			throw new IllegalStateException("Frontend connection-" + this.id + " has registered");
+		}
+
+		// 生成认证数据
+		byte[] rand1 = RandomUtil.randomBytes(8);
+		byte[] rand2 = RandomUtil.randomBytes(12);
+
+		// 保存认证数据
+		byte[] seed = new byte[rand1.length + rand2.length];
+		System.arraycopy(rand1, 0, seed, 0, rand1.length);
+		System.arraycopy(rand2, 0, seed, rand1.length, rand2.length);
+		this.seed = seed;
+
+		// 发送握手数据包
+		HandshakePacket hs = new HandshakePacket();
+		hs.packetId = 0;
+		hs.protocolVersion = Versions.PROTOCOL_VERSION;
+		hs.serverVersion = Versions.SERVER_VERSION;
+		hs.threadId = id;
+		hs.seed = rand1;
+		hs.serverCapabilities = getServerCapabilities();
+		hs.serverCharsetIndex = (byte) (charsetIndex & 0xff);
+		hs.serverStatus = 2;
+		hs.restOfScrambleBuff = rand2;
+		hs.write(this);
+
+		super.onRegister(autoRead);
 	}
 
-	public void setId(long id) {
-		this.id = id;
-	}
-
-	public String getHost() {
-		return host;
-	}
-
-	public void setHost(String host) {
-		this.host = host;
-	}
-
-	public int getPort() {
-		return port;
-	}
-
-	public void setPort(int port) {
-		this.port = port;
-	}
-
-	public int getLocalPort() {
-		return localPort;
-	}
-
-	public void setLocalPort(int localPort) {
-		this.localPort = localPort;
-	}
-
-	public void setAccepted(boolean isAccepted) {
-		this.isAccepted = isAccepted;
-	}
-
-	public LoadDataInfileHandler getLoadDataInfileHandler() {
-		return loadDataInfileHandler;
-	}
-
-	public void setLoadDataInfileHandler(LoadDataInfileHandler loadDataInfileHandler) {
-		this.loadDataInfileHandler = loadDataInfileHandler;
-	}
-
-	public void setQueryHandler(FrontendQueryHandler queryHandler) {
-		this.queryHandler = queryHandler;
-	}
-
-	public void setPrepareHandler(FrontendPrepareHandler prepareHandler) {
-		this.prepareHandler = prepareHandler;
-	}
-
-	public void setAuthenticated(boolean isAuthenticated) {
-		this.isAuthenticated = isAuthenticated;
-	}
-
-	public FrontendPrivileges getPrivileges() {
-		return privileges;
-	}
-
-	public void setPrivileges(FrontendPrivileges privileges) {
-		this.privileges = privileges;
-	}
-
-	public String getUser() {
-		return user;
-	}
-
-	public void setUser(String user) {
-		this.user = user;
-	}
-
-	public String getSchema() {
-		return schema;
-	}
-
-	public void setSchema(String schema) {
-		this.schema = schema;
-	}
-
-	public String getExecuteSql() {
-		return executeSql;
-	}
-
-	public void setExecuteSql(String executeSql) {
-		this.executeSql = executeSql;
-	}
-
-	public byte[] getSeed() {
-		return seed;
-	}
-
-	public boolean setCharsetIndex(int ci) {
-		String charset = CharsetUtil.getCharset(ci);
-		if (charset != null) {
-			return setCharset(charset);
+	@Override
+	public void handle(final byte[] data) {
+		if (isSupportCompress()) {
+			List<byte[]> packs = CompressUtil.decompressMysqlPacket(data, decompressUnfinishedDataQueue);
+			for (byte[] pack : packs) {
+				if (pack.length != 0)
+					rawHandle(pack);
+			}
 		} else {
-			return false;
+			rawHandle(data);
 		}
 	}
 
-	public void writeErrMessage(int errno, String msg) {
-		writeErrMessage((byte) 1, errno, msg);
+	public void rawHandle(final byte[] data) {
+		//load data infile  客户端会发空包 长度为4
+		if (data.length == 4 && data[0] == 0 && data[1] == 0 && data[2] == 0) {
+			// load in data空包
+			loadDataInfileEnd(data[3]);
+			return;
+		}
+		//修改quit的判断,当load data infile 分隔符为\001 时可能会出现误判断的bug.
+		if (data.length>4 && data[0] == 1 && data[1] == 0 && data[2]== 0 && data[3] == 0
+				&& data[4] == MySQLPacket.COM_QUIT) {
+			this.getManager().getCommands().doQuit();
+			this.close("quit cmd");
+			return;
+		}
+		this.handler.handle(data);
 	}
 
-	public void writeErrMessage(byte id, int errno, String msg) {
-		ErrorPacket err = new ErrorPacket();
-		err.packetId = id;
-		err.errno = errno;
-		err.message = encodeString(msg, charset);
-		err.write(this);
+	@Override
+	protected void wrapIoException(IOException cause) {
+		throw new FrontendException("Frontend io error", cause);
 	}
 	
 	public void initDB(byte[] data) {
@@ -360,62 +303,6 @@ public abstract class FrontendConnection extends AbstractConnection {
 		writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, "Unknown command");
 	}
 
-	public void register() throws FrontendException {
-		if (!isClosed.get()) {
-			// 生成认证数据
-			byte[] rand1 = RandomUtil.randomBytes(8);
-			byte[] rand2 = RandomUtil.randomBytes(12);
-
-			// 保存认证数据
-			byte[] seed = new byte[rand1.length + rand2.length];
-			System.arraycopy(rand1, 0, seed, 0, rand1.length);
-			System.arraycopy(rand2, 0, seed, rand1.length, rand2.length);
-			this.seed = seed;
-
-			// 发送握手数据包
-			HandshakePacket hs = new HandshakePacket();
-			hs.packetId = 0;
-			hs.protocolVersion = Versions.PROTOCOL_VERSION;
-			hs.serverVersion = Versions.SERVER_VERSION;
-			hs.threadId = id;
-			hs.seed = rand1;
-			hs.serverCapabilities = getServerCapabilities();
-			hs.serverCharsetIndex = (byte) (charsetIndex & 0xff);
-			hs.serverStatus = 2;
-			hs.restOfScrambleBuff = rand2;
-			hs.write(this);
-		}
-	}
-
-	@Override
-	public void handle(final byte[] data) {
-		if (isSupportCompress()) {			
-			List<byte[]> packs = CompressUtil.decompressMysqlPacket(data, decompressUnfinishedDataQueue);
-			for (byte[] pack : packs) {
-				if (pack.length != 0)
-					rawHandle(pack);
-			}
-		} else {
-			rawHandle(data);
-		}
-	}
-
-	public void rawHandle(final byte[] data) {
-		//load data infile  客户端会发空包 长度为4
-		if (data.length == 4 && data[0] == 0 && data[1] == 0 && data[2] == 0) {
-			// load in data空包
-			loadDataInfileEnd(data[3]);
-			return;
-		}
-		//修改quit的判断,当load data infile 分隔符为\001 时可能会出现误判断的bug.
-		if (data.length>4 && data[0] == 1 && data[1] == 0 && data[2]== 0 && data[3] == 0 &&data[4] == MySQLPacket.COM_QUIT) {
-			this.getManager().getCommands().doQuit();
-			this.close("quit cmd");
-			return;
-		}
-		handler.handle(data);
-	}
-
 	protected int getServerCapabilities() {
 		int flag = 0;
 		flag |= Capabilities.CLIENT_LONG_PASSWORD;
@@ -441,14 +328,118 @@ public abstract class FrontendConnection extends AbstractConnection {
 		return flag;
 	}
 
-    @Override
-    protected int write(SocketChannel channel, ByteBuffer buffer) {
-        try {
-            return channel.write(buffer);
-        } catch (IOException e) {
-            throw new FrontendException("Channel write failed", e);
-        }
-    }
+	public long getId() {
+		return id;
+	}
+
+	public void setId(long id) {
+		this.id = id;
+	}
+
+	public String getHost() {
+		return host;
+	}
+
+	public void setHost(String host) {
+		this.host = host;
+	}
+
+	public int getPort() {
+		return port;
+	}
+
+	public void setPort(int port) {
+		this.port = port;
+	}
+
+	public int getLocalPort() {
+		return localPort;
+	}
+
+	public void setLocalPort(int localPort) {
+		this.localPort = localPort;
+	}
+
+	public void setAccepted(boolean isAccepted) {
+		this.isAccepted = isAccepted;
+	}
+
+	public LoadDataInfileHandler getLoadDataInfileHandler() {
+		return loadDataInfileHandler;
+	}
+
+	public void setLoadDataInfileHandler(LoadDataInfileHandler loadDataInfileHandler) {
+		this.loadDataInfileHandler = loadDataInfileHandler;
+	}
+
+	public void setQueryHandler(FrontendQueryHandler queryHandler) {
+		this.queryHandler = queryHandler;
+	}
+
+	public void setPrepareHandler(FrontendPrepareHandler prepareHandler) {
+		this.prepareHandler = prepareHandler;
+	}
+
+	public void setAuthenticated(boolean isAuthenticated) {
+		this.isAuthenticated = isAuthenticated;
+	}
+
+	public FrontendPrivileges getPrivileges() {
+		return privileges;
+	}
+
+	public void setPrivileges(FrontendPrivileges privileges) {
+		this.privileges = privileges;
+	}
+
+	public String getUser() {
+		return user;
+	}
+
+	public void setUser(String user) {
+		this.user = user;
+	}
+
+	public String getSchema() {
+		return schema;
+	}
+
+	public void setSchema(String schema) {
+		this.schema = schema;
+	}
+
+	public String getExecuteSql() {
+		return executeSql;
+	}
+
+	public void setExecuteSql(String executeSql) {
+		this.executeSql = executeSql;
+	}
+
+	public byte[] getSeed() {
+		return seed;
+	}
+
+	public boolean setCharsetIndex(int ci) {
+		String charset = CharsetUtil.getCharset(ci);
+		if (charset != null) {
+			return setCharset(charset);
+		} else {
+			return false;
+		}
+	}
+
+	public void writeErrMessage(int errno, String msg) {
+		writeErrMessage((byte) 1, errno, msg);
+	}
+
+	public void writeErrMessage(byte id, int errno, String msg) {
+		ErrorPacket err = new ErrorPacket();
+		err.packetId = id;
+		err.errno = errno;
+		err.message = encodeString(msg, charset);
+		err.write(this);
+	}
 
 	@Override
 	public String toString() {
@@ -471,11 +462,6 @@ public abstract class FrontendConnection extends AbstractConnection {
 		} catch (UnsupportedEncodingException e) {
 			return src.getBytes();
 		}
-	}
-
-	@Override
-	public void close(String reason) {
-		super.close(isAuthenticated ? reason : "");
 	}
 
 }

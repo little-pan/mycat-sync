@@ -36,7 +36,7 @@ public class DelegateResponseHandler implements ResponseHandler {
 
     public DelegateResponseHandler(ResponseHandler target) {
         if (target == null) {
-            throw new IllegalArgumentException("delegate is null!");
+            throw new IllegalArgumentException("target is null!");
         }
         this.target = target;
     }
@@ -48,7 +48,13 @@ public class DelegateResponseHandler implements ResponseHandler {
 
     @Override
     public void connectionError(Throwable e, BackendConnection conn) {
-        this.target.connectionError(e, conn);
+        try {
+            this.target.connectionError(e, conn);
+        } finally {
+            if (conn != null) {
+                conn.close("Connection failed: " + e);
+            }
+        }
     }
 
     @Override

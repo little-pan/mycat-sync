@@ -6,24 +6,27 @@ import java.util.Map;
 
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
+import org.slf4j.*;
 
 public class OneRawSQLQueryResultHandler implements SQLJobHandler {
+
+	static final Logger log = LoggerFactory.getLogger(OneRawSQLQueryResultHandler.class);
 
 	private Map<String, Integer> fetchColPosMap;
 	private final SQLQueryResultListener<SQLQueryResult<Map<String, String>>> callback;
 	private final String[] fetchCols;
 	private int fieldCount = 0;
-	private Map<String, String> result = new HashMap<String, String>();;
+	private Map<String, String> result = new HashMap<>();
+
 	public OneRawSQLQueryResultHandler(String[] fetchCols,
 			SQLQueryResultListener<SQLQueryResult<Map<String, String>>> callBack) {
-
 		this.fetchCols = fetchCols;
 		this.callback = callBack;
 	}
 
 	public void onHeader(String dataNode, byte[] header, List<byte[]> fields) {
 		fieldCount = fields.size();
-		fetchColPosMap = new HashMap<String, Integer>();
+		fetchColPosMap = new HashMap<>();
 		for (String watchFd : fetchCols) {
 			for (int i = 0; i < fieldCount; i++) {
 				byte[] field = fields.get(i);
@@ -67,7 +70,7 @@ public class OneRawSQLQueryResultHandler implements SQLJobHandler {
 	                String columnVal = columnData!=null?new String(columnData):null;
 	                result.put(fetchCol, columnVal);
 				} else {
-					LOGGER.warn("cant't find column in sql query result " + fetchCol);
+					log.warn("Cant't find column in sql query result in column '{}'", fetchCol);
 				}
 			}
 		}
@@ -77,9 +80,8 @@ public class OneRawSQLQueryResultHandler implements SQLJobHandler {
 
 	@Override
 	public void finished(String dataNode, boolean failed) {
-		SQLQueryResult<Map<String, String>> queryRestl=new SQLQueryResult<Map<String, String>>(this.result,!failed);
-	     this.callback.onResult(queryRestl);
-
+		SQLQueryResult<Map<String, String>> queryResult = new SQLQueryResult<>(this.result, !failed);
+		this.callback.onResult(queryResult);
 	}
 
 }

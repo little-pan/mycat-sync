@@ -24,7 +24,7 @@
 package org.opencloudb.manager;
 
 import java.io.IOException;
-import java.nio.channels.NetworkChannel;
+import java.nio.channels.SocketChannel;
 
 import org.opencloudb.net.FrontendConnection;
 import org.opencloudb.util.TimeUtil;
@@ -35,7 +35,7 @@ import org.opencloudb.util.TimeUtil;
 public class ManagerConnection extends FrontendConnection {
 	private static final long AUTH_TIMEOUT = 15 * 1000L;
 
-	public ManagerConnection(NetworkChannel channel) throws IOException {
+	public ManagerConnection(SocketChannel channel) throws IOException {
 		super(channel);
 	}
 

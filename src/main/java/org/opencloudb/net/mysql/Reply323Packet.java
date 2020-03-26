@@ -25,8 +25,11 @@ package org.opencloudb.net.mysql;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
+import org.opencloudb.mysql.BufferUtil;
 import org.opencloudb.mysql.StreamUtil;
+import org.opencloudb.net.NioBackendConnection;
 
 /**
  * @author mycat
@@ -43,6 +46,19 @@ public class Reply323Packet extends MySQLPacket {
         } else {
             StreamUtil.writeWithNull(out, seed);
         }
+    }
+
+    @Override
+    public void write(NioBackendConnection c) {
+        ByteBuffer buffer = c.allocate();
+        BufferUtil.writeUB3(buffer, calcPacketSize());
+        buffer.put(this.packetId);
+        if (this.seed == null) {
+            buffer.put((byte) 0);
+        } else {
+            BufferUtil.writeWithNull(buffer, this.seed);
+        }
+        c.write(buffer);
     }
 
     @Override

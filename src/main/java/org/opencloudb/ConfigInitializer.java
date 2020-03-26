@@ -42,7 +42,7 @@ import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.UserConfig;
 import org.opencloudb.config.util.ConfigException;
-import org.opencloudb.jdbc.JDBCDataSource;
+import org.opencloudb.mysql.nio.MySQLDataSource;
 import org.opencloudb.sequence.handler.IncrSequenceTimeHandler;
 import org.opencloudb.sequence.handler.IncrSequenceMySQLHandler;
 import org.slf4j.*;
@@ -65,12 +65,10 @@ public class ConfigInitializer {
 	public ConfigInitializer(boolean loadDataHost) {
 		SchemaLoader schemaLoader = new XMLSchemaLoader();
 		XMLConfigLoader configLoader = new XMLConfigLoader(schemaLoader);
-		schemaLoader = null;
 		this.system = configLoader.getSystemConfig();
 		this.users = configLoader.getUserConfigs();
 		this.schemas = configLoader.getSchemaConfigs();
-        if(loadDataHost)
-        {
+        if(loadDataHost) {
             this.dataHosts = initDataHosts(configLoader);
             this.dataNodes = initDataNodes(configLoader);
         }
@@ -160,19 +158,23 @@ public class ConfigInitializer {
                                                   String hostName, String dbType, String dbDriver,
                                                   DBHostConfig[] nodes, boolean isRead) {
 		PhysicalDataSource[] dataSources = new PhysicalDataSource[nodes.length];
-		if (dbType.equals("mysql") && dbDriver.equals("native")) {
-            String useDriver = "jdbc";
-            log.warn("dbDriver '{}' is deprecated in {}: changed to {}", dbDriver, dbType, useDriver);
-            dbDriver = useDriver;
-        }
-        if(dbDriver.equals("jdbc")) {
+		switch (dbType) {
+			case "mysql":
+			case "mariadb":
+				break;
+			default:
+				throw new ConfigException("dbType '"+dbType+"' in host '"+hostName+"' not supported yet!");
+		}
+		if (!"native".equals(dbDriver)) {
+			throw new ConfigException("dbDriver '"+dbType+"' in host '"+hostName+"' not supported yet!");
+		}
+
+		if ("mysql".equals(dbType)) {
 			for (int i = 0; i < nodes.length; i++) {
-				nodes[i].setIdleTimeout(system.getIdleTimeout());
-				JDBCDataSource ds = new JDBCDataSource(nodes[i], conf, isRead);
+				nodes[i].setIdleTimeout(this.system.getIdleTimeout());
+				MySQLDataSource ds = new MySQLDataSource(nodes[i], conf, isRead);
 				dataSources[i] = ds;
 			}
-        } else {
-			throw new ConfigException("dbDriver '"+dbDriver+"' in dataHost '"+hostName+"' not supported yet!");
 		}
 
 		return dataSources;

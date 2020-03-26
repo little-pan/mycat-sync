@@ -21,31 +21,13 @@
  * https://code.google.com/p/opencloudb/.
  *
  */
-package org.opencloudb.net.factory;
-
-import java.io.IOException;
-import java.net.StandardSocketOptions;
-import java.nio.channels.NetworkChannel;
-import java.nio.channels.SocketChannel;
-
-import org.opencloudb.MycatServer;
-import org.opencloudb.net.FrontendConnection;
+package org.opencloudb.net;
 
 /**
  * @author mycat
  */
-public abstract class FrontendConnectionFactory {
+public interface NioHandler {
 
-	protected abstract FrontendConnection getConnection(SocketChannel channel)
-			throws IOException;
-
-	public FrontendConnection make(SocketChannel channel) throws IOException {
-		channel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
-		channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
-
-		FrontendConnection c = getConnection(channel);
-		MycatServer.getInstance().getConfig().setSocketParams(c, true);
-		return c;
-	}
+    void handle(byte[] data);
 
 }

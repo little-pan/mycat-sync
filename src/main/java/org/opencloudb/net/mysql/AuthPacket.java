@@ -25,11 +25,13 @@ package org.opencloudb.net.mysql;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 import org.opencloudb.config.Capabilities;
 import org.opencloudb.mysql.BufferUtil;
 import org.opencloudb.mysql.MySQLMessage;
 import org.opencloudb.mysql.StreamUtil;
+import org.opencloudb.net.NioBackendConnection;
 
 /**
  * From client to server during initial handshake.
@@ -107,6 +109,41 @@ public class AuthPacket extends MySQLPacket {
         } else {
             StreamUtil.writeWithNull(out, database.getBytes());
         }
+    }
+
+    @Override
+    public void write(NioBackendConnection c) {
+        ByteBuffer buffer = c.allocate();
+        BufferUtil.writeUB3(buffer, calcPacketSize());
+        buffer.put(this.packetId);
+        BufferUtil.writeUB4(buffer, this.clientFlags);
+        BufferUtil.writeUB4(buffer, this.maxPacketSize);
+        buffer.put((byte) this.charsetIndex);
+        buffer = c.writeToBuffer(FILLER, buffer);
+        if (this.user == null) {
+            buffer = c.checkWriteBuffer(buffer, 1,true);
+            buffer.put((byte) 0);
+        } else {
+            byte[] userData = this.user.getBytes();
+            buffer = c.checkWriteBuffer(buffer, userData.length + 1,true);
+            BufferUtil.writeWithNull(buffer, userData);
+        }
+        if (this.password == null) {
+            buffer = c.checkWriteBuffer(buffer, 1,true);
+            buffer.put((byte) 0);
+        } else {
+            buffer = c.checkWriteBuffer(buffer, BufferUtil.getLength(this.password),true);
+            BufferUtil.writeWithLength(buffer, this.password);
+        }
+        if (this.database == null) {
+            buffer = c.checkWriteBuffer(buffer, 1,true);
+            buffer.put((byte) 0);
+        } else {
+            byte[] databaseData = this.database.getBytes();
+            buffer = c.checkWriteBuffer(buffer, databaseData.length + 1,true);
+            BufferUtil.writeWithNull(buffer, databaseData);
+        }
+        c.write(buffer);
     }
 
     @Override

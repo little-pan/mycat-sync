@@ -30,6 +30,7 @@ import java.nio.ByteBuffer;
 import org.opencloudb.mysql.BufferUtil;
 import org.opencloudb.mysql.StreamUtil;
 import org.opencloudb.net.FrontendConnection;
+import org.opencloudb.net.NioBackendConnection;
 
 /**
  * @author mycat
@@ -60,6 +61,17 @@ public class BinaryPacket extends MySQLPacket {
         buffer.put(packetId);
         buffer = c.writeToBuffer(data, buffer);
         return buffer;
+    }
+
+    @Override
+    public void write(NioBackendConnection c) {
+        ByteBuffer buffer = c.allocate();
+        int size = c.getPacketHeaderSize() + calcPacketSize();
+        buffer = c.checkWriteBuffer(buffer, size, false);
+        BufferUtil.writeUB3(buffer, calcPacketSize());
+        buffer.put(packetId);
+        buffer.put(data);
+        c.write(buffer);
     }
 
     @Override
