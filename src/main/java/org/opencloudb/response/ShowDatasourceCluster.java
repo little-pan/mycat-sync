@@ -45,7 +45,6 @@ import org.opencloudb.statistic.DataSourceSyncRecorder;
 import org.opencloudb.util.LongUtil;
 import org.opencloudb.util.StringUtil;
 
-
 /**
  * @author songwie
  */
@@ -154,8 +153,9 @@ public class ShowDatasourceCluster {
 	}
  
 	private static List<RowDataPacket> getRows(String charset) {
-		List<RowDataPacket> list = new LinkedList<RowDataPacket>();
-		MycatConfig conf = MycatServer.getInstance().getConfig();
+		List<RowDataPacket> list = new LinkedList<>();
+		MycatServer server = MycatServer.getContextServer();
+		MycatConfig conf = server.getConfig();
 		// host nodes
 		Map<String, PhysicalDBPool> dataHosts = conf.getDataHosts();
 		for (PhysicalDBPool pool : dataHosts.values()) {
@@ -189,6 +189,7 @@ public class ShowDatasourceCluster {
 				}
 			}
 		}
+
 		return list;
 	}
 

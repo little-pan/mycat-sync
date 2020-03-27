@@ -42,7 +42,8 @@ public class Heartbeat {
     public static void response(ServerConnection c, byte[] data) {
         HeartbeatPacket hp = new HeartbeatPacket();
         hp.read(data);
-        if (MycatServer.getInstance().isOnline()) {
+        MycatServer server = MycatServer.getContextServer();
+        if (server.isOnline()) {
             OkPacket ok = new OkPacket();
             ok.packetId = 1;
             ok.affectedRows = hp.id;

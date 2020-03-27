@@ -39,7 +39,8 @@ public class Ping {
     private static final ErrorPacket error = PacketUtil.getShutdown();
 
     public static void response(FrontendConnection c) {
-        if (MycatServer.getInstance().isOnline()) {
+        MycatServer server = MycatServer.getContextServer();
+        if (server.isOnline()) {
             c.write(c.writeToBuffer(OkPacket.OK, c.allocate()));
         } else {
             error.write(c);

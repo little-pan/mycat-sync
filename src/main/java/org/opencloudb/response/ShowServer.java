@@ -47,8 +47,7 @@ import org.opencloudb.util.TimeUtil;
 public final class ShowServer {
 
 	private static final int FIELD_COUNT = 9;
-	private static final ResultSetHeaderPacket header = PacketUtil
-			.getHeader(FIELD_COUNT);
+	private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
 	private static final FieldPacket[] fields = new FieldPacket[FIELD_COUNT];
 	private static final EOFPacket eof = new EOFPacket();
 	static {
@@ -123,7 +122,7 @@ public final class ShowServer {
 	}
 
 	private static RowDataPacket getRow(String charset) {
-		MycatServer server = MycatServer.getInstance();
+		MycatServer server = MycatServer.getContextServer();
 		long startupTime = server.getStartupTime();
 		long now = TimeUtil.currentTimeMillis();
 		long uptime = now - startupTime;
@@ -139,9 +138,9 @@ public final class ShowServer {
 		row.add(LongUtil.toBytes(server.getConfig().getReloadTime()));
 		row.add(LongUtil.toBytes(server.getConfig().getRollbackTime()));
 		row.add(StringUtil.encode(charset, charset));
-		row.add(StringUtil.encode(MycatServer.getInstance().isOnline() ? "ON"
-				: "OFF", charset));
+		row.add(StringUtil.encode(server.isOnline() ? "ON" : "OFF", charset));
 		row.add(LongUtil.toBytes(server.getBufferPool().getAvgBufSize()));
+
 		return row;
 	}
 

@@ -50,7 +50,8 @@ public class MySQLConnectionFactory extends BackendConnectionFactory {
 		boolean failed = true;
 		try {
 			MySQLConnection c = new MySQLConnection(channel, pool.isReadNode());
-			MycatServer.getInstance().getConfig().setSocketParams(c, false);
+			MycatServer server = MycatServer.getContextServer();
+			server.getConfig().setSocketParams(c, false);
 			c.setHost(dsc.getIp());
 			c.setPort(dsc.getPort());
 			c.setUser(dsc.getUser());

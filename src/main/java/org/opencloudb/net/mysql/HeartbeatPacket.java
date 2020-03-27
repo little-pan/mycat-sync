@@ -25,7 +25,7 @@ package org.opencloudb.net.mysql;
 
 import org.opencloudb.mysql.BufferUtil;
 import org.opencloudb.mysql.MySQLMessage;
-import org.opencloudb.net.NioBackendConnection;
+import org.opencloudb.net.BackendConnection;
 
 import java.nio.ByteBuffer;
 
@@ -54,7 +54,7 @@ public class HeartbeatPacket extends MySQLPacket {
     }
 
     @Override
-    public void write(NioBackendConnection c) {
+    public void write(BackendConnection c) {
         ByteBuffer buffer = c.allocate();
         BufferUtil.writeUB3(buffer, calcPacketSize());
         buffer.put(this.packetId);

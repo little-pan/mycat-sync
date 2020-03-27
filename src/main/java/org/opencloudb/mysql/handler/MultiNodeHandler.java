@@ -23,11 +23,8 @@
  */
 package org.opencloudb.mysql.handler;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantLock;
-
-import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.config.ErrorCode;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.server.ServerSession;
 import org.opencloudb.util.StringUtil;
@@ -40,13 +37,12 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 
 	private static final Logger log = LoggerFactory.getLogger(MultiNodeHandler.class);
 
-	protected final ReentrantLock lock = new ReentrantLock();
 	protected final ServerSession session;
-	private AtomicBoolean isFailed = new AtomicBoolean(false);
+	private boolean isFailed = false;
 	protected volatile String error;
 	protected byte packetId;
-	protected final AtomicBoolean errorResponsed = new AtomicBoolean(false);
-	protected final AtomicBoolean isClosedByDiscard = new AtomicBoolean(false);
+	protected boolean errorResponsed = false;
+	protected boolean isClosedByDiscard = false;
 
 	private int nodeCount;
 	private Runnable terminateCallBack;
@@ -59,26 +55,21 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 	}
 
 	public void setFail(String errMsg) {
-		this.isFailed.set(true);
+		this.isFailed = true;
 		this.error = errMsg;
 	}
 
 	public boolean isFail() {
-		return this.isFailed.get();
+		return this.isFailed;
 	}
 
 	@Override
 	public void terminate(Runnable terminateCallBack) {
 		boolean zeroReached = false;
-		lock.lock();
-		try {
-			if (this.nodeCount > 0) {
-				this.terminateCallBack = terminateCallBack;
-			} else {
-				zeroReached = true;
-			}
-		} finally {
-			lock.unlock();
+		if (this.nodeCount > 0) {
+			this.terminateCallBack = terminateCallBack;
+		} else {
+			zeroReached = true;
 		}
 		if (zeroReached) {
 			terminateCallBack.run();
@@ -99,14 +90,9 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 
 	protected void decrementCountToZero() {
 		Runnable callback;
-		lock.lock();
-		try {
-			this.nodeCount = 0;
-			callback = this.terminateCallBack;
-			this.terminateCallBack = null;
-		} finally {
-			lock.unlock();
-		}
+		this.nodeCount = 0;
+		callback = this.terminateCallBack;
+		this.terminateCallBack = null;
 		if (callback != null) {
 			callback.run();
 		}
@@ -148,37 +134,28 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 		final boolean zeroReached;
 		Runnable callback = null;
 
-		lock.lock();
-		try {
-			this.nodeCount -= count;
-			if (zeroReached = this.nodeCount <= 0) {
-				callback = this.terminateCallBack;
-				this.terminateCallBack = null;
-			}
-		} finally {
-			lock.unlock();
+		this.nodeCount -= count;
+		if (zeroReached = this.nodeCount <= 0) {
+			callback = this.terminateCallBack;
+			this.terminateCallBack = null;
 		}
 		if (zeroReached && callback != null) {
 			callback.run();
 		}
+
 		return zeroReached;
 	}
 
 	protected void reset(int initCount) {
 		this.nodeCount = initCount;
-		this.isFailed.set(false);
+		this.isFailed = false;
 		this.error = null;
 		this.packetId = 0;
 	}
 
 	protected ErrorPacket createErrPkg(String errmgs) {
 		ErrorPacket err = new ErrorPacket();
-		lock.lock();
-		try {
-			err.packetId = ++this.packetId;
-		} finally {
-			lock.unlock();
-		}
+		err.packetId = ++this.packetId;
 		err.errno = ErrorCode.ER_UNKNOWN_ERROR;
 		err.message = StringUtil.encode(errmgs, session.getSource().getCharset());
 		return err;
@@ -186,7 +163,8 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 
 	protected void tryErrorFinished(boolean allEnd) {
 		if (allEnd && !this.session.closed()) {
-			if (this.errorResponsed.compareAndSet(false, true)) {
+			if (!this.errorResponsed) {
+				this.errorResponsed = true;
 				createErrPkg(this.error).write(this.session.getSource());
 			}
 			// clear session resources, release all
@@ -202,20 +180,14 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 	}
 
 	public void connectionClose(BackendConnection conn, String reason) {
-		if(this.isClosedByDiscard.get()){
+		if(this.isClosedByDiscard){
 			log.debug("Close backend but 'isClosedByDiscard' is set:" +
 						" close reason '{}', backend {}", reason, conn);
 			return;
 		}
 
 		setFail("closed connection: " + reason + ",  backend: " + conn);
-		boolean finished = false;
-		lock.lock();
-		try {
-			finished = (this.nodeCount == 0);
-		} finally {
-			lock.unlock();
-		}
+		boolean finished = (this.nodeCount == 0);
 		if (!finished) {
 			finished = decrementCountBy(1);
 		}

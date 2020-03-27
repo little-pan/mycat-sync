@@ -162,7 +162,8 @@ public class DataMergeService implements Runnable {
 		} else {
 			hasOrderBy = false;
 		}
-		MycatServer.getInstance().getBusinessExecutor().execute(this);
+		MycatServer server = MycatServer.getContextServer();
+		server.getBusinessExecutor().execute(this);
 	}
 
 	/**

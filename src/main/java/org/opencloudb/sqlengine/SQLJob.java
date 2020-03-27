@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.backend.PhysicalDataSource;
 import org.opencloudb.mysql.handler.ResponseHandler;
@@ -57,7 +57,8 @@ public class SQLJob implements ResponseHandler, Runnable {
 			if (this.ds == null) {
 				RouteResultsetNode node = new RouteResultsetNode(this.dataNodeOrDatabase, ServerParse.SELECT, this.sql);
 				// create new connection
-				MycatConfig conf = MycatServer.getInstance().getConfig();
+				MycatServer server = MycatServer.getContextServer();
+				MycatConfig conf = server.getConfig();
 				PhysicalDBNode dn = conf.getDataNodes().get(node.getName());
 				dn.getConnection(dn.getDatabase(), true, node, this, node);
 			} else {

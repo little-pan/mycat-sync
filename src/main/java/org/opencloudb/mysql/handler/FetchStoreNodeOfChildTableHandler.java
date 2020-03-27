@@ -31,7 +31,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.apache.log4j.Logger;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.cache.CachePool;
 import org.opencloudb.net.mysql.ErrorPacket;
@@ -57,8 +57,8 @@ public class FetchStoreNodeOfChildTableHandler implements ResponseHandler {
 
 	public String execute(String schema, String sql, ArrayList<String> dataNodes) {
 		String key = schema + ":" + sql;
-		CachePool cache = MycatServer.getInstance().getCacheService()
-				.getCachePool("ER_SQL2PARENTID");
+		MycatServer server = MycatServer.getContextServer();
+		CachePool cache = server.getCacheService().getCachePool("ER_SQL2PARENTID");
 		String result = (String) cache.get(key);
 		if (result != null) {
 			return result;
@@ -67,7 +67,7 @@ public class FetchStoreNodeOfChildTableHandler implements ResponseHandler {
 		int totalCount = dataNodes.size();
 		long startTime = System.currentTimeMillis();
 		long endTime = startTime + 5 * 60 * 1000L;
-		MycatConfig conf = MycatServer.getInstance().getConfig();
+		MycatConfig conf = server.getConfig();
 
 		LOGGER.debug("find child node with sql:" + sql);
 		for (String dn : dataNodes) {

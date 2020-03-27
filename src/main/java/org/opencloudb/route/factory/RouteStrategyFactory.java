@@ -1,7 +1,5 @@
 package org.opencloudb.route.factory;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -24,9 +22,10 @@ public class RouteStrategyFactory {
 	}
 	
 	private static void init() {
-		String defaultSqlParser = MycatServer.getInstance().getConfig().getSystem().getDefaultSqlParser();
+		MycatServer server = MycatServer.getContextServer();
+		String defaultSqlParser = server.getConfig().getSystem().getDefaultSqlParser();
 		defaultSqlParser = defaultSqlParser == null ? "" : defaultSqlParser;
-		//修改为ConcurrentHashMap，避免并发问题
+		// 修改为ConcurrentHashMap，避免并发问题
 		strategyMap.putIfAbsent("druidparser", new DruidMycatRouteStrategy());
 		
 		defaultStrategy = strategyMap.get(defaultSqlParser);
@@ -49,4 +48,5 @@ public class RouteStrategyFactory {
 		}
 		return strategyMap.get(parserType);
 	}
+
 }

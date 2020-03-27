@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.log4j.Logger;
-import org.opencloudb.MycatServer;
+import org.opencloudb.net.NioProcessor;
+import org.slf4j.*;
 
 /**
  * SQL执行后的派发  QueryResult 事件
@@ -15,19 +15,18 @@ import org.opencloudb.MycatServer;
  */
 public class QueryResultDispatcher {
 	
-	// 是否派发 QueryResult 事件
+	// 是否派发QueryResult 事件
 	private final static AtomicBoolean isClosed = new AtomicBoolean(false);
 	
-	private static final Logger LOGGER = Logger.getLogger(QueryResultDispatcher.class);
+	private static final Logger log = LoggerFactory.getLogger(QueryResultDispatcher.class);
 	
-	private static List<QueryResultListener> listeners = new CopyOnWriteArrayList<QueryResultListener>();
+	private static List<QueryResultListener> listeners = new CopyOnWriteArrayList<>();
 
 	// 初始化强制加载
 	static {
-		listeners.add( UserStatAnalyzer.getInstance() );
-		listeners.add( TableStatAnalyzer.getInstance() );
-		//listeners.add( HighFrequencySqlAnalyzer.getInstance() );
-		listeners.add( QueryConditionAnalyzer.getInstance() );
+		listeners.add(UserStatAnalyzer.getInstance());
+		listeners.add(TableStatAnalyzer.getInstance());
+		listeners.add(QueryConditionAnalyzer.getInstance());
 	}
 	
 	public static boolean close() {
@@ -60,22 +59,16 @@ public class QueryResultDispatcher {
 	}
 	
 	public static void dispatchQuery(final QueryResult queryResult) {
-		
-		if ( isClosed.get() ) {
+		if (isClosed.get() ) {
 			return;
 		}
-		
-		//TODO：异步分发，待进一步调优 
-		MycatServer.getInstance().getBusinessExecutor().execute(new Runnable() {
-			
-			public void run() {		
-				
+
+		NioProcessor processor = NioProcessor.currentProcessor();
+		processor.execute(new Runnable() {
+			@Override
+			public void run() {
 				for(QueryResultListener listener: listeners) {
-					try {
-						listener.onQueryResult( queryResult );
-					} catch(Exception e) {
-						LOGGER.error(e);
-					}
+					listener.onQueryResult(queryResult);
 				}					
 			}
 		});

@@ -24,11 +24,11 @@
 package org.opencloudb.mysql.nio;
 
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.BackendException;
 import org.opencloudb.config.Capabilities;
 import org.opencloudb.mysql.CharsetUtil;
 import org.opencloudb.mysql.SecurityUtil;
 import org.opencloudb.mysql.handler.ResponseHandler;
+import org.opencloudb.net.BackendException;
 import org.opencloudb.net.ConnectionException;
 import org.opencloudb.net.Handler;
 import org.opencloudb.net.mysql.EOFPacket;
@@ -84,7 +84,8 @@ public class MySQLConnectionAuthenticator implements Handler {
 				source.setAuthenticated(true);
 				boolean clientCompress = Capabilities.CLIENT_COMPRESS ==
 						(Capabilities.CLIENT_COMPRESS & packet.serverCapabilities);
-				boolean usingCompress = MycatServer.getInstance().getConfig().getSystem().getUseCompression()==1 ;
+				MycatServer server = MycatServer.getContextServer();
+				boolean usingCompress = server.getConfig().getSystem().getUseCompression()==1 ;
 				if(clientCompress&&usingCompress) {
 					source.setSupportCompress(true);
 				}

@@ -25,10 +25,10 @@ package org.opencloudb;
 
 import java.util.Set;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.config.Alarms;
 import org.opencloudb.config.model.UserConfig;
 import org.opencloudb.net.handler.FrontendPrivileges;
+import org.slf4j.*;
 
 /**
  * @author mycat
@@ -39,7 +39,7 @@ public class MycatPrivileges implements FrontendPrivileges {
 	 */
 	private static MycatPrivileges instance = new MycatPrivileges();
 	
-    private static final Logger ALARM = Logger.getLogger("alarm");
+    private static final Logger ALARM = LoggerFactory.getLogger("alarm");
 
     public static MycatPrivileges instance() {
     	return instance;
@@ -51,16 +51,17 @@ public class MycatPrivileges implements FrontendPrivileges {
     
     @Override
     public boolean schemaExists(String schema) {
-        MycatConfig conf = MycatServer.getInstance().getConfig();
+        MycatServer server = MycatServer.getContextServer();
+        MycatConfig conf = server.getConfig();
         return conf.getSchemas().containsKey(schema);
     }
 
     @Override
     public boolean userExists(String user, String host) {
-        MycatConfig conf = MycatServer.getInstance().getConfig();
-        if(conf.getQuarantine().canConnect(host,user)==false){
-        	 ALARM.error(new StringBuilder().append(Alarms.QUARANTINE_ATTACK).append("[host=").append(host)
-                     .append(",user=").append(user).append(']').toString());
+        MycatServer server = MycatServer.getContextServer();
+        MycatConfig conf = server.getConfig();
+        if(!conf.getQuarantine().canConnect(host, user)){
+        	 ALARM.error(Alarms.QUARANTINE_ATTACK+"[host={}, user={}]", host, user);
         	 return false;
         }
         return true;
@@ -68,7 +69,8 @@ public class MycatPrivileges implements FrontendPrivileges {
 
     @Override
     public String getPassword(String user) {
-        MycatConfig conf = MycatServer.getInstance().getConfig();
+        MycatServer server = MycatServer.getContextServer();
+        MycatConfig conf = server.getConfig();
         if (user != null && user.equals(conf.getSystem().getClusterHeartbeatUser())) {
             return conf.getSystem().getClusterHeartbeatPass();
         } else {
@@ -83,7 +85,8 @@ public class MycatPrivileges implements FrontendPrivileges {
 
     @Override
     public Set<String> getUserSchemas(String user) {
-        MycatConfig conf = MycatServer.getInstance().getConfig();
+        MycatServer server = MycatServer.getContextServer();
+        MycatConfig conf = server.getConfig();
         UserConfig uc = conf.getUsers().get(user);
         if (uc != null) {
             return uc.getSchemas();
@@ -94,7 +97,8 @@ public class MycatPrivileges implements FrontendPrivileges {
     
     @Override
     public Boolean isReadOnly(String user) {
-        MycatConfig conf = MycatServer.getInstance().getConfig();
+        MycatServer server = MycatServer.getContextServer();
+        MycatConfig conf = server.getConfig();
         UserConfig uc = conf.getUsers().get(user);
         if (uc != null) {
             return uc.isReadOnly();
@@ -105,7 +109,8 @@ public class MycatPrivileges implements FrontendPrivileges {
 
 	@Override
 	public int getBenchmark(String user) {
-		MycatConfig conf = MycatServer.getInstance().getConfig();
+        MycatServer server = MycatServer.getContextServer();
+		MycatConfig conf = server.getConfig();
         UserConfig uc = conf.getUsers().get(user);
         if (uc != null) {
             return uc.getBenchmark();
@@ -116,7 +121,8 @@ public class MycatPrivileges implements FrontendPrivileges {
 
 	@Override
 	public String getBenchmarkSmsTel(String user) {
-		MycatConfig conf = MycatServer.getInstance().getConfig();
+        MycatServer server = MycatServer.getContextServer();
+		MycatConfig conf = server.getConfig();
         UserConfig uc = conf.getUsers().get(user);
         if (uc != null) {
             return uc.getBenchmarkSmsTel();

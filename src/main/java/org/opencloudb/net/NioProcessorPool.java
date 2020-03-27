@@ -35,7 +35,7 @@ public class NioProcessorPool implements AutoCloseable {
 	}
 
 	public NioProcessor getNextProcessor() {
-        int i = this.nextProcessor.incrementAndGet();
+        int i = this.nextProcessor.getAndIncrement();
         if (i >= processors.length) {
 			this.nextProcessor.set(i = 0);
         }

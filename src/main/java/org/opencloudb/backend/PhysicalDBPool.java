@@ -239,7 +239,8 @@ public class PhysicalDBPool {
 
 				if (this.writeType == WRITE_ONLYONE_NODE) {
 					// only init one write dataSource
-					MycatServer.getInstance().saveDataHostIndex(this.hostName, this.activedIndex);
+					MycatServer server = MycatServer.getContextServer();
+					server.saveDataHostIndex(this.hostName, this.activedIndex);
 					break;
 				}
 			}

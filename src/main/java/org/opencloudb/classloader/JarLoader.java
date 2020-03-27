@@ -1,8 +1,7 @@
 package org.opencloudb.classloader;
 
-
+import java.net.MalformedURLException;
 import java.util.jar.*;
-import java.lang.reflect.*;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.io.*;
@@ -47,7 +46,6 @@ public class JarLoader {
 	  }
 	  
 	  public static Class<?> loadJar(String fileName,String mainJavaclass) throws Exception {
-
 		    File file = new File(fileName);
 		    String mainClassName = null;
 
@@ -70,15 +68,13 @@ public class JarLoader {
 		    mainClassName = mainClassName.replaceAll("/", ".");
 
 		    File tmpDir = new File(System.getProperty("java.io.tmpdir"));
-		    tmpDir.mkdirs();
-		    if (!tmpDir.isDirectory()) { 
-		    	System.out.println("Mkdirs failed to create " + tmpDir);
+		    if (!tmpDir.mkdirs()) {
+				throw new IOException("mkdirs failed to create " + tmpDir);
 		    }
 		    final File workDir = File.createTempFile("unjar", "", tmpDir);
 		    workDir.delete();
-		    workDir.mkdirs();
-		    if (!workDir.isDirectory()) {
-		    	System.out.println("Mkdirs failed to create " + workDir);
+		    if (!workDir.mkdirs()) {
+				throw new IOException("mkdirs failed to create " + workDir);
 		    }
 
 		    Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -86,36 +82,41 @@ public class JarLoader {
 		          try {
 		            fullyDelete(workDir);
 		          } catch (IOException e) {
+		          	// Ignore
 		          }
 		        }
 		      });
 
 		    unJar(file, workDir);
 		    
-		    ArrayList<URL> classPath = new ArrayList<URL>();
-		    classPath.add(new File(workDir+"/").toURL());
-		    classPath.add(file.toURL());
-		    classPath.add(new File(workDir, "classes/").toURL());
+		    ArrayList<URL> classPath = new ArrayList<>();
+		    classPath.add(toURL(new File(workDir+"/")));
+		    classPath.add(toURL(file));
+		    classPath.add(toURL(new File(workDir, "classes/")));
 		    File[] libs = new File(workDir, "lib").listFiles();
 		    if (libs != null) {
 		      for (int i = 0; i < libs.length; i++) {
-		        classPath.add(libs[i].toURL());
+		        classPath.add(toURL(libs[i]));
 		      }
 		    }
 		    
-		    ClassLoader loader =	 new URLClassLoader(classPath.toArray(new URL[0]));
+		    ClassLoader loader = new URLClassLoader(classPath.toArray(new URL[0]));
 
 		    Thread.currentThread().setContextClassLoader(loader);
 		    Class<?> mainClass = Class.forName(mainClassName, true, loader);
 		    return mainClass;
-		  }
+	  }
+
+	  private static URL toURL(File file) throws MalformedURLException {
+	  	return file.toURI().toURL();
+	  }
 	  
 	  public static boolean fullyDelete(File dir) throws IOException {
 		    if (!fullyDeleteContents(dir)) {
 		      return false;
 		    }
 		    return dir.delete();
-		  }
+	  }
 
 		  /**
 		   * Delete the contents of a directory, not the directory itself.  If

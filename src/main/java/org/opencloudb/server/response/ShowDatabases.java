@@ -74,7 +74,8 @@ public class ShowDatabases {
 
         // write rows
         byte packetId = eof.packetId;
-        MycatConfig conf = MycatServer.getInstance().getConfig();
+        MycatServer server = MycatServer.getContextServer();
+        MycatConfig conf = server.getConfig();
         Map<String, UserConfig> users = conf.getUsers();
         UserConfig user = users == null ? null : users.get(c.getUser());
         if (user != null) {
@@ -83,9 +84,7 @@ public class ShowDatabases {
             if (schemaList == null || schemaList.size() == 0) {
                 schemaSet.addAll(conf.getSchemas().keySet());
             } else {
-                for (String schema : schemaList) {
-                    schemaSet.add(schema);
-                }
+                schemaSet.addAll(schemaList);
             }
             for (String name : schemaSet) {
                 RowDataPacket row = new RowDataPacket(FIELD_COUNT);

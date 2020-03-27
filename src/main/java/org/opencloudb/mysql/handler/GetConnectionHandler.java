@@ -28,7 +28,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 import org.slf4j.*;
 
 /**

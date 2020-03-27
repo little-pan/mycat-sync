@@ -28,16 +28,14 @@ public class UserStat {
 	private SQLRecorder sqlRecorder;
 
 	private String user;
-	
-
-	private UserSqlHigh sqlHighStat = null;
+	private UserSqlHigh sqlHighStat;
 	
 	public UserStat(String user) {
-		super();
 		this.user = user;		
 		this.rwStat = new UserRWStat();
 		this.sqlStat = new UserSqlStat(50);
-		this.sqlRecorder =  new SQLRecorder(MycatServer.getInstance().getConfig().getSystem().getSqlRecordCount());
+		MycatServer server = MycatServer.getContextServer();
+		this.sqlRecorder =  new SQLRecorder(server.getConfig().getSystem().getSqlRecordCount());
 		this.sqlHighStat=new UserSqlHigh();
 	}
 

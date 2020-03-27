@@ -46,8 +46,8 @@ public class HintCatletHandler implements HintHandler {
 					+ realSQL);
 		}
 		try {
-			Catlet catlet = (Catlet) MycatServer.getInstance()
-					.getCatletClassLoader().getInstanceofClass(cateletClass);
+			MycatServer server = MycatServer.getContextServer();
+			Catlet catlet = (Catlet)server.getCatletClassLoader().getInstanceofClass(cateletClass);
 			catlet.route(sysConfig, schema, sqlType, realSQL,charset, sc, cachePool);
 			catlet.processSQL(realSQL, new EngineCtx(sc.getSession()));
 		} catch (Exception e) {

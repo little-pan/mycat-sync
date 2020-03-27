@@ -8,16 +8,17 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.interceptor.SQLInterceptor;
 import org.opencloudb.server.parser.ServerParse;
+import org.slf4j.*;
+
 import java.io.File;
 
 public class StatisticsSqlInterceptor implements SQLInterceptor {
     
-private final class StatisticsSqlRunner implements Runnable {
+    private final class StatisticsSqlRunner implements Runnable {
         
         private int    sqltype = 0;
         private String sqls    = "";
@@ -29,7 +30,8 @@ private final class StatisticsSqlRunner implements Runnable {
         
         public void run() {
             try {
-                SystemConfig sysconfig = MycatServer.getInstance().getConfig().getSystem();
+                MycatServer server = MycatServer.getContextServer();
+                SystemConfig sysconfig = server.getConfig().getSystem();
                 String sqlInterceptorType = sysconfig.getSqlInterceptorType();
                 String sqlInterceptorFile = sysconfig.getSqlInterceptorFile();
                 
@@ -60,14 +62,14 @@ private final class StatisticsSqlRunner implements Runnable {
                 }
                 
             } catch (Exception e) {
-                LOGGER.error("interceptSQL error:" + e.getMessage());
+                log.error("interceptSQL error", e);
             }
         }
     }
     
-    private static final Logger         LOGGER  = Logger.getLogger(StatisticsSqlInterceptor.class);
+    private static final Logger         log  = LoggerFactory.getLogger(StatisticsSqlInterceptor.class);
     
-    private static Map<String, Integer> typeMap = new HashMap<String, Integer>();
+    private static Map<String, Integer> typeMap = new HashMap<>();
     static {
         typeMap.put("SELECT", 7);
         typeMap.put("UPDATE", 11);
@@ -106,7 +108,7 @@ private final class StatisticsSqlRunner implements Runnable {
             
             writer.close();
         } catch (IOException e) {
-            LOGGER.error("appendFile error:" + e);
+            log.error("appendFile error", e);
         }
     }
     
@@ -119,12 +121,10 @@ private final class StatisticsSqlRunner implements Runnable {
      */
     @Override
     public String interceptSQL(String sql, int sqlType) {
-        LOGGER.debug("sql interceptSQL:");
-        
-        final int sqltype = sqlType;
+        log.debug("sql interceptSQL:");
         final String sqls = DefaultSqlInterceptor.processEscape(sql);
-        MycatServer.getInstance().getBusinessExecutor()
-            .execute(new StatisticsSqlRunner(sqltype, sqls));
+        MycatServer server = MycatServer.getContextServer();
+        server.getBusinessExecutor().execute(new StatisticsSqlRunner(sqlType, sqls));
         return sql;
     }
     

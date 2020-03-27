@@ -58,7 +58,6 @@ public abstract class FrontendConnection extends AbstractConnection {
 	protected int localPort;
 	protected byte[] seed;
 	protected String user;
-	protected String schema;
 	protected String executeSql;
 
 	protected FrontendPrivileges privileges;
@@ -310,7 +309,8 @@ public abstract class FrontendConnection extends AbstractConnection {
 		flag |= Capabilities.CLIENT_LONG_FLAG;
 		flag |= Capabilities.CLIENT_CONNECT_WITH_DB;
 		// flag |= Capabilities.CLIENT_NO_SCHEMA;
-		boolean usingCompress= MycatServer.getInstance().getConfig().getSystem().getUseCompression()==1 ;
+		MycatServer server = MycatServer.getContextServer();
+		boolean usingCompress= server.getConfig().getSystem().getUseCompression()==1 ;
 		if (usingCompress) {
 			flag |= Capabilities.CLIENT_COMPRESS;
 		}
@@ -398,14 +398,6 @@ public abstract class FrontendConnection extends AbstractConnection {
 
 	public void setUser(String user) {
 		this.user = user;
-	}
-
-	public String getSchema() {
-		return schema;
-	}
-
-	public void setSchema(String schema) {
-		this.schema = schema;
 	}
 
 	public String getExecuteSql() {

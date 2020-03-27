@@ -2,7 +2,6 @@ package org.opencloudb.route.handler;
 
 import java.sql.SQLNonTransientException;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.cache.LayerCachePool;
 import org.opencloudb.config.model.SchemaConfig;
@@ -11,13 +10,14 @@ import org.opencloudb.route.RouteResultset;
 import org.opencloudb.route.RouteStrategy;
 import org.opencloudb.route.factory.RouteStrategyFactory;
 import org.opencloudb.server.ServerConnection;
+import org.slf4j.*;
 
 /**
  * 处理注释中类型为schema 的情况（按照指定schema做路由解析）
  */
 public class HintSchemaHandler implements HintHandler {
 
-	private static final Logger LOGGER = Logger.getLogger(HintSchemaHandler.class);
+	private static final Logger log = LoggerFactory.getLogger(HintSchemaHandler.class);
 
 	private RouteStrategy routeStrategy;
     
@@ -33,7 +33,7 @@ public class HintSchemaHandler implements HintHandler {
 	 * @param sqlType
 	 * @param realSQL
 	 * @param charset
-	 * @param info
+	 * @param sc
 	 * @param cachePool
 	 * @param hintSQLValue
 	 * @return
@@ -44,12 +44,13 @@ public class HintSchemaHandler implements HintHandler {
 			int sqlType, String realSQL, String charset, ServerConnection sc,
 			LayerCachePool cachePool, String hintSQLValue)
 			throws SQLNonTransientException {
-	    SchemaConfig tempSchema = MycatServer.getInstance().getConfig().getSchemas().get(hintSQLValue);
+		MycatServer server = MycatServer.getContextServer();
+	    SchemaConfig tempSchema = server.getConfig().getSchemas().get(hintSQLValue);
 		if (tempSchema != null) {
 			return routeStrategy.route(sysConfig, tempSchema, sqlType, realSQL, charset, sc, cachePool);
 		} else {
-			String msg = "can't find hint schema:" + hintSQLValue;
-			LOGGER.warn(msg);
+			String msg = "Can't find hint schema:" + hintSQLValue;
+			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 	}

@@ -24,16 +24,13 @@
 package org.opencloudb.server.handler;
 
 import java.nio.ByteBuffer;
-import java.sql.SQLNonTransientException;
 import java.util.List;
 import java.util.regex.Pattern;
 
 import com.alibaba.druid.sql.ast.SQLExpr;
-import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlInsertStatement;
 import com.alibaba.druid.sql.dialect.mysql.parser.MySqlStatementParser;
 import com.alibaba.druid.sql.parser.SQLStatementParser;
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.Fields;
@@ -51,13 +48,15 @@ import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.parser.ServerParse;
 import org.opencloudb.server.util.SchemaUtil;
 import org.opencloudb.util.StringUtil;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public class ExplainHandler {
 
-	private static final Logger logger = Logger.getLogger(ExplainHandler.class);
+	private static final Logger log = LoggerFactory.getLogger(ExplainHandler.class);
+
     private final static Pattern pattern = Pattern.compile("(?:(\\s*next\\s+value\\s+for\\s*MYCATSEQ_(\\w+))(,|\\)|\\s)*)+", Pattern.CASE_INSENSITIVE);
 	private static final RouteResultsetNode[] EMPTY_ARRAY = new RouteResultsetNode[0];
 	private static final int FIELD_COUNT = 2;
@@ -132,26 +131,24 @@ public class ExplainHandler {
                 return null;
             }
 		}
-		SchemaConfig schema = MycatServer.getInstance().getConfig()
-				.getSchemas().get(db);
+		MycatServer server = MycatServer.getContextServer();
+		SchemaConfig schema = server.getConfig().getSchemas().get(db);
 		if (schema == null) {
-			c.writeErrMessage(ErrorCode.ER_BAD_DB_ERROR, "Unknown database '"
-					+ db + "'");
+			c.writeErrMessage(ErrorCode.ER_BAD_DB_ERROR, "Unknown database '" + db + "'");
 			return null;
 		}
 		try {
-
             if(ServerParse.INSERT==sqlType&&isMycatSeq(stmt, schema))
             {
                 c.writeErrMessage(ErrorCode.ER_PARSE_ERROR, "insert sql using mycat seq,you must provide primaryKey value for explain");
                 return null;
             }
-            SystemConfig system = MycatServer.getInstance().getConfig().getSystem();
-            return MycatServer.getInstance().getRouterservice()
+            SystemConfig system = server.getConfig().getSystem();
+            return server.getRouterservice()
 					.route(system,schema, sqlType, stmt, c.getCharset(), c);
 		} catch (Exception e) {
 			StringBuilder s = new StringBuilder();
-			logger.warn(s.append(c).append(stmt).toString()+" error:"+ e);
+			log.warn(s.append(c).append(stmt).toString()+" error", e);
 			String msg = e.getMessage();
 			c.writeErrMessage(ErrorCode.ER_PARSE_ERROR, msg == null ? e
 					.getClass().getSimpleName() : msg);

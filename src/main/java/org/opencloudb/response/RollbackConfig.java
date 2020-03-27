@@ -26,7 +26,6 @@ package org.opencloudb.response;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatCluster;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
@@ -38,22 +37,22 @@ import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.UserConfig;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.net.mysql.OkPacket;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public final class RollbackConfig {
-	private static final Logger LOGGER = Logger.getLogger(RollbackConfig.class);
+	private static final Logger log = LoggerFactory.getLogger(RollbackConfig.class);
 
 	public static void execute(ManagerConnection c) {
-		final ReentrantLock lock = MycatServer.getInstance().getConfig()
-				.getLock();
+		MycatServer server = MycatServer.getContextServer();
+		final ReentrantLock lock = server.getConfig().getLock();
 		lock.lock();
 		try {
 			if (rollback()) {
 				StringBuilder s = new StringBuilder();
-				s.append(c).append("Rollback config success by manager");
-				LOGGER.warn(s.toString());
+				log.warn("Rollback config success by manager in {}", c);
 				OkPacket ok = new OkPacket();
 				ok.packetId = 1;
 				ok.affectedRows = 1;
@@ -69,7 +68,8 @@ public final class RollbackConfig {
 	}
 
 	private static boolean rollback() {
-		MycatConfig conf = MycatServer.getInstance().getConfig();
+		MycatServer server = MycatServer.getContextServer();
+		MycatConfig conf = server.getConfig();
 		Map<String, UserConfig> users = conf.getBackupUsers();
 		Map<String, SchemaConfig> schemas = conf.getBackupSchemas();
 		Map<String, PhysicalDBNode> dataNodes = conf.getBackupDataNodes();
@@ -95,7 +95,7 @@ public final class RollbackConfig {
 		// 如果回滚不成功，则清理已初始化的资源。
 		if (!rollbackStatus) {
 			for (PhysicalDBPool dn : dataHosts.values()) {
-				dn.clearDataSources("rollbackup config");
+				dn.clearDataSources("rollback config");
 				dn.stopHeartbeat();
 			}
 			return false;
@@ -106,12 +106,12 @@ public final class RollbackConfig {
 
 		// 处理旧的资源
 		for (PhysicalDBPool dn : cNodes.values()) {
-			dn.clearDataSources("clear old config ");
+			dn.clearDataSources("clear old config");
 			dn.stopHeartbeat();
 		}
 
 		//清理缓存
-		 MycatServer.getInstance().getCacheService().clearCache();
+		server.getCacheService().clearCache();
 		return true;
 	}
 

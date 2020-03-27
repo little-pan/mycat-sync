@@ -23,11 +23,10 @@
  */
 package org.opencloudb.mysql.handler;
 
-import java.io.IOException;
 import java.util.List;
 
-import org.opencloudb.backend.BackendConnection;
-import org.opencloudb.backend.BackendException;
+import org.opencloudb.net.BackendConnection;
+import org.opencloudb.net.BackendException;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.server.ServerSession;
 import org.opencloudb.server.ServerConnection;

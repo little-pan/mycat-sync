@@ -29,7 +29,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.slf4j.*;
 

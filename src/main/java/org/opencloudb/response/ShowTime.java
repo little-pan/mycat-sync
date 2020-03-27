@@ -92,7 +92,8 @@ public final class ShowTime {
             row.add(LongUtil.toBytes(System.currentTimeMillis()));
             break;
         case ManagerParseShow.TIME_STARTUP:
-            row.add(LongUtil.toBytes(MycatServer.getInstance().getStartupTime()));
+            MycatServer server = MycatServer.getContextServer();
+            row.add(LongUtil.toBytes(server.getStartupTime()));
             break;
         default:
             row.add(LongUtil.toBytes(0L));

@@ -26,7 +26,7 @@ package org.opencloudb.mysql.handler;
 import java.util.List;
 
 import org.apache.log4j.Logger;
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 
 /**
  * @author mycat
@@ -36,6 +36,7 @@ public class RollbackReleaseHandler implements ResponseHandler {
 	private static final Logger logger = Logger.getLogger(RollbackReleaseHandler.class);
 
 	public RollbackReleaseHandler() {
+
 	}
 
 	@Override

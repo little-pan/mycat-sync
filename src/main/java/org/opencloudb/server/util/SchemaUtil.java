@@ -16,8 +16,7 @@ import java.util.regex.Pattern;
 /**
  * Created by magicdoom on 2016/1/26.
  */
-public class SchemaUtil
-{
+public class SchemaUtil {
     public static SchemaInfo parseSchema(String sql)
     {
         SQLStatementParser parser = new MySqlStatementParser(sql);
@@ -25,19 +24,19 @@ public class SchemaUtil
     }
     public static String detectDefaultDb(String sql, int type)
     {
-        String db=null;
-        Map<String, SchemaConfig> schemaConfigMap = MycatServer.getInstance().getConfig()
-                .getSchemas();
-        if(ServerParse.SELECT==type)
-        {
+        String db = null;
+        MycatServer server = MycatServer.getContextServer();
+        Map<String, SchemaConfig> schemaConfigMap = server.getConfig().getSchemas();
+        if(ServerParse.SELECT == type) {
             SchemaUtil.SchemaInfo schemaInfo = SchemaUtil.parseSchema(sql);
             if ((schemaInfo==null||schemaInfo.table==null)&&!schemaConfigMap.isEmpty())
             {
                 db = schemaConfigMap.entrySet().iterator().next().getKey();
             }
 
-            if(schemaInfo!=null&&schemaInfo.schema!=null&&schemaConfigMap.containsKey(schemaInfo.schema)  )
-                db= schemaInfo.schema;
+            if(schemaInfo!=null&&schemaInfo.schema!=null&&schemaConfigMap.containsKey(schemaInfo.schema)) {
+                db = schemaInfo.schema;
+            }
         }
         else
         if(ServerParse.INSERT==type||ServerParse.UPDATE==type||ServerParse.DELETE==type||ServerParse.DDL==type)

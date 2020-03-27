@@ -25,7 +25,7 @@ package org.opencloudb.mysql.handler;
 
 import java.util.List;
 
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 import org.slf4j.*;
 
 public class NewConnectionRespHandler implements ResponseHandler {

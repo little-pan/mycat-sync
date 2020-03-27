@@ -33,8 +33,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.BackendConnection;
-import org.opencloudb.backend.BackendException;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.mysql.handler.CommitNodeHandler;
 import org.opencloudb.mysql.handler.MultiNodeCoordinator;
@@ -42,6 +40,8 @@ import org.opencloudb.mysql.handler.MultiNodeQueryHandler;
 import org.opencloudb.mysql.handler.RollbackNodeHandler;
 import org.opencloudb.mysql.handler.RollbackReleaseHandler;
 import org.opencloudb.mysql.handler.SingleNodeHandler;
+import org.opencloudb.net.BackendConnection;
+import org.opencloudb.net.BackendException;
 import org.opencloudb.net.FrontendConnection;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.route.RouteResultset;
@@ -302,7 +302,8 @@ public class ServerSession implements Session {
 	}
 
 	private String genXATXID() {
-		return MycatServer.getInstance().genXATXID();
+		MycatServer server = MycatServer.getContextServer();
+		return server.genXATXID();
 	}
 
 	public void setXATXEnabled(boolean xaTXEnabled) {

@@ -17,9 +17,9 @@ import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.TableConfig;
 import org.opencloudb.config.model.UserConfig;
 import org.opencloudb.config.util.ConfigException;
-import org.opencloudb.jdbc.JDBCDataSource;
 
 import junit.framework.Assert;
+import org.opencloudb.mysql.nio.MySQLDataSource;
 
 public class ConfigTest {
 	
@@ -108,10 +108,10 @@ public class ConfigTest {
                                                   String hostName, String dbType, String dbDriver,
                                                   DBHostConfig[] nodes, boolean isRead) {
 		PhysicalDataSource[] dataSources = new PhysicalDataSource[nodes.length];
-		if (dbDriver.equals("jdbc") || dbType.equals("mysql") && dbDriver.equals("native")) {
+		if (dbType.equals("mysql") && dbDriver.equals("native")) {
 			for (int i = 0; i < nodes.length; i++) {
 				nodes[i].setIdleTimeout(system.getIdleTimeout());
-				JDBCDataSource ds = new JDBCDataSource(nodes[i], conf, isRead);
+				MySQLDataSource ds = new MySQLDataSource(nodes[i], conf, isRead);
 				dataSources[i] = ds;
 			}
 		} else {

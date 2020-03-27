@@ -57,7 +57,8 @@ public class SelectConnnectID {
     }
 
     public static void response(ServerConnection c) {
-        if (MycatServer.getInstance().isOnline()) {
+        MycatServer server = MycatServer.getContextServer();
+        if (server.isOnline()) {
             ByteBuffer buffer = c.allocate();
             buffer = header.write(buffer, c,true);
             for (FieldPacket field : fields) {

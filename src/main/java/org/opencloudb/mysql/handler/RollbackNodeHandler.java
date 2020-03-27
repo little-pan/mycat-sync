@@ -25,7 +25,7 @@ package org.opencloudb.mysql.handler;
 
 import java.util.List;
 
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.ServerSession;
 import org.slf4j.*;
@@ -43,12 +43,8 @@ public class RollbackNodeHandler extends MultiNodeHandler {
 
 	public void rollback() {
 		final int initCount = this.session.getTargetCount();
-		this.lock.lock();
-		try {
-			reset(initCount);
-		} finally {
-			this.lock.unlock();
-		}
+
+		reset(initCount);
 		if (this.session.closed()) {
 			decrementCountToZero();
 			return;

@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.log4j.Logger;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.config.util.ConfigException;
 import org.opencloudb.mysql.handler.ResponseHandler;
@@ -161,7 +161,8 @@ class FetchMySQLSequnceHandler implements ResponseHandler {
 			.getLogger(FetchMySQLSequnceHandler.class);
 
 	public void execute(SequenceVal seqVal) {
-		MycatConfig conf = MycatServer.getInstance().getConfig();
+		MycatServer server = MycatServer.getContextServer();
+		MycatConfig conf = server.getConfig();
 		PhysicalDBNode mysqlDN = conf.getDataNodes().get(seqVal.dataNode);
 		try {
 			if (LOGGER.isDebugEnabled()) {

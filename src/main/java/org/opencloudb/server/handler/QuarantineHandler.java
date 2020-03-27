@@ -45,7 +45,8 @@ public final class QuarantineHandler {
 	
 	public static boolean handle(String sql, ServerConnection c) {
 		if(contextLocal.get()==null){
-			QuarantineConfig quarantineConfig = MycatServer.getInstance().getConfig().getQuarantine();
+			MycatServer server = MycatServer.getContextServer();
+			QuarantineConfig quarantineConfig = server.getConfig().getQuarantine();
             if(quarantineConfig!=null){
             	if(quarantineConfig.isCheck()){
             	   contextLocal.set(quarantineConfig.getProvider());

@@ -24,7 +24,6 @@
 package org.opencloudb.net;
 
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.buffer.BufferPool;
 import org.opencloudb.statistic.CommandCount;
 import org.opencloudb.util.NameableExecutor;
@@ -84,9 +83,7 @@ public class ConnectionManager {
             size += front.getWriteQueue().size();
         }
         for (BackendConnection back : this.backends.values()) {
-            if (back instanceof AbstractConnection) {
-                size += ((AbstractConnection)back).getWriteQueue().size();
-            }
+            size += back.getWriteQueue().size();
         }
 
         return size;
@@ -141,7 +138,8 @@ public class ConnectionManager {
      * Recycle resources by interval calling.
      */
     public void checkBackendCons() {
-        long sqlTimeout = MycatServer.getInstance().getConfig().getSystem().getSqlExecuteTimeout() * 1000L;
+        MycatServer server = MycatServer.getContextServer();
+        long sqlTimeout = server.getConfig().getSystem().getSqlExecuteTimeout() * 1000L;
         Iterator<Map.Entry<Long, BackendConnection>> it = this.backends.entrySet().iterator();
         while (it.hasNext()) {
             BackendConnection c = it.next().getValue();

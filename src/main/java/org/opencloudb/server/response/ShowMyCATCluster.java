@@ -28,7 +28,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatCluster;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatNode;
@@ -45,13 +44,14 @@ import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.util.IntegerUtil;
 import org.opencloudb.util.StringUtil;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public class ShowMyCATCluster {
 
-    private static final Logger alarm = Logger.getLogger("alarm");
+    private static final Logger alarm = LoggerFactory.getLogger("alarm");
 
     private static final int FIELD_COUNT = 2;
     private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
@@ -99,8 +99,9 @@ public class ShowMyCATCluster {
     }
 
     private static List<RowDataPacket> getRows(ServerConnection c) {
-        List<RowDataPacket> rows = new LinkedList<RowDataPacket>();
-        MycatConfig config = MycatServer.getInstance().getConfig();
+        List<RowDataPacket> rows = new LinkedList<>();
+        MycatServer server = MycatServer.getContextServer();
+        MycatConfig config = server.getConfig();
         MycatCluster cluster = config.getCluster();
         Map<String, SchemaConfig> schemas = config.getSchemas();
         SchemaConfig schema = (c.getSchema() == null) ? null : schemas.get(c.getSchema());
@@ -114,7 +115,6 @@ public class ShowMyCATCluster {
                 }
             }
         } else {
-
         	 Map<String, MycatNode> nodes = cluster.getNodes();
              for (MycatNode n : nodes.values()) {
                  if (n != null && n.isOnline()) {
@@ -124,7 +124,7 @@ public class ShowMyCATCluster {
         }
 
         if (rows.size() == 0) {
-            alarm.error(Alarms.CLUSTER_EMPTY + c.toString());
+            alarm.error(Alarms.CLUSTER_EMPTY + "{}", c);
         }
 
         return rows;

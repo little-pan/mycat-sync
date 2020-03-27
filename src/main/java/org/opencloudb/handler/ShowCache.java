@@ -44,8 +44,7 @@ import org.opencloudb.util.StringUtil;
 public class ShowCache {
 
 	private static final int FIELD_COUNT = 8;
-	private static final ResultSetHeaderPacket header = PacketUtil
-			.getHeader(FIELD_COUNT);
+	private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
 	private static final FieldPacket[] fields = new FieldPacket[FIELD_COUNT];
 	private static final EOFPacket eof = new EOFPacket();
 	static {
@@ -89,7 +88,8 @@ public class ShowCache {
 
 		// write rows
 		byte packetId = eof.packetId;
-		CacheService cacheService = MycatServer.getInstance().getCacheService();
+		MycatServer server = MycatServer.getContextServer();
+		CacheService cacheService = server.getCacheService();
 		for (Map.Entry<String, CachePool> entry : cacheService
 				.getAllCachePools().entrySet()) {
 			String cacheName=entry.getKey();

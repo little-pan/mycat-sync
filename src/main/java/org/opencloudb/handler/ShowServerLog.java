@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.opencloudb.MycatServer;
 import org.opencloudb.config.Fields;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.manager.ManagerConnection;
@@ -44,19 +43,20 @@ import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.util.CircularArrayList;
+import org.opencloudb.util.IoUtil;
 import org.opencloudb.util.StringUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.slf4j.*;
 
 public final class ShowServerLog {
+
+	private static final Logger log = LoggerFactory.getLogger(ShowServerLog.class);
+
 	private static final int FIELD_COUNT = 1;
-	private static final ResultSetHeaderPacket header = PacketUtil
-			.getHeader(FIELD_COUNT);
+	private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
 	private static final FieldPacket[] fields = new FieldPacket[FIELD_COUNT];
 	private static final EOFPacket eof = new EOFPacket();
 	private static final String DEFAULT_LOGFILE = "mycat.log";
-    private static final Logger                LOGGER          = LoggerFactory
-                                                                   .getLogger(ShowServerLog.class);
+
 	static {
 		int i = 0;
 		byte packetId = 0;
@@ -69,11 +69,8 @@ public final class ShowServerLog {
 	}
 
 	private static File getLogFile(String logFile) {
-
-		MycatServer.getInstance().getConfig().getSystem();
-		String daasHome = SystemConfig.getHomePath();
-		File file = new File(daasHome, "logs" + File.separator + logFile);
-		return file;
+		String homePath = SystemConfig.getHomePath();
+		return new File(homePath, "logs" + File.separator + logFile);
 	}
 
 	public static void handle(String stmt,ManagerConnection c) {
@@ -162,23 +159,15 @@ public final class ShowServerLog {
 			bufINf.buffer = buffer;
 			bufINf.packetId = packetId;
 			return bufINf;
-
 		} catch (Exception e) {
-            LOGGER.error("showLogRangeError", e);
+            log.error("showLogRangeError", e);
 			RowDataPacket row = new RowDataPacket(FIELD_COUNT);
 			row.add(StringUtil.encode(e.toString(), c.getCharset()));
 			row.packetId = ++packetId;
 			buffer = row.write(buffer, c,true);
 			bufINf.buffer = buffer;
 		} finally {
-			if (br != null) {
-				try {
-					br.close();
-				} catch (IOException e) {
-		            LOGGER.error("showLogRangeError", e);
-				}
-			}
-
+			IoUtil.close(br);
 		}
 		bufINf.packetId = packetId;
 		return bufINf;
@@ -233,23 +222,15 @@ public final class ShowServerLog {
 			bufINf.buffer = buffer;
 			bufINf.packetId = packetId;
 			return bufINf;
-
 		} catch (Exception e) {
-            LOGGER.error("showLogSumError", e);
+            log.error("showLogSumError", e);
 			RowDataPacket row = new RowDataPacket(FIELD_COUNT);
 			row.add(StringUtil.encode(e.toString(), c.getCharset()));
 			row.packetId = ++packetId;
 			buffer = row.write(buffer, c,true);
 			bufINf.buffer = buffer;
 		} finally {
-			if (br != null) {
-				try {
-					br.close();
-				} catch (IOException e) {
-		            LOGGER.error("showLogSumError", e);
-				}
-			}
-
+			IoUtil.close(br);
 		}
 		bufINf.packetId = packetId;
 		return bufINf;

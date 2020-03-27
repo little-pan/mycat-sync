@@ -1,6 +1,5 @@
 package demo.catlets;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.cache.LayerCachePool;
 import org.opencloudb.config.ErrorCode;
@@ -25,6 +24,7 @@ import com.alibaba.druid.sql.ast.expr.SQLIntegerExpr;
 import com.alibaba.druid.sql.ast.statement.SQLInsertStatement.ValuesClause;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlInsertStatement;
 import com.alibaba.druid.sql.dialect.mysql.parser.MySqlStatementParser;
+import org.slf4j.*;
 
 /**
  * 执行批量插入sequence Id
@@ -32,7 +32,8 @@ import com.alibaba.druid.sql.dialect.mysql.parser.MySqlStatementParser;
  * @date 2015/03/20
  */
 public class BatchInsertSequence implements Catlet {
-	private static final Logger LOGGER = Logger.getLogger(BatchInsertSequence.class);
+
+	private static final Logger log = LoggerFactory.getLogger(BatchInsertSequence.class);
 	
 	private RouteResultset rrs;//路由结果集
 	private String executeSql;//接收执行处理任务的sql
@@ -60,9 +61,8 @@ public class BatchInsertSequence implements Catlet {
 			} 
 			
 			sc.getSession().execute(rrs, sqltype);//将路由好的数据执行入库
-			
 		} catch (Exception e) {
-			LOGGER.error("BatchInsertSequence.processSQL(String sql, EngineCtx ctx)",e);
+			log.error("BatchInsertSequence.processSQL(String sql, EngineCtx ctx)",e);
 		}
 	}
 
@@ -92,7 +92,8 @@ public class BatchInsertSequence implements Catlet {
 				insert.getColumns().add(sqlIdentifierExpr);
 				
 				if(sequenceHandler == null){
-					int seqHandlerType = MycatServer.getInstance().getConfig().getSystem().getSequnceHandlerType();
+					MycatServer server = MycatServer.getContextServer();
+					int seqHandlerType = server.getConfig().getSystem().getSequnceHandlerType();
 					switch(seqHandlerType){
 						case SystemConfig.SEQUENCEHANDLER_MYSQLDB:
 							sequenceHandler = IncrSequenceMySQLHandler.getInstance();
@@ -104,7 +105,7 @@ public class BatchInsertSequence implements Catlet {
 							sequenceHandler = IncrSequenceTimeHandler.getInstance();
 							break;
 						default:
-							throw new java.lang.IllegalArgumentException("Invalid sequnce handler type "+seqHandlerType);
+							throw new java.lang.IllegalArgumentException("Invalid sequence handler type "+seqHandlerType);
 					}
 				}
 				
@@ -114,13 +115,12 @@ public class BatchInsertSequence implements Catlet {
 					sqlIntegerExpr.setNumber(value);//插入生成的sequence值
 					vc.addValue(sqlIntegerExpr);
 				}
-				
-				String insertSql = insert.toString();
-				this.executeSql = insertSql;
+
+				this.executeSql = insert.toString();
 			}
 			
 		} catch (Exception e) {
-			LOGGER.error("BatchInsertSequence.route(......)",e);
+			log.error("BatchInsertSequence.route(......)", e);
 		}
 	}
 	
@@ -130,9 +130,10 @@ public class BatchInsertSequence implements Catlet {
 	 */
 	private void getRoute(String sql){
 		try {
-			rrs =RouteStrategyFactory.getRouteStrategy().route(sysConfig, schema, sqltype,sql,charset, sc, cachePool);
+			rrs = RouteStrategyFactory.getRouteStrategy()
+					.route(sysConfig, schema, sqltype, sql,charset, sc, cachePool);
 		} catch (Exception e) {
-			LOGGER.error("BatchInsertSequence.getRoute(String sql)",e);
+			log.error("BatchInsertSequence.getRoute(String sql)", e);
 		}
 	}
 

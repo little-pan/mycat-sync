@@ -10,7 +10,6 @@ import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.Fields;
 import org.opencloudb.config.model.QuarantineConfig;
 import org.opencloudb.config.model.UserConfig;
-import org.opencloudb.config.util.ConfigException;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
 import org.opencloudb.net.mysql.EOFPacket;
@@ -23,7 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class ShowWhiteHost {
-	private static final Logger LOGGER = LoggerFactory.getLogger(ShowWhiteHost.class);
+	private static final Logger log = LoggerFactory.getLogger(ShowWhiteHost.class);
 
     private static final int FIELD_COUNT = 2;
     private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
@@ -59,9 +58,9 @@ public final class ShowWhiteHost {
         buffer = eof.write(buffer, c,true);
 
         // write rows
-        byte packetId = eof.packetId;  
-        
-		Map<String, List<UserConfig>> map=MycatServer.getInstance().getConfig().getQuarantine().getWhitehost();
+        byte packetId = eof.packetId;
+        MycatServer server = MycatServer.getContextServer();
+		Map<String, List<UserConfig>> map = server.getConfig().getQuarantine().getWhitehost();
 		for (String key : map.keySet()) {  
 			List<UserConfig> userConfigs=map.get(key);
 			String users="";
@@ -107,6 +106,7 @@ public final class ShowWhiteHost {
         String host="";
         List<UserConfig> userConfigs = new ArrayList<UserConfig>();
         int i=0;
+        MycatServer server = MycatServer.getContextServer();
         for(String user : users){
           if (i==0){
         	  host=user;
@@ -114,7 +114,7 @@ public final class ShowWhiteHost {
           }
           else {
         	i++;  
-        	UserConfig uc = MycatServer.getInstance().getConfig().getUsers().get(user);
+        	UserConfig uc = server.getConfig().getUsers().get(user);
             if (null == uc) {
             	c.writeErrMessage(ErrorCode.ER_YES, "user doesn't exist in host.");
                 return; 
@@ -126,12 +126,12 @@ public final class ShowWhiteHost {
             userConfigs.add(uc);
           }   
         }  
-       if (MycatServer.getInstance().getConfig().getQuarantine().addWhitehost(host, userConfigs)) {
+       if (server.getConfig().getQuarantine().addWhitehost(host, userConfigs)) {
     	   try{
                QuarantineConfig.updateToFile(host, userConfigs);
            }catch(Exception e){
-        	   LOGGER.warn("set while host error : " + e.getMessage());
-        	   c.writeErrMessage(ErrorCode.ER_YES, "white host set success ,but write to file failed :" + e.getMessage());
+        	   log.warn("Set while host error", e);
+        	   c.writeErrMessage(ErrorCode.ER_YES, "white host set success, but write to file failed:" + e);
            }
     	   
            ok.packetId = 1;
@@ -144,8 +144,6 @@ public final class ShowWhiteHost {
        else {
            c.writeErrMessage(ErrorCode.ER_YES, "host duplicated.");
        }
-	}	
-	
-	
-	
+	}
+
 }

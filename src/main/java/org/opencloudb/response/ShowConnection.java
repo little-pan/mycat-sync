@@ -50,10 +50,10 @@ import org.opencloudb.util.TimeUtil;
 public final class ShowConnection {
 
 	private static final int FIELD_COUNT = 15;
-	private static final ResultSetHeaderPacket header = PacketUtil
-			.getHeader(FIELD_COUNT);
+	private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
 	private static final FieldPacket[] fields = new FieldPacket[FIELD_COUNT];
 	private static final EOFPacket eof = new EOFPacket();
+
 	static {
 		int i = 0;
 		byte packetId = 0;
@@ -129,7 +129,8 @@ public final class ShowConnection {
 		// write rows
 		byte packetId = eof.packetId;
 		String charset = c.getCharset();
-		ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
+		MycatServer server = MycatServer.getContextServer();
+		ConnectionManager manager = server.getConnectionManager();
 		for (FrontendConnection fc : manager.getFrontends().values()) {
 			if (fc != null) {
 				RowDataPacket row = getRow(fc, charset);

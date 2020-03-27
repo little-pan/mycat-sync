@@ -27,13 +27,13 @@ public class HintDataNodeHandler implements HintHandler {
 					throws SQLNonTransientException {
 		
 		String stmt = realSQL;
-		
 		if (LOGGER.isDebugEnabled()) {
 			LOGGER.debug("route datanode sql hint from " + stmt);
 		}
 		
-		RouteResultset rrs = new RouteResultset(stmt, sqlType);		
-		PhysicalDBNode dataNode = MycatServer.getInstance().getConfig().getDataNodes().get(hintSQLValue);
+		RouteResultset rrs = new RouteResultset(stmt, sqlType);
+		MycatServer server = MycatServer.getContextServer();
+		PhysicalDBNode dataNode = server.getConfig().getDataNodes().get(hintSQLValue);
 		if (dataNode != null) {			
 			rrs = RouterUtil.routeToSingleNode(rrs, dataNode.getName(), stmt);
 		} else {

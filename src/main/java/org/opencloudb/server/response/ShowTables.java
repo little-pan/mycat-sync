@@ -46,9 +46,10 @@ public class ShowTables {
 	 * @param c
 	 */
 	public static void response(ServerConnection c,String stmt,int type) {
-        String showSchemal= SchemaUtil.parseShowTableSchema(stmt) ;
-        String cSchema =showSchemal==null? c.getSchema():showSchemal;
-        SchemaConfig schema = MycatServer.getInstance().getConfig().getSchemas().get(cSchema);
+        String showSchema = SchemaUtil.parseShowTableSchema(stmt) ;
+        String cSchema = showSchema==null? c.getSchema(): showSchema;
+        MycatServer server = MycatServer.getContextServer();
+        SchemaConfig schema = server.getConfig().getSchemas().get(cSchema);
         if(schema != null) {
         	//不分库的schema，show tables从后端 mysql中查
             String node = schema.getDataNode();
@@ -114,8 +115,9 @@ public class ShowTables {
 
     private static Set<String> getTableSet(ServerConnection c, Map<String, String> parm)
     {
-        TreeSet<String> tableSet = new TreeSet<String>();
-        MycatConfig conf = MycatServer.getInstance().getConfig();
+        TreeSet<String> tableSet = new TreeSet<>();
+        MycatServer server = MycatServer.getContextServer();
+        MycatConfig conf = server.getConfig();
 
         Map<String, UserConfig> users = conf.getUsers();
         UserConfig user = users == null ? null : users.get(c.getUser());

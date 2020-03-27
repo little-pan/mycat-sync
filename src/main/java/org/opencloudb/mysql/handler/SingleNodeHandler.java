@@ -30,7 +30,7 @@ import java.util.Set;
 import com.google.common.base.Strings;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.model.SchemaConfig;
@@ -87,7 +87,8 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
         ServerConnection source = session.getSource();
         String schema=source.getSchema();
         if(schema != null && ServerParse.SHOW == rrs.getSqlType()) {
-            SchemaConfig schemaConfig= MycatServer.getInstance().getConfig().getSchemas().get(schema);
+			MycatServer server = MycatServer.getContextServer();
+            SchemaConfig schemaConfig= server.getConfig().getSchemas().get(schema);
             int type= ServerParseShow.tableCheck(rrs.getStatement(),0) ;
             boolean noDefaultNode = Strings.isNullOrEmpty(schemaConfig.getDataNode());
             this.isDefaultNodeShowTable = (ServerParseShow.TABLES == type && !noDefaultNode);
@@ -148,7 +149,8 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 			executeOn(conn);
 		} else {
 			// create new connection
-			MycatConfig conf = MycatServer.getInstance().getConfig();
+			MycatServer server = MycatServer.getContextServer();
+			MycatConfig conf = server.getConfig();
 			PhysicalDBNode dn = conf.getDataNodes().get(this.node.getName());
 			dn.getConnection(dn.getDatabase(), sc.isAutocommit(), this.node, this, this.node);
 		}
@@ -232,12 +234,11 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 			OkPacket ok = new OkPacket();
 			ok.read(data);
 			if (rrs.isLoadData()) {
-				byte lastPackId = source.getLoadDataInfileHandler()
-						.getLastPackId();
+				byte lastPackId = source.getLoadDataInfileHandler().getLastPackId();
 				ok.packetId = ++lastPackId;// OK_PACKET
 				source.getLoadDataInfileHandler().clear();
 			} else {
-				ok.packetId = ++packetId;// OK_PACKET
+				ok.packetId = ++this.packetId;// OK_PACKET
 			}
 			ok.serverStatus = source.isAutocommit() ? 2 : 1;
 
@@ -245,12 +246,11 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 			source.setLastInsertId(ok.insertId);
 			ok.write(source);
 			
-			// TODO: add by zhuam
+			// add by zhuam
 			//查询结果派发
-			QueryResult queryResult = new QueryResult(session.getSource().getUser(), 
+			QueryResult queryResult = new QueryResult(this.session.getSource().getUser(),
 					rrs.getSqlType(), rrs.getStatement(), startTime, System.currentTimeMillis());
-			QueryResultDispatcher.dispatchQuery( queryResult );
- 
+			QueryResultDispatcher.dispatchQuery(queryResult);
 		}
 	}
 

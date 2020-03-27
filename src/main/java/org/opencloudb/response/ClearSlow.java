@@ -32,30 +32,29 @@ import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.net.mysql.OkPacket;
 
-import java.io.IOException;
-
 /**
  * @author mycat
  */
 public class ClearSlow {
 
     public static void dataNode(ManagerConnection c, String name) {
-    	PhysicalDBNode dn = MycatServer.getInstance().getConfig().getDataNodes().get(name);
-    	PhysicalDBPool ds = null;
-        if (dn != null && ((ds = dn.getDbPool())!= null)) {
+        MycatServer server = MycatServer.getContextServer();
+    	PhysicalDBNode dn = server.getConfig().getDataNodes().get(name);
+        if (dn != null && (dn.getDbPool() != null)) {
             c.write(c.writeToBuffer(OkPacket.OK, c.allocate()));
         } else {
-            c.writeErrMessage(ErrorCode.ER_YES, "Invalid DataNode:" + name);
+            c.writeErrMessage(ErrorCode.ER_YES, "Invalid dataNode:" + name);
         }
     }
 
     public static void schema(ManagerConnection c, String name) {
-        MycatConfig conf = MycatServer.getInstance().getConfig();
+        MycatServer server = MycatServer.getContextServer();
+        MycatConfig conf = server.getConfig();
         SchemaConfig schema = conf.getSchemas().get(name);
         if (schema != null) {
             c.write(c.writeToBuffer(OkPacket.OK, c.allocate()));
         } else {
-            c.writeErrMessage(ErrorCode.ER_YES, "Invalid Schema:" + name);
+            c.writeErrMessage(ErrorCode.ER_YES, "Invalid schema: " + name);
         }
     }
 

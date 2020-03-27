@@ -4,7 +4,6 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.net.mysql.EOFPacket;
@@ -14,11 +13,14 @@ import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.parser.druid.DruidSequenceHandler;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.util.StringUtil;
+import org.slf4j.*;
 
 public class MyCATSequnceProcessor {
-	private static final Logger LOGGER = Logger.getLogger(MyCATSequnceProcessor.class);
-	private LinkedBlockingQueue<SessionSQLPair> seqSQLQueue = new LinkedBlockingQueue<SessionSQLPair>();
-	private volatile boolean running=true;
+
+	private static final Logger log = LoggerFactory.getLogger(MyCATSequnceProcessor.class);
+
+	private LinkedBlockingQueue<SessionSQLPair> seqSQLQueue = new LinkedBlockingQueue<>();
+	private volatile boolean running = true;
 	
 	public MyCATSequnceProcessor() {
 		new ExecuteThread().start();
@@ -61,31 +63,17 @@ public class MyCATSequnceProcessor {
 
 	private void executeSeq(SessionSQLPair pair) {
 		try {
-			/*// @micmiu 扩展NodeToString实现自定义全局序列号
-			NodeToString strHandler = new ExtNodeToString4SEQ(MycatServer
-					.getInstance().getConfig().getSystem()
-					.getSequnceHandlerType());
-			// 如果存在sequence 转化sequence为实际数值
-			String charset = pair.session.getSource().getCharset();
-			QueryTreeNode ast = SQLParserDelegate.parse(pair.sql,
-					charset == null ? "utf-8" : charset);
-			String sql = strHandler.toString(ast);
-			if (sql.toUpperCase().startsWith("SELECT")) {
-				String value=sql.substring("SELECT".length()).trim();
-				outRawData(pair.session.getSource(),value);
-				return;
-			}*/
-			
 			//使用Druid解析器实现sequence处理  @兵临城下
-			DruidSequenceHandler sequenceHandler = new DruidSequenceHandler(MycatServer
-					.getInstance().getConfig().getSystem().getSequnceHandlerType());
+			MycatServer server = MycatServer.getContextServer();
+			int seqHandlerType = server.getConfig().getSystem().getSequnceHandlerType();
+			DruidSequenceHandler sequenceHandler = new DruidSequenceHandler(seqHandlerType);
 			
 			String charset = pair.session.getSource().getCharset();
 			String executeSql = sequenceHandler.getExecuteSql(pair.sql,charset == null ? "utf-8":charset);
 			
 			pair.session.getSource().routeEndExecuteSQL(executeSql, pair.type,pair.schema);
 		} catch (Exception e) {
-			LOGGER.error("MyCATSequenceProcessor.executeSeq(SesionSQLPair)",e);
+			log.error("MyCATSequenceProcessor.executeSeq(SesionSQLPair)", e);
 			pair.session.getSource().writeErrMessage(ErrorCode.ER_YES,"mycat sequnce err." + e);
 			return;
 		}
@@ -99,12 +87,12 @@ public class MyCATSequnceProcessor {
 		public void run() {
 			while (running) {
 				try {
-					SessionSQLPair pair=seqSQLQueue.poll(100,TimeUnit.MILLISECONDS);
+					SessionSQLPair pair=seqSQLQueue.poll(100, TimeUnit.MILLISECONDS);
 					if(pair!=null){
 						executeSeq(pair);
 					}
 				} catch (Exception e) {
-					LOGGER.warn("MyCATSequenceProcessor$ExecutorThread",e);
+					log.warn("MyCATSequenceProcessor$ExecutorThread", e);
 				}
 			}
 		}

@@ -26,11 +26,12 @@ package org.opencloudb.mysql.handler;
 import java.util.List;
 
 import org.apache.log4j.Logger;
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 
-public class SimpleLogHandler implements ResponseHandler{
-	private static final Logger LOGGER = Logger
-			.getLogger(SimpleLogHandler.class);
+public class SimpleLogHandler implements ResponseHandler {
+
+	private static final Logger LOGGER = Logger.getLogger(SimpleLogHandler.class);
+
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
 		LOGGER.warn(conn+" connectionError "+e);

@@ -24,11 +24,7 @@
 package org.opencloudb.backend;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.opencloudb.config.Alarms;
@@ -39,6 +35,7 @@ import org.opencloudb.mysql.handler.ConnectionHeartBeatHandler;
 import org.opencloudb.mysql.handler.DelegateResponseHandler;
 import org.opencloudb.mysql.handler.NewConnectionRespHandler;
 import org.opencloudb.mysql.handler.ResponseHandler;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.net.NioProcessor;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.util.TimeUtil;
@@ -153,8 +150,7 @@ public abstract class PhysicalDataSource {
 	}
 
 	private void checkIfNeedHeartBeat(List<BackendConnection> heartBeatCons, ConQueue queue,
-			ConcurrentLinkedQueue<BackendConnection> checkList,
-			long hearBeatTime, long hearBeatTime2) {
+									  Queue<BackendConnection> checkList, long hearBeatTime, long hearBeatTime2) {
 
 		int maxConsInOneCheck = 10;
 		Iterator<BackendConnection> it = checkList.iterator();
@@ -392,15 +388,15 @@ public abstract class PhysicalDataSource {
 		c.setLastTime(TimeUtil.currentTimeMillis());
 		ConQueue queue = this.conMap.getSchemaConQueue(c.getSchema());
 
-		boolean ok;
+		final boolean ok;
 		if (c.isAutocommit()) {
 			ok = queue.getAutoCommitCons().offer(c);
 		} else {
 			ok = queue.getManCommitCons().offer(c);
 		}
 		if (!ok) {
-			log.warn("Can't return to pool, so close backend connection {}", c);
-			c.close("Can't return to pool");
+			log.warn("Can't return to pool, so close backend {}", c);
+			c.close("Pool full");
 		}
 	}
 

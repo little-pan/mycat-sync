@@ -26,11 +26,10 @@ package org.opencloudb.response;
 import java.nio.ByteBuffer;
 
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.config.Fields;
-import org.opencloudb.jdbc.JDBCConnection;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
@@ -107,7 +106,8 @@ public class ShowBackend {
 		buffer = eof.write(buffer, c, true);
 		byte packetId = eof.packetId;
 		String charset = c.getCharset();
-		ConnectionManager connectionManager = MycatServer.getInstance().getConnectionManager();
+		MycatServer server = MycatServer.getContextServer();
+		ConnectionManager connectionManager = server.getConnectionManager();
 		for (BackendConnection bc : connectionManager.getBackends().values()) {
 			if (bc != null) {
 				RowDataPacket row = getRow(bc, charset);
@@ -123,11 +123,7 @@ public class ShowBackend {
 
 	private static RowDataPacket getRow(BackendConnection c, String charset) {
 		RowDataPacket row = new RowDataPacket(FIELD_COUNT);
-		if (c instanceof JDBCConnection) {
-		    row.add(((JDBCConnection)c).getManager().getName().getBytes());
-		} else{
-		    row.add("N/A".getBytes());
-		}
+		row.add(c.getManager().getName().getBytes());
 		row.add(LongUtil.toBytes(c.getId()));
 		long threadId = 0;
 		row.add(LongUtil.toBytes(threadId));

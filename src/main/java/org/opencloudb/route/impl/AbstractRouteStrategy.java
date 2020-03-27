@@ -32,7 +32,8 @@ public abstract class AbstractRouteStrategy implements RouteStrategy {
 		/**
 		 * SQL 语句拦截
 		 */
-		String stmt = MycatServer.getInstance().getSqlInterceptor().interceptSQL(origSQL, sqlType);
+		MycatServer server = MycatServer.getContextServer();
+		String stmt = server.getSqlInterceptor().interceptSQL(origSQL, sqlType);
 		if (origSQL != stmt && LOGGER.isDebugEnabled()) {
 			LOGGER.debug("sql intercepted to " + stmt + " from " + origSQL);
 		}

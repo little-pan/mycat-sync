@@ -62,8 +62,7 @@ public final class ShowDataNode {
 
 	private static final NumberFormat nf = DecimalFormat.getInstance();
 	private static final int FIELD_COUNT = 12;
-	private static final ResultSetHeaderPacket header = PacketUtil
-			.getHeader(FIELD_COUNT);
+	private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
 	private static final FieldPacket[] fields = new FieldPacket[FIELD_COUNT];
 	private static final EOFPacket eof = new EOFPacket();
 	static {
@@ -130,7 +129,8 @@ public final class ShowDataNode {
 
 		// write rows
 		byte packetId = eof.packetId;
-		MycatConfig conf = MycatServer.getInstance().getConfig();
+		MycatServer server = MycatServer.getContextServer();
+		MycatConfig conf = server.getConfig();
 		Map<String, PhysicalDBNode> dataNodes = conf.getDataNodes();
 		List<String> keys = new ArrayList<String>();
 		if (StringUtil.isEmpty(name)) {

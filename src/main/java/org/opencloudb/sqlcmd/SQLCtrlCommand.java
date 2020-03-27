@@ -1,6 +1,6 @@
 package org.opencloudb.sqlcmd;
 
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.server.ServerSession;
 
 /**

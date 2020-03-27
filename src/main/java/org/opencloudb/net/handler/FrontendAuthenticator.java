@@ -103,10 +103,11 @@ public class FrontendAuthenticator implements Handler {
     protected boolean isDegrade(String user) {
     	int benchmark = source.getPrivileges().getBenchmark(user);
 
-    	if ( benchmark > 0 ) {
-            ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
-            int forntedsLength = manager.getForntedsLength();
-			if ( forntedsLength >= benchmark ) {							
+    	if (benchmark > 0 ) {
+            MycatServer server = MycatServer.getContextServer();
+            ConnectionManager manager = server.getConnectionManager();
+            int forntendsLength = manager.getForntedsLength();
+			if (forntendsLength >= benchmark ) {
 				return true;
 			}			
     	}
@@ -191,7 +192,8 @@ public class FrontendAuthenticator implements Handler {
         ByteBuffer buffer = source.allocate();
         source.write(source.writeToBuffer(AUTH_OK, buffer));
         boolean clientCompress = Capabilities.CLIENT_COMPRESS==(Capabilities.CLIENT_COMPRESS & auth.clientFlags);
-        boolean usingCompress= MycatServer.getInstance().getConfig().getSystem().getUseCompression()==1 ;
+        MycatServer server = MycatServer.getContextServer();
+        boolean usingCompress = server.getConfig().getSystem().getUseCompression()==1 ;
         if(clientCompress&&usingCompress)
         {
             source.setSupportCompress(true);

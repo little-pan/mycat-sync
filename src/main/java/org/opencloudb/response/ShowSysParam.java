@@ -22,9 +22,9 @@ import org.opencloudb.util.StringUtil;
  * 
  */
 public class ShowSysParam {
+
 	private static final int FIELD_COUNT = 3;
-	private static final ResultSetHeaderPacket header = PacketUtil
-			.getHeader(FIELD_COUNT);
+	private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
 	private static final FieldPacket[] fields = new FieldPacket[FIELD_COUNT];
 	private static final EOFPacket eof = new EOFPacket();
 	static {
@@ -60,8 +60,9 @@ public class ShowSysParam {
 
         // write rows
         byte packetId = eof.packetId;
-        
-        SystemConfig sysConfig = MycatServer.getInstance().getConfig().getSystem();
+
+		MycatServer server = MycatServer.getContextServer();
+        SystemConfig sysConfig = server.getConfig().getSystem();
         
         List<String> paramValues = new ArrayList<String>();
         paramValues.add(sysConfig.getProcessors() + "");

@@ -40,7 +40,8 @@ public class Online {
     }
 
     public static void execute(String stmt, ManagerConnection mc) {
-        MycatServer.getInstance().online();
+        MycatServer server = MycatServer.getContextServer();
+        server.online();
         ok.write(mc);
     }
 

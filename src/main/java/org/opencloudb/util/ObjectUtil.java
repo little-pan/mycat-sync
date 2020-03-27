@@ -24,7 +24,6 @@
 package org.opencloudb.util;
 
 import java.beans.BeanInfo;
-import java.beans.IntrospectionException;
 import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
 import java.io.ByteArrayInputStream;
@@ -32,7 +31,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -233,8 +231,8 @@ public final class ObjectUtil {
 
 
     public static void copyProperties(Object fromObj, Object toObj) {
-        Class<? extends Object> fromClass = fromObj.getClass();
-        Class<? extends Object> toClass = toObj.getClass();
+        Class<?> fromClass = fromObj.getClass();
+        Class<?> toClass = toObj.getClass();
 
         try {
             BeanInfo fromBean = Introspector.getBeanInfo(fromClass);
@@ -246,24 +244,17 @@ public final class ObjectUtil {
 
             for (PropertyDescriptor propertyDescriptor : toPd) {
                 propertyDescriptor.getDisplayName();
-                PropertyDescriptor pd = fromPd.get(fromPd
-                        .indexOf(propertyDescriptor));
-                if (pd.getDisplayName().equals(
-                        propertyDescriptor.getDisplayName())
+                PropertyDescriptor pd = fromPd.get(fromPd.indexOf(propertyDescriptor));
+                if (pd.getDisplayName().equals(propertyDescriptor.getDisplayName())
                         && !pd.getDisplayName().equals("class")) {
                     if(propertyDescriptor.getWriteMethod() != null)
-                        propertyDescriptor.getWriteMethod().invoke(toObj, pd.getReadMethod().invoke(fromObj, null));
+                        propertyDescriptor.getWriteMethod()
+                                .invoke(toObj, pd.getReadMethod().invoke(fromObj, (Object)null));
                 }
 
             }
-        } catch (IntrospectionException e) {
-          throw  new RuntimeException(e);
-        } catch (IllegalArgumentException e) {
-            throw  new RuntimeException(e);
-        } catch (IllegalAccessException e) {
-            throw  new RuntimeException(e);
-        } catch (InvocationTargetException e) {
-            throw  new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 }

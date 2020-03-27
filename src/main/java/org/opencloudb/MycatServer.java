@@ -27,11 +27,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.channels.AsynchronousChannelGroup;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -64,29 +65,22 @@ public class MycatServer {
 	public static final String NAME = "MyCat";
 	private static final long TIME_UPDATE_PERIOD = 20L;
     private static final ThreadLocal<MycatServer> CONTEXT_SERVER = new ThreadLocal<>();
-	private static final MycatServer INSTANCE = new MycatServer();
 
 	private final RouteService routerService;
 	private final CacheService cacheService;
 	private Properties dnIndexProperties;
-	private AsynchronousChannelGroup[] asyncChannelGroups;
-	private volatile int channelIndex = 0;
 	private final MyCATSequnceProcessor sequnceProcessor = new MyCATSequnceProcessor();
 	private final DynaClassLoader catletClassLoader;
 	private final SQLInterceptor sqlInterceptor;
 	private BufferPool bufferPool;
-	private boolean aio = false;
-	private final AtomicLong xaIDInc = new AtomicLong();
-
-	public static final MycatServer getInstance() {
-		return INSTANCE;
-	}
+    private final AtomicLong xaIDInc = new AtomicLong();
 
 	private final MycatConfig config;
-	private final Timer timer;
+	private final ScheduledExecutorService timer;
 	private final SQLRecorder sqlRecorder;
 	private final AtomicBoolean isOnline;
 	private final long startupTime;
+
 	private ConnectionManager connectionManager;
 	private NioProcessorPool processorPool;
 	private NameableExecutor businessExecutor;
@@ -94,17 +88,19 @@ public class MycatServer {
 	private ListeningExecutorService listeningExecutorService;
 
 	public MycatServer() {
+	    String prefix = NAME + "Timer-";
+        ThreadFactory timerFactory = ExecutorUtil.createFactory(prefix, true);
 		this.config = new MycatConfig();
-		this.timer = new Timer(NAME + "Timer", true);
-		this.sqlRecorder = new SQLRecorder(config.getSystem().getSqlRecordCount());
+        this.timer = Executors.newSingleThreadScheduledExecutor(timerFactory);
+		this.sqlRecorder = new SQLRecorder(this.config.getSystem().getSqlRecordCount());
 		this.isOnline = new AtomicBoolean(true);
-		cacheService = new CacheService();
-		routerService = new RouteService(cacheService);
+        this.cacheService = new CacheService();
+        this.routerService = new RouteService(cacheService);
 		// load datanode active index from properties
-		dnIndexProperties = loadDnIndexProps();
+        this.dnIndexProperties = loadDnIndexProps();
 		try {
-			sqlInterceptor = (SQLInterceptor) Class.forName(
-					config.getSystem().getSqlInterceptor()).newInstance();
+		    String interceptor = this.config.getSystem().getSqlInterceptor();
+            this.sqlInterceptor = (SQLInterceptor) Class.forName(interceptor).newInstance();
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
@@ -118,20 +114,28 @@ public class MycatServer {
 	    return CONTEXT_SERVER.get();
     }
 
+    public static void setContextServer(MycatServer server) {
+	    CONTEXT_SERVER.set(server);
+    }
+
+    public static void removeContextServer() {
+        CONTEXT_SERVER.remove();
+    }
+
 	public void beforeStart() {
-	    CONTEXT_SERVER.set(this);
+	    setContextServer(this);
 	    try {
             String home = SystemConfig.getHomePath();
             log.info("{}-{} starts in '{}'", NAME, ProcessUtil.getPid(), home);
         } finally {
-            CONTEXT_SERVER.remove();
+            removeContextServer();
         }
 	}
 
 	public void startup() throws Exception {
-	    CONTEXT_SERVER.set(this);
+	    setContextServer(this);
 	    try {
-            SystemConfig system = config.getSystem();
+            SystemConfig system = this.config.getSystem();
             final int processorCount = system.getProcessors();
 
             // server startup
@@ -154,10 +158,10 @@ public class MycatServer {
             this.businessExecutor = ExecutorUtil.create("BusinessExecutor", threadPoolSize);
             this.connectionManager = new ConnectionManager("ConnectionMgr",
                     this.bufferPool, this.businessExecutor);
-            this.timerExecutor = ExecutorUtil.create("Timer", system.getTimerExecutor());
+            this.timerExecutor = ExecutorUtil.create("Timer-", system.getTimerExecutor());
             this.listeningExecutorService = MoreExecutors.listeningDecorator(businessExecutor);
 
-            if (this.aio = (system.getUsingAIO() == 1)) {
+            if (system.getUsingAIO() == 1) {
                 log.warn("Aio network handler deprecated and ignore");
             }
             log.info("Startup manager and server: using nio synchronous network handler");
@@ -178,22 +182,18 @@ public class MycatServer {
                     node.init(Integer.parseInt(index));
                     node.startHeartbeat();
                 }
-                long dataNodeIdleCheckPeriod = system.getDataNodeIdleCheckPeriod();
-                this.timer.schedule(updateTime(), 0L, TIME_UPDATE_PERIOD);
-                this.timer.schedule(createConnectionCheckTask(), 0L, system.getProcessorCheckPeriod());
-                this.timer.schedule(dataNodeConHeartBeatCheck(dataNodeIdleCheckPeriod), 0L, dataNodeIdleCheckPeriod);
-                this.timer.schedule(dataNodeHeartbeat(), 0L, system.getDataNodeHeartbeatPeriod());
-                this.timer.schedule(catletClassClear(), 30000);
+                // init and start timer
+                startTimer();
 
                 String bindIp = system.getBindIp();
                 ManagerConnectionFactory mcFactory = new ManagerConnectionFactory();
-                manager = new NioAcceptor(this, NAME + "Manager", bindIp, system.getManagerPort(),
+                manager = new NioAcceptor(NAME + "Manager", bindIp, system.getManagerPort(),
                         mcFactory, this.processorPool);
                 manager.start();
                 manager.awaitStarted();
 
                 ServerConnectionFactory scFactory = new ServerConnectionFactory();
-                server  = new NioAcceptor(this,NAME + "Server",  bindIp, system.getServerPort(),
+                server  = new NioAcceptor(NAME + "Server",  bindIp, system.getServerPort(),
                         scFactory, this.processorPool);
                 server.start();
                 server.awaitStarted();
@@ -209,12 +209,34 @@ public class MycatServer {
                 }
             }
         } finally {
-            CONTEXT_SERVER.remove();
+            removeContextServer();
         }
 	}
 
-	private TimerTask catletClassClear() {
-		return new TimerTask() {
+	private void startTimer() {
+	    SystemConfig system = this.config.getSystem();
+        final long dataNodeIdleCheckPeriod = system.getDataNodeIdleCheckPeriod();
+        final long initDelay = 0;
+
+        Runnable task = updateTime();
+        final TimeUnit millis = TimeUnit.MILLISECONDS;
+        this.timer.scheduleWithFixedDelay(task, initDelay, TIME_UPDATE_PERIOD, millis);
+
+        task = createConnectionCheckTask();
+        this.timer.scheduleWithFixedDelay(task, initDelay, system.getProcessorCheckPeriod(), millis);
+
+        task = dataNodeConHeartBeatCheck(dataNodeIdleCheckPeriod);
+        this.timer.scheduleWithFixedDelay(task, initDelay, dataNodeIdleCheckPeriod, millis);
+
+        task = dataNodeHeartbeat();
+        this.timer.scheduleWithFixedDelay(task, initDelay, system.getDataNodeHeartbeatPeriod(), millis);
+
+        task = catletClassClear();
+        this.timer.schedule(task, 30000, millis);
+    }
+
+	private Runnable catletClassClear() {
+		return new Runnable() {
 			@Override
 			public void run() {
 				try {
@@ -291,8 +313,8 @@ public class MycatServer {
 		}
 	}
 
-    private TimerTask updateTime() {
-        return new TimerTask() {
+    private Runnable updateTime() {
+        return new Runnable() {
             @Override
             public void run() {
                 TimeUtil.update();
@@ -301,30 +323,30 @@ public class MycatServer {
     }
 
     protected void checkBackendCons() {
-        CONTEXT_SERVER.set(this);
+        setContextServer(this);
         try {
             this.connectionManager.checkBackendCons();
         } catch (Exception e) {
             log.warn("checkBackendCons caught error", e);
         } finally {
-            CONTEXT_SERVER.remove();
+            removeContextServer();
         }
     }
 
     protected void checkFrontCons() {
-	    CONTEXT_SERVER.set(this);
+	    setContextServer(this);
         try {
             this.connectionManager.checkFrontCons();
         } catch (Exception e) {
             log.warn("checkFrontCons caught error", e);
         } finally {
-            CONTEXT_SERVER.remove();
+            removeContextServer();
         }
     }
 
-    private TimerTask createConnectionCheckTask() {
+    private Runnable createConnectionCheckTask() {
         final NameableExecutor executor = this.timerExecutor;
-        return new TimerTask() {
+        return new Runnable() {
             @Override
             public void run() {
                 executor.execute(new Runnable() {
@@ -344,15 +366,15 @@ public class MycatServer {
     }
 
     // 数据节点定时连接空闲检查任务
-    private TimerTask dataNodeConHeartBeatCheck(final long heartPeriod) {
+    private Runnable dataNodeConHeartBeatCheck(final long heartPeriod) {
 	    final MycatServer self = this;
-        return new TimerTask() {
+        return new Runnable() {
             @Override
             public void run() {
                 Runnable task = new Runnable() {
                     @Override
                     public void run() {
-                        CONTEXT_SERVER.set(self);
+                        setContextServer(self);
                         try {
                             Map<String, PhysicalDBPool> nodes = config.getDataHosts();
                             for (PhysicalDBPool node : nodes.values()) {
@@ -365,7 +387,7 @@ public class MycatServer {
                                 }
                             }
                         } finally {
-                            CONTEXT_SERVER.remove();
+                            removeContextServer();
                         }
                     }
                 };
@@ -376,22 +398,22 @@ public class MycatServer {
     }
 
     // 数据节点定时心跳任务
-    private TimerTask dataNodeHeartbeat() {
+    private Runnable dataNodeHeartbeat() {
 	    final MycatServer self = this;
-        return new TimerTask() {
+        return new Runnable() {
             @Override
             public void run() {
                 Runnable task = new Runnable() {
                     @Override
                     public void run() {
-                        CONTEXT_SERVER.set(self);
+                        setContextServer(self);
                         try {
                             Map<String, PhysicalDBPool> nodes = config.getDataHosts();
                             for (PhysicalDBPool node : nodes.values()) {
                                 node.heartbeat();
                             }
                         } finally {
-                            CONTEXT_SERVER.remove();
+                            removeContextServer();
                         }
                     }
                 };
@@ -413,27 +435,6 @@ public class MycatServer {
         }
         int nodeId = getConfig().getSystem().getMycatNodeId();
         return String.format("'%s.%d.%d'", "Mycat", nodeId, seq);
-    }
-
-    /**
-     * get next AsynchronousChannel ,first is exclude if multi
-     * AsynchronousChannelGroups
-     *
-     * @return
-     */
-    public AsynchronousChannelGroup getNextAsyncChannelGroup() {
-        if (asyncChannelGroups.length == 1) {
-            return asyncChannelGroups[0];
-        } else {
-            int index = (++channelIndex) % asyncChannelGroups.length;
-            if (index == 0) {
-                ++channelIndex;
-                return asyncChannelGroups[1];
-            } else {
-                return asyncChannelGroups[index];
-            }
-
-        }
     }
 
     public NioProcessorPool getProcessorPool () {
@@ -502,10 +503,6 @@ public class MycatServer {
 
 	public void online() {
 		isOnline.set(true);
-	}
-
-	public boolean isAIO() {
-		return aio;
 	}
 
 	public ListeningExecutorService getListeningExecutorService() {

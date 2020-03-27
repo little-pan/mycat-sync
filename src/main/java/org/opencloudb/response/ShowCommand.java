@@ -103,7 +103,8 @@ public final class ShowCommand {
 
         // write rows
         byte packetId = eof.packetId;
-        ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
+        MycatServer server = MycatServer.getContextServer();
+        ConnectionManager manager = server.getConnectionManager();
         RowDataPacket row = getRow(manager, c.getCharset());
         row.packetId = ++packetId;
         buffer = row.write(buffer, c,true);

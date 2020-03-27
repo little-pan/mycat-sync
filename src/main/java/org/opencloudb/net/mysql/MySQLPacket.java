@@ -25,9 +25,8 @@ package org.opencloudb.net.mysql;
 
 import java.nio.ByteBuffer;
 
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.net.FrontendConnection;
-import org.opencloudb.net.NioBackendConnection;
 
 /**
  * @author mycat
@@ -197,7 +196,7 @@ public abstract class MySQLPacket {
     /**
      * 把数据包通过后端连接写出，一般使用buffer机制来提高写的吞吐量。
      */
-    public void write(NioBackendConnection c) {
+    public void write(BackendConnection c) {
         throw new UnsupportedOperationException();
     }
 

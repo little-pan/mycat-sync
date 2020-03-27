@@ -58,7 +58,8 @@ public class KillHandler {
             }
 
             // get connection and close it
-            ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
+            MycatServer server = MycatServer.getContextServer();
+            ConnectionManager manager = server.getConnectionManager();
             FrontendConnection fc = manager.getFrontends().get(value);
             if (fc != null) {
                 fc.close("killed");

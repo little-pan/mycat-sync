@@ -33,7 +33,6 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.opencloudb.MycatServer;
 import org.opencloudb.net.factory.FrontendConnectionFactory;
@@ -45,8 +44,6 @@ import org.slf4j.*;
  */
 public final class NioAcceptor extends Thread  implements SocketAcceptor, AutoCloseable {
 	private static final Logger log = LoggerFactory.getLogger(NioAcceptor.class);
-
-	private static final AtomicLong ID_GENERATOR = new AtomicLong();
 
 	private final MycatServer server;
 
@@ -60,27 +57,41 @@ public final class NioAcceptor extends Thread  implements SocketAcceptor, AutoCl
 	private final CountDownLatch startLatch;
 	private volatile boolean stopped;
 
-	public NioAcceptor(MycatServer server, String name, String bindIp, int port,
-					   FrontendConnectionFactory factory, NioProcessorPool processorPool)
-			throws IOException {
+	public NioAcceptor(String name, String bindIp, int port, FrontendConnectionFactory factory,
+					   NioProcessorPool processorPool) throws IOException {
 		super.setName(name);
-		this.server = server;
+		this.server = MycatServer.getContextServer();
+		if (this.server == null) {
+			throw new IllegalStateException("Context server is null");
+		}
 		this.port = port;
 		this.selector = Selector.open();
 
-		this.serverChannel = ServerSocketChannel.open();
-		this.serverChannel.configureBlocking(false);
-		/** 设置TCP属性 */
-		this.serverChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
-		this.serverChannel.setOption(StandardSocketOptions.SO_RCVBUF, 32 << 10);
-		// backlog = 100
-		this.serverChannel.bind(new InetSocketAddress(bindIp, port), 100);
-		this.serverChannel.register(this.selector, SelectionKey.OP_ACCEPT);
+		boolean failed = true;
+		try {
+			this.serverChannel = ServerSocketChannel.open();
+			try {
+				this.serverChannel.configureBlocking(false);
+				/** 设置TCP属性 */
+				this.serverChannel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+				this.serverChannel.setOption(StandardSocketOptions.SO_RCVBUF, 32 << 10);
+				this.serverChannel.bind(new InetSocketAddress(bindIp, port), 100);
+				this.serverChannel.register(this.selector, SelectionKey.OP_ACCEPT);
 
-		this.factory = factory;
-		this.processorPool = processorPool;
-
-		this.startLatch = new CountDownLatch(1);
+				this.factory = factory;
+				this.processorPool = processorPool;
+				this.startLatch = new CountDownLatch(1);
+				failed = false;
+			} finally {
+				if (failed) {
+					IoUtil.close(this.serverChannel);
+				}
+			}
+		} finally {
+			if (failed) {
+				IoUtil.close(this.selector);
+			}
+		}
 	}
 
 	public int getPort() {
@@ -94,6 +105,7 @@ public final class NioAcceptor extends Thread  implements SocketAcceptor, AutoCl
 	@Override
 	public void run() {
 		try {
+			MycatServer.setContextServer(this.server);
 			final Selector selector = this.selector;
 			SocketAddress sa = this.serverChannel.getLocalAddress();
 			log.info("{} started and listen on {}", this.getName(), sa);
@@ -122,6 +134,7 @@ public final class NioAcceptor extends Thread  implements SocketAcceptor, AutoCl
 			this.startLatch.countDown();
 			IoUtil.close(this.serverChannel);
 			IoUtil.close(this.selector);
+			MycatServer.removeContextServer();
 		}
 	}
 
@@ -134,7 +147,7 @@ public final class NioAcceptor extends Thread  implements SocketAcceptor, AutoCl
 
 			FrontendConnection c = this.factory.make(ch);
 			c.setAccepted(true);
-			c.setId(ID_GENERATOR.incrementAndGet());
+			c.setId(NioProcessor.nextId());
 			c.setManager(manager);
 			
 			NioProcessor reactor = this.processorPool.getNextProcessor();

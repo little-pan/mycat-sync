@@ -31,9 +31,9 @@ public class BatchSQLJob {
 	}
 
 	private void runJob(SQLJob newJob) {
-		// EngineCtx.LOGGER.info("run job " + newJob);
+		MycatServer server = MycatServer.getContextServer();
 		runningJobs.put(newJob.getId(), newJob);
-		MycatServer.getInstance().getBusinessExecutor().execute(newJob);
+		server.getBusinessExecutor().execute(newJob);
 	}
 
 	public boolean jobFinished(SQLJob sqlJob) {

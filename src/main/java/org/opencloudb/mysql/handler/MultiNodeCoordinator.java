@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.Logger;
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.ServerSession;
 import org.opencloudb.sqlcmd.SQLCtrlCommand;

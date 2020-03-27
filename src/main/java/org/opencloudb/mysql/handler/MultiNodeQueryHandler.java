@@ -25,12 +25,12 @@ package org.opencloudb.mysql.handler;
 
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.BackendConnection;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.cache.LayerCachePool;
 import org.opencloudb.mpp.ColMeta;
 import org.opencloudb.mpp.DataMergeService;
 import org.opencloudb.mpp.MergeCol;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.net.mysql.*;
 import org.opencloudb.route.RouteResultset;
 import org.opencloudb.route.RouteResultsetNode;
@@ -43,7 +43,6 @@ import org.slf4j.*;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author mycat
@@ -60,10 +59,9 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 	private String primaryKeyTable = null;
 	private int primaryKeyIndex = -1;
 	private int fieldCount = 0;
-	private final ReentrantLock lock;
 	private long affectedRows;
 	private long insertId;
-	private volatile boolean fieldsReturned;
+	private boolean fieldsReturned;
 	private int okCount;
 	private final boolean isCallProcedure;
 	private long startTime;
@@ -86,7 +84,6 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 		this.isCallProcedure = rrs.isCallStatement();
 		this.autocommit = session.getSource().isAutocommit();
 		this.session = session;
-		this.lock = new ReentrantLock();
 	}
 
 	protected void reset(int initCount) {
@@ -100,20 +97,13 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 	}
 
 	public void execute() {
-		final ReentrantLock lock = this.lock;
-		lock.lock();
-		try {
-			this.reset(rrs.getNodes().length);
-			this.fieldsReturned = false;
-			this.affectedRows = 0L;
-			this.insertId = 0L;
-		} finally {
-			lock.unlock();
-		}
+		MycatServer server = MycatServer.getContextServer();
+		MycatConfig conf = server.getConfig();
 
-		MycatConfig conf = MycatServer.getInstance().getConfig();
-		ServerConnection source = this.session.getSource();
-
+		this.reset(rrs.getNodes().length);
+		this.fieldsReturned = false;
+		this.affectedRows = 0L;
+		this.insertId = 0L;
 		this.startTime = System.currentTimeMillis();
 		for (final RouteResultsetNode node : this.rrs.getNodes()) {
 			final BackendConnection conn = this.session.getTarget(node);
@@ -145,12 +135,7 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 	}
 
 	private boolean decrementOkCount() {
-		lock.lock();
-		try {
-			return --okCount == 0;
-		} finally {
-			lock.unlock();
-		}
+		return (--this.okCount == 0);
 	}
 
 	@Override
@@ -168,19 +153,14 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 			ServerConnection source = this.session.getSource();
 			OkPacket ok = new OkPacket();
 			ok.read(data);
-			this.lock.lock();
-			try {
-				// 判断是否是全局表，如果是，执行行数不做累加，以最后一次执行的为准。
-				if (!this.rrs.isGlobalTable()) {
-					this.affectedRows += ok.affectedRows;
-				} else {
-					this.affectedRows = ok.affectedRows;
-				}
-				if (ok.insertId > 0) {
-					this.insertId = (insertId == 0) ? ok.insertId: Math.min(insertId, ok.insertId);
-				}
-			} finally {
-				this.lock.unlock();
+			// 判断是否是全局表，如果是，执行行数不做累加，以最后一次执行的为准。
+			if (!this.rrs.isGlobalTable()) {
+				this.affectedRows += ok.affectedRows;
+			} else {
+				this.affectedRows = ok.affectedRows;
+			}
+			if (ok.insertId > 0) {
+				this.insertId = (insertId == 0) ? ok.insertId: Math.min(insertId, ok.insertId);
 			}
 
 			// 对于存储过程，其比较特殊，查询结果返回EndRow报文以后，还会再返回一个OK报文，才算结束
@@ -190,12 +170,11 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 				if (this.autocommit) {// clear all connections
 					this.session.releaseConnections(false);
 				}
-				if (this.isFail() || this.session.closed()) {
+				if (isFail() || this.session.closed()) {
 					tryErrorFinished(true);
 					return;
 				}
 
-				this.lock.lock();
 				try {
 					if (this.rrs.isLoadData()) {
 						byte lastPackId = source.getLoadDataInfileHandler().getLastPackId();
@@ -216,8 +195,6 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 					ok.write(source);
 				} catch (Exception e) {
 					handleDataProcessException(e);
-				} finally {
-					this.lock.unlock();
 				}
 			}
 		}
@@ -226,7 +203,7 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 	@Override
 	public void rowEofResponse(final byte[] eof, BackendConnection conn) {
 		log.debug("on row end response in backend {} ", conn);
-		if (this.errorResponsed.get()) {
+		if (this.errorResponsed) {
 			conn.close(this.error);
 			return;
 		}
@@ -257,14 +234,9 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 					handleDataProcessException(e);
 				}
 			} else {
-				try {
-					this.lock.lock();
-					eof[3] = ++this.packetId;
-					log.debug("last packet id: {}", this.packetId);
-					source.write(eof);
-				} finally {
-					this.lock.unlock();
-				}
+				eof[3] = ++this.packetId;
+				log.debug("last packet id: {}", this.packetId);
+				source.write(eof);
 			}
 		}
 	}
@@ -272,7 +244,6 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 	public void outputMergeResult(final ServerConnection source,
 			final byte[] eof, List<RowDataPacket> results) {
 		try {
-			this.lock.lock();
 			ByteBuffer buffer = this.session.getSource().allocate();
 			final RouteResultset rrs = this.dataMergeSvr.getRrs();
 
@@ -303,7 +274,6 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 		} catch (Exception e) {
 			handleDataProcessException(e);
 		} finally {
-			this.lock.unlock();
 			this.dataMergeSvr.clear();
 		}
 	}
@@ -311,10 +281,10 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 	@Override
 	public void fieldEofResponse(byte[] header, List<byte[]> fields,
 			byte[] eof, BackendConnection conn) {
-		ServerConnection source = null;
+		ServerConnection source;
 		this.execCount++;
 		if (this.execCount == this.rrs.getNodes().length) {
-			//TODO: add by zhuam
+			// add by zhuam
 			//查询结果派发
 			QueryResult queryResult = new QueryResult(this.session.getSource().getUser(),
 					this.rrs.getSqlType(), this.rrs.getStatement(), this.startTime, System.currentTimeMillis());
@@ -324,7 +294,6 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 			return;
 		}
 
-		this.lock.lock();
 		try {
 			if (this.fieldsReturned) {
 				return;
@@ -418,13 +387,11 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 			}
 		} catch (Exception e) {
 			handleDataProcessException(e);
-		} finally {
-			lock.unlock();
 		}
 	}
 
 	public void handleDataProcessException(Exception e) {
-		if (!this.errorResponsed.get()) {
+		if (!this.errorResponsed) {
 			this.error = e.toString();
 			log.warn("Caught exception", e);
 			setFail(e.toString());
@@ -434,18 +401,17 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 
 	@Override
 	public void rowResponse(final byte[] row, final BackendConnection conn) {
-		if (this.errorResponsed.get()) {
+		if (this.errorResponsed) {
 			conn.close(error);
 			return;
 		}
 
-		lock.lock();
 		try {
 			RouteResultsetNode rNode = (RouteResultsetNode) conn.getAttachment();
 			String dataNode = rNode.getName();
 			if (dataMergeSvr != null) {
 				if (dataMergeSvr.onNewRecord(dataNode, row)) {
-					isClosedByDiscard.set(true);
+					this.isClosedByDiscard = true;
 				}
 			} else {
 				// cache primaryKey-> dataNode
@@ -453,8 +419,8 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 					RowDataPacket rowDataPkg = new RowDataPacket(fieldCount);
 					rowDataPkg.read(row);
 					String primaryKey = new String(rowDataPkg.fieldValues.get(primaryKeyIndex));
-					LayerCachePool pool = MycatServer.getInstance()
-							.getRouterservice().getTableId2DataNodeCache();
+					MycatServer server = MycatServer.getContextServer();
+					LayerCachePool pool = server.getRouterservice().getTableId2DataNodeCache();
 					pool.putIfAbsent(this.primaryKeyTable, primaryKey, dataNode);
 				}
 				row[3] = ++packetId;
@@ -463,8 +429,6 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 
 		} catch (Exception e) {
 			handleDataProcessException(e);
-		} finally {
-			lock.unlock();
 		}
 	}
 

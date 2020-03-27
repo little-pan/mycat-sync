@@ -50,12 +50,14 @@ public abstract class AbstractConnection implements ClosableConnection {
 	private static final int OP_NOT_READ = ~SelectionKey.OP_READ;
 	private static final int OP_NOT_WRITE = ~SelectionKey.OP_WRITE;
 
+	protected long id;
+
 	protected String host;
 	protected int localPort;
 	protected int port;
-	protected long id;
-	protected volatile String charset;
-	protected volatile int charsetIndex;
+	protected String schema;
+	protected String charset;
+	protected int charsetIndex;
 
 	protected final SocketChannel channel;
 	protected SelectionKey processKey;
@@ -63,11 +65,11 @@ public abstract class AbstractConnection implements ClosableConnection {
 
 	protected int packetHeaderSize;
 	protected int maxPacketSize;
-	protected volatile ByteBuffer readBuffer;
-	protected volatile ByteBuffer writeBuffer;
+	protected ByteBuffer readBuffer;
+	protected ByteBuffer writeBuffer;
 	// Note: it's thread-safe for processor bind mode
 	protected final Queue<ByteBuffer> writeQueue = new LinkedList<>();
-	protected volatile int readBufferOffset;
+	protected int readBufferOffset;
 	protected final AtomicBoolean isClosed;
 	protected long startupTime;
 	protected long lastReadTime;
@@ -75,7 +77,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 	protected long netInBytes;
 	protected long netOutBytes;
 	protected int writeAttempts;
-	protected volatile boolean isSupportCompress = false;
+	protected boolean isSupportCompress = false;
     protected final Queue<byte[]> decompressUnfinishedDataQueue = new LinkedList<>();
     protected final Queue<byte[]> compressUnfinishedDataQueue = new LinkedList<>();
 
@@ -524,6 +526,14 @@ public abstract class AbstractConnection implements ClosableConnection {
 
 	public void setPort(int port) {
 		this.port = port;
+	}
+
+	public String getSchema() {
+		return schema;
+	}
+
+	public void setSchema(String schema) {
+		this.schema = schema;
 	}
 
 	public void setLocalPort(int localPort) {

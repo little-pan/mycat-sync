@@ -94,7 +94,8 @@ public final class ShowConnectionSQL {
         // write rows
         byte packetId = eof.packetId;
         String charset = c.getCharset();
-        ConnectionManager connectionManager = MycatServer.getInstance().getConnectionManager();
+        MycatServer server = MycatServer.getContextServer();
+        ConnectionManager connectionManager = server.getConnectionManager();
         for (FrontendConnection fc : connectionManager.getFrontends().values()) {
             if (!fc.isClosed()) {
                 RowDataPacket row = getRow(fc, charset);

@@ -71,8 +71,8 @@ import java.util.TreeSet;
  * jdbc则正常，不用设置
  * load data sql中的CHARACTER SET 'gbk'   其中的字符集必须引号括起来，否则druid解析出错
  */
-public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler
-{
+public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler {
+
     private ServerConnection serverConnection;
     private String sql;
     private String fileName;
@@ -150,8 +150,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler
 
 
     @Override
-    public void start(String sql)
-    {
+    public void start(String sql) {
         clear();
         this.sql = sql;
 
@@ -160,15 +159,14 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler
         statement = (MySqlLoadDataInFileStatement) parser.parseStatement();
         fileName = parseFileName(sql);
 
-        if (fileName == null)
-        {
+        if (fileName == null) {
             serverConnection.writeErrMessage(ErrorCode.ER_FILE_NOT_FOUND, " file name is null !");
             clear();
             return;
         }
-        schema = MycatServer.getInstance().getConfig()
-                .getSchemas().get(serverConnection.getSchema());
-        tableId2DataNodeCache = (LayerCachePool) MycatServer.getInstance().getCacheService().getCachePool("TableID2DataNodeCache");
+        MycatServer server = MycatServer.getContextServer();
+        schema = server.getConfig().getSchemas().get(serverConnection.getSchema());
+        tableId2DataNodeCache = (LayerCachePool) server.getCacheService().getCachePool("TableID2DataNodeCache");
         tableName = statement.getTableName().getSimpleName().toUpperCase();
         tableConfig = schema.getTables().get(tableName);
         tempPath = SystemConfig.getHomePath() + File.separator + "temp" + File.separator + serverConnection.getId() + File.separator;

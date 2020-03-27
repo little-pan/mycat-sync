@@ -23,7 +23,6 @@
  */
 package org.opencloudb.config.model;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -58,7 +57,8 @@ import com.alibaba.druid.wall.spi.MySqlWallProvider;
  * @author songwie
  */
 public final class QuarantineConfig {
-	private static final Logger LOGGER = LoggerFactory.getLogger(QuarantineConfig.class);
+
+	private static final Logger log = LoggerFactory.getLogger(QuarantineConfig.class);
 	
     private Map<String, List<UserConfig>> whitehost;
     private List<String> blacklist;
@@ -110,11 +110,13 @@ public final class QuarantineConfig {
 	}
 
 	public boolean existsHost(String host) {
-		return this.whitehost==null ? false : whitehost.get(host)!=null ;
+		return this.whitehost != null && whitehost.get(host) != null;
 	}
+
 	public boolean canConnect(String host,String user) {
 		if(whitehost==null || whitehost.size()==0){
-			MycatConfig config = MycatServer.getInstance().getConfig();
+			MycatServer server = MycatServer.getContextServer();
+			MycatConfig config = server.getConfig();
 			Map<String, UserConfig> users = config.getUsers();
 			return users.containsKey(user);
 		}else{
@@ -153,9 +155,8 @@ public final class QuarantineConfig {
 	}
 	
 	public synchronized static void updateToFile(String host, List<UserConfig> userConfigs) throws Exception{
-		LOGGER.debug("set white host:" + host + "user:" + userConfigs);
+		log.debug("set white host '{}', user '{}'", host, userConfigs);
 		String filename = SystemConfig.getHomePath()+ File.separator +"conf"+ File.separator +"server.xml";
-		//String filename = "E:\\MyProject\\Mycat-Server\\src\\main\\resources\\server.xml";
 
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(false);

@@ -50,6 +50,7 @@ public class ShowCobarStatus {
     private static final RowDataPacket status = new RowDataPacket(FIELD_COUNT);
     private static final EOFPacket lastEof = new EOFPacket();
     private static final ErrorPacket error = PacketUtil.getShutdown();
+
     static {
         int i = 0;
         byte packetId = 0;
@@ -63,7 +64,8 @@ public class ShowCobarStatus {
     }
 
     public static void response(ServerConnection c) {
-        if (MycatServer.getInstance().isOnline()) {
+        MycatServer server = MycatServer.getContextServer();
+        if (server.isOnline()) {
             ByteBuffer buffer = c.allocate();
             buffer = header.write(buffer, c,true);
             for (FieldPacket field : fields) {

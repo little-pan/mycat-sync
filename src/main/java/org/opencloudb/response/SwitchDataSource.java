@@ -42,13 +42,14 @@ public final class SwitchDataSource {
     public static void response(String stmt, ManagerConnection c) {
         int count = 0;
         Pair<String[], Integer> pair = ManagerParseSwitch.getPair(stmt);
-        Map<String, PhysicalDBPool> dns = MycatServer.getInstance().getConfig().getDataHosts();
+        MycatServer server = MycatServer.getContextServer();
+        Map<String, PhysicalDBPool> dns = server.getConfig().getDataHosts();
         Integer idx = pair.getValue();
         for (String key : pair.getKey()) {
         	PhysicalDBPool dn = dns.get(key);
             if (dn != null) {
                 int m = dn.getActivedIndex();
-                int n = (idx == null) ? dn.next(m) : idx.intValue();
+                int n = (idx == null) ? dn.next(m) : idx;
                 if (dn.switchSource(n, false, "MANAGER")) {
                     ++count;
                 }

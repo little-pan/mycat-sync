@@ -31,7 +31,7 @@ import org.opencloudb.config.Capabilities;
 import org.opencloudb.mysql.BufferUtil;
 import org.opencloudb.mysql.MySQLMessage;
 import org.opencloudb.mysql.StreamUtil;
-import org.opencloudb.net.NioBackendConnection;
+import org.opencloudb.net.BackendConnection;
 
 /**
  * From client to server during initial handshake.
@@ -112,7 +112,7 @@ public class AuthPacket extends MySQLPacket {
     }
 
     @Override
-    public void write(NioBackendConnection c) {
+    public void write(BackendConnection c) {
         ByteBuffer buffer = c.allocate();
         BufferUtil.writeUB3(buffer, calcPacketSize());
         buffer.put(this.packetId);

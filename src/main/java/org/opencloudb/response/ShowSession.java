@@ -4,7 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.BackendConnection;
+import org.opencloudb.net.BackendConnection;
 import org.opencloudb.config.Fields;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
@@ -62,7 +62,8 @@ public class ShowSession {
 
 		// write rows
 		byte packetId = eof.packetId;
-		ConnectionManager connectionManager = MycatServer.getInstance().getConnectionManager();
+		MycatServer server = MycatServer.getContextServer();
+		ConnectionManager connectionManager = server.getConnectionManager();
 		for (FrontendConnection front : connectionManager.getFrontends().values()) {
 			if (!(front instanceof ServerConnection)) {
 				continue;

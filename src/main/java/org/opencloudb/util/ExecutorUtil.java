@@ -26,6 +26,7 @@ package org.opencloudb.util;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * @author mycat
@@ -55,6 +56,10 @@ public class ExecutorUtil {
 
         NameableThreadFactory factory = new NameableThreadFactory(name, isDaemon);
         return new NameableExecutor(name, coreSize, maxSize, queue, factory);
+    }
+
+    public static ThreadFactory createFactory(String prefix, boolean daemon) {
+        return new NameableThreadFactory(prefix, daemon);
     }
    
 }

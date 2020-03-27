@@ -1,32 +1,37 @@
 package org.opencloudb.backend;
 
+import org.opencloudb.net.BackendConnection;
+
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ConQueue {
-	private final ConcurrentLinkedQueue<BackendConnection> autoCommitCons = new ConcurrentLinkedQueue<BackendConnection>();
-	private final ConcurrentLinkedQueue<BackendConnection> manCommitCons = new ConcurrentLinkedQueue<BackendConnection>();
+
+	private final Queue<BackendConnection> autoCommitCons = new ConcurrentLinkedQueue<>();
+	private final Queue<BackendConnection> manCommitCons = new ConcurrentLinkedQueue<>();
 	private long executeCount;
 
 	public BackendConnection takeIdleCon(boolean autoCommit) {
-		ConcurrentLinkedQueue<BackendConnection> f1 = autoCommitCons;
-		ConcurrentLinkedQueue<BackendConnection> f2 = manCommitCons;
+		Queue<BackendConnection> q1 = this.autoCommitCons;
+		Queue<BackendConnection> q2 = this.manCommitCons;
 
 		if (!autoCommit) {
-			f1 = manCommitCons;
-			f2 = autoCommitCons;
-
+			q1 = this.manCommitCons;
+			q2 = this.autoCommitCons;
 		}
-		BackendConnection con = f1.poll();
-		if (con == null || con.isClosedOrQuit()) {
-			con = f2.poll();
-		}
-		if (con == null || con.isClosedOrQuit()) {
-			return null;
-		} else {
+		BackendConnection con = q1.poll();
+		if (con != null && !con.isClosedOrQuit()) {
 			return con;
 		}
 
+		con = q2.poll();
+		if (con != null && !con.isClosedOrQuit()) {
+			return con;
+		}
+
+		return null;
 	}
 
 	public long getExecuteCount() {
@@ -38,31 +43,25 @@ public class ConQueue {
 	}
 
 	public void removeCon(BackendConnection con) {
-		if (!autoCommitCons.remove(con)) {
-			manCommitCons.remove(con);
+		if (!this.autoCommitCons.remove(con)) {
+			this.manCommitCons.remove(con);
 		}
 	}
 
-	public boolean isSameCon(BackendConnection con) {
-		if (autoCommitCons.contains(con)) {
-			return true;
-		} else if (manCommitCons.contains(con)) {
-			return true;
-		}
-		return false;
+	public boolean isPooled(BackendConnection con) {
+		return  (this.autoCommitCons.contains(con) || this.manCommitCons.contains(con));
 	}
 
-	public ConcurrentLinkedQueue<BackendConnection> getAutoCommitCons() {
-		return autoCommitCons;
+	public Queue<BackendConnection> getAutoCommitCons() {
+		return this.autoCommitCons;
 	}
 
-	public ConcurrentLinkedQueue<BackendConnection> getManCommitCons() {
-		return manCommitCons;
+	public Queue<BackendConnection> getManCommitCons() {
+		return this.manCommitCons;
 	}
 
-	public ArrayList<BackendConnection> getIdleConsToClose(int count) {
-		ArrayList<BackendConnection> readyCloseCons = new ArrayList<BackendConnection>(
-				count);
+	public List<BackendConnection> getIdleConsToClose(int count) {
+		List<BackendConnection> readyCloseCons = new ArrayList<>(count);
 		while (!manCommitCons.isEmpty() && readyCloseCons.size() < count) {
 			BackendConnection theCon = manCommitCons.poll();
 			if (theCon != null) {
@@ -76,6 +75,7 @@ public class ConQueue {
 			}
 
 		}
+
 		return readyCloseCons;
 	}
 

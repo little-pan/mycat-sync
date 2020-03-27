@@ -23,8 +23,6 @@
  */
 package org.opencloudb.net;
 
-import org.opencloudb.backend.BackendException;
-
 public class ConnectionException extends BackendException {
 
 	private static final long serialVersionUID = 1L;

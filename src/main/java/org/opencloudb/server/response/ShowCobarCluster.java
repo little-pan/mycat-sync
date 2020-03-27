@@ -99,8 +99,9 @@ public class ShowCobarCluster {
     }
 
     private static List<RowDataPacket> getRows(ServerConnection c) {
-        List<RowDataPacket> rows = new LinkedList<RowDataPacket>();
-        MycatConfig config = MycatServer.getInstance().getConfig();
+        List<RowDataPacket> rows = new LinkedList<>();
+        MycatServer server = MycatServer.getContextServer();
+        MycatConfig config = server.getConfig();
         MycatCluster cluster = config.getCluster();
         Map<String, SchemaConfig> schemas = config.getSchemas();
         SchemaConfig schema = (c.getSchema() == null) ? null : schemas.get(c.getSchema());

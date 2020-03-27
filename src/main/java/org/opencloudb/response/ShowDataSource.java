@@ -24,10 +24,7 @@
 package org.opencloudb.response;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
@@ -46,15 +43,13 @@ import org.opencloudb.util.StringUtil;
 
 /**
  * 查看数据源信息
- * 
- * @author mycat
+ *
  * @author mycat
  */
 public final class ShowDataSource {
 
 	private static final int FIELD_COUNT = 10;
-	private static final ResultSetHeaderPacket header = PacketUtil
-			.getHeader(FIELD_COUNT);
+	private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
 	private static final FieldPacket[] fields = new FieldPacket[FIELD_COUNT];
 	private static final EOFPacket eof = new EOFPacket();
 	static {
@@ -112,29 +107,25 @@ public final class ShowDataSource {
 
 		// write rows
 		byte packetId = eof.packetId;
-		MycatConfig conf = MycatServer.getInstance().getConfig();
-		Map<String, List<PhysicalDataSource>> dataSources = new HashMap<String, List<PhysicalDataSource>>();
+		MycatServer server = MycatServer.getContextServer();
+		MycatConfig conf = server.getConfig();
+		Map<String, List<PhysicalDataSource>> dataSources = new HashMap<>();
 		if (null != name) {
 			PhysicalDBNode dn = conf.getDataNodes().get(name);
 			if (dn != null) {
-				List<PhysicalDataSource> dslst = new LinkedList<PhysicalDataSource>();
-				dslst.addAll(dn.getDbPool().getAllDataSources());
-				dataSources.put(dn.getName(), dslst);
+				List<PhysicalDataSource> dsList = new ArrayList<>(dn.getDbPool().getAllDataSources());
+				dataSources.put(dn.getName(), dsList);
 			}
 
 		} else {
 			// add all
-
 			for (PhysicalDBNode dn : conf.getDataNodes().values()) {
-				List<PhysicalDataSource> dslst = new LinkedList<PhysicalDataSource>();
-				dslst.addAll(dn.getDbPool().getAllDataSources());
-				dataSources.put(dn.getName(), dslst);
+				List<PhysicalDataSource> dsList = new ArrayList<>(dn.getDbPool().getAllDataSources());
+				dataSources.put(dn.getName(), dsList);
 			}
-
 		}
 
-		for (Map.Entry<String, List<PhysicalDataSource>> dsEntry : dataSources
-				.entrySet()) {
+		for (Map.Entry<String, List<PhysicalDataSource>> dsEntry : dataSources.entrySet()) {
 			String dnName = dsEntry.getKey();
 			for (PhysicalDataSource ds : dsEntry.getValue()) {
 				RowDataPacket row = getRow(dnName, ds, c.getCharset());
@@ -152,8 +143,7 @@ public final class ShowDataSource {
 		c.write(buffer);
 	}
 
-	private static RowDataPacket getRow(String dataNode, PhysicalDataSource ds,
-			String charset) {
+	private static RowDataPacket getRow(String dataNode, PhysicalDataSource ds, String charset) {
 		RowDataPacket row = new RowDataPacket(FIELD_COUNT);
 		row.add(StringUtil.encode(dataNode, charset));
 		row.add(StringUtil.encode(ds.getName(), charset));

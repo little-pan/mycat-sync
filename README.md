@@ -17,7 +17,7 @@ Require a few threads in system, less overhead and needn't to consider multi-thr
 Mycat sync uses this mode.
 
 4) Asynchronous non-blocking mode: frontend processor thread + NIO -> one or more business threads + NIO in backend <br/>
-Require a few threads in system, less overhead and need to consider multi-thread issue. It's complicated, inefficient 
+Require more threads in system, less overhead and need to consider multi-thread issue. It's complicated, inefficient 
 and error-prone. Mycat server uses this mode.
 
 Mycat sync uses the third execution mode, can keep a few threads and massive connection, so that it not only saves memory 

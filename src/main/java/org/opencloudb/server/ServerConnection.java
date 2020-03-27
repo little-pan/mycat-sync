@@ -24,7 +24,6 @@
 package org.opencloudb.server;
 
 import java.io.IOException;
-import java.nio.channels.NetworkChannel;
 import java.nio.channels.SocketChannel;
 
 import org.opencloudb.MycatServer;
@@ -137,7 +136,7 @@ public class ServerConnection extends FrontendConnection {
 
 		if (this.txInterrupted) {
 			writeErrMessage(ErrorCode.ER_YES,
-					"Transaction error, need to rollback." + txInterrputMsg);
+					"Transaction error, need to rollback: " + this.txInterrputMsg);
 			return;
 		}
 
@@ -159,7 +158,8 @@ public class ServerConnection extends FrontendConnection {
                 return;
             }
         }
-		SchemaConfig schema = MycatServer.getInstance().getConfig().getSchemas().get(db);
+		MycatServer server = MycatServer.getContextServer();
+		SchemaConfig schema = server.getConfig().getSchemas().get(db);
 		if (schema == null) {
 			writeErrMessage(ErrorCode.ERR_BAD_LOGICDB,
 					"Unknown MyCAT Database '" + db + "'");
@@ -177,8 +177,8 @@ public class ServerConnection extends FrontendConnection {
 					"No MyCAT Database selected");
 			return null;
 		}
-		SchemaConfig schema = MycatServer.getInstance().getConfig()
-				.getSchemas().get(db);
+		MycatServer server = MycatServer.getContextServer();
+		SchemaConfig schema = server.getConfig().getSchemas().get(db);
 		if (schema == null) {
 			writeErrMessage(ErrorCode.ERR_BAD_LOGICDB,
 					"Unknown MyCAT Database '" + db + "'");
@@ -188,10 +188,8 @@ public class ServerConnection extends FrontendConnection {
 		// 路由计算
 		RouteResultset rrs = null;
 		try {
-			rrs = MycatServer
-					.getInstance()
-					.getRouterservice()
-					.route(MycatServer.getInstance().getConfig().getSystem(),
+			rrs = server.getRouterservice()
+					.route(server.getConfig().getSystem(),
 							schema, type, sql, this.charset, this);
 
 		} catch (Exception e) {
@@ -208,10 +206,9 @@ public class ServerConnection extends FrontendConnection {
 		// 路由计算
 		RouteResultset rrs;
 		try {
-			rrs = MycatServer
-					.getInstance()
-					.getRouterservice()
-					.route(MycatServer.getInstance().getConfig().getSystem(),
+			MycatServer server = MycatServer.getContextServer();
+			rrs = server.getRouterservice()
+					.route(server.getConfig().getSystem(),
 							schema, type, sql, this.charset, this);
 		} catch (Exception e) {
 			StringBuilder s = new StringBuilder();

@@ -65,7 +65,8 @@ public final class KillConnection {
         if (ids.length() > 0) {
             String[] idList = SplitUtil.split(ids, ',', true);
             List<FrontendConnection> fcList = new ArrayList<>(idList.length);
-            ConnectionManager manager = MycatServer.getInstance().getConnectionManager();
+            MycatServer server = MycatServer.getContextServer();
+            ConnectionManager manager = server.getConnectionManager();
             for (String id : idList) {
                 long value;
                 try {

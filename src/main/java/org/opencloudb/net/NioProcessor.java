@@ -33,8 +33,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.BackendConnection;
-import org.opencloudb.backend.BackendException;
 import org.opencloudb.util.IoUtil;
 import org.slf4j.*;
 
@@ -47,10 +45,8 @@ public final class NioProcessor extends AbstractProcessor {
 
 	private static final Logger log = LoggerFactory.getLogger(NioProcessor.class);
 
-	private static final ThreadLocal<MycatServer> LOCAL_SERVER = new ThreadLocal<>();
 	private static final ThreadLocal<NioProcessor> LOCAL_PROCESSOR = new ThreadLocal<>();
-	/** Backend connection ID generator. */
-	public static final AtomicLong BC_ID_GENERATOR = new AtomicLong();
+	private static final AtomicLong ID_GENERATOR = new AtomicLong();
 
 	private final MycatServer server;
 
@@ -85,7 +81,7 @@ public final class NioProcessor extends AbstractProcessor {
 	}
 
 	public static MycatServer contextServer() {
-		return LOCAL_SERVER.get();
+		return MycatServer.getContextServer();
 	}
 
 	public MycatServer getServer () {
@@ -133,6 +129,10 @@ public final class NioProcessor extends AbstractProcessor {
 		return LOCAL_PROCESSOR.get();
 	}
 
+	static long nextId () {
+		return ID_GENERATOR.getAndIncrement();
+	}
+
 	final void startup() {
 		this.processThread = new Thread(this, this.name);
 		this.processThread.start();
@@ -154,7 +154,7 @@ public final class NioProcessor extends AbstractProcessor {
 		}
 
 		try {
-			LOCAL_SERVER.set(this.server);
+			MycatServer.setContextServer(this.server);
 			LOCAL_PROCESSOR.set(this);
 
 			Selector selector = this.selector;
@@ -185,7 +185,7 @@ public final class NioProcessor extends AbstractProcessor {
 		} finally {
 			IoUtil.close(this.selector);
 			LOCAL_PROCESSOR.remove();
-			LOCAL_SERVER.remove();
+			MycatServer.removeContextServer();
 		}
 	}
 
@@ -263,11 +263,11 @@ public final class NioProcessor extends AbstractProcessor {
 	}
 
 	private void finishConnect(SelectionKey key, AbstractConnection con) {
-		NioBackendConnection c = (NioBackendConnection) con;
+		BackendConnection c = (BackendConnection) con;
 		try {
 			if (finishConnect(c, c.channel)) {
 				key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT);
-				c.setId(BC_ID_GENERATOR.incrementAndGet());
+				c.setId(BackendConnection.nextId());
 				ConnectionManager manager = contextServer().getConnectionManager();
 				c.setManager(manager);
 				register(con, true);
@@ -283,7 +283,7 @@ public final class NioProcessor extends AbstractProcessor {
 			throws IOException {
 		if (channel.isConnectionPending()) {
 			channel.finishConnect();
-			NioBackendConnection nc = (NioBackendConnection)c;
+			BackendConnection nc = (BackendConnection)c;
 			nc.finishConnect();
 			return true;
 		} else {

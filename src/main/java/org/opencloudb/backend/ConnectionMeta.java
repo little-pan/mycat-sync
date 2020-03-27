@@ -23,6 +23,8 @@
  */
 package org.opencloudb.backend;
 
+import org.opencloudb.net.BackendConnection;
+
 /**
  * connection metadata info
  * 
@@ -47,18 +49,6 @@ public class ConnectionMeta {
 	public String getSchema() {
 		return schema;
 	}
-
-//	public String getCharset() {
-//		return charset;
-//	}
-//
-//	public int getTxIsolation() {
-//		return txIsolation;
-//	}
-//
-//	public boolean isAutocommit() {
-//		return autocommit;
-//	}
 	
 	public boolean isSameSchema(BackendConnection theCon)
 	{

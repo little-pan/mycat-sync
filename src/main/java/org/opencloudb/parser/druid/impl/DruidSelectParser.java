@@ -39,7 +39,6 @@ import com.alibaba.druid.wall.spi.WallVisitorUtils;
 
 public class DruidSelectParser extends DefaultDruidParser {
 
-
     protected boolean isNeedParseOrderAgg=true;
 
     @Override
@@ -225,7 +224,9 @@ public class DruidSelectParser extends DefaultDruidParser {
 	  {
 		  return true;
 	  }
-	  LayerCachePool tableId2DataNodeCache = (LayerCachePool) MycatServer.getInstance().getCacheService().getCachePool("TableID2DataNodeCache");
+	  MycatServer server = MycatServer.getContextServer();
+	  LayerCachePool tableId2DataNodeCache = (LayerCachePool)server.getCacheService().
+			  getCachePool("TableID2DataNodeCache");
 	  try
 	  {
 		  tryRoute(schema, rrs, tableId2DataNodeCache);
@@ -621,7 +622,9 @@ public class DruidSelectParser extends DefaultDruidParser {
 	{
 		rrs.setLimitStart(firstrownum);
 		rrs.setLimitSize(lastrownum - firstrownum);
-		LayerCachePool tableId2DataNodeCache = (LayerCachePool) MycatServer.getInstance().getCacheService().getCachePool("TableID2DataNodeCache");
+		MycatServer server = MycatServer.getContextServer();
+		LayerCachePool tableId2DataNodeCache = (LayerCachePool)server.getCacheService()
+				.getCachePool("TableID2DataNodeCache");
 		try
 		{
 			tryRoute(schema, rrs, tableId2DataNodeCache);

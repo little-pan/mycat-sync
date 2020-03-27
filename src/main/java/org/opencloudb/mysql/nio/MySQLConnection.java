@@ -24,14 +24,14 @@
 package org.opencloudb.mysql.nio;
 
 import org.opencloudb.MycatServer;
-import org.opencloudb.backend.BackendException;
 import org.opencloudb.config.Capabilities;
 import org.opencloudb.config.Isolations;
 import org.opencloudb.exception.UnknownTxIsolationException;
 import org.opencloudb.mysql.CharsetUtil;
 import org.opencloudb.mysql.SecurityUtil;
 import org.opencloudb.mysql.handler.ResponseHandler;
-import org.opencloudb.net.NioBackendConnection;
+import org.opencloudb.net.BackendConnection;
+import org.opencloudb.net.BackendException;
 import org.opencloudb.net.mysql.*;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.ServerConnection;
@@ -42,13 +42,12 @@ import org.slf4j.*;
 import java.io.UnsupportedEncodingException;
 import java.nio.channels.SocketChannel;
 import java.security.NoSuchAlgorithmException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author mycat
  */
-public class MySQLConnection extends NioBackendConnection {
+public class MySQLConnection extends BackendConnection {
 
 	private static final Logger log = LoggerFactory.getLogger(MySQLConnection.class);
 
@@ -61,7 +60,8 @@ public class MySQLConnection extends NioBackendConnection {
 		flag |= Capabilities.CLIENT_LONG_FLAG;
 		flag |= Capabilities.CLIENT_CONNECT_WITH_DB;
 		// flag |= Capabilities.CLIENT_NO_SCHEMA;
-		boolean usingCompress=MycatServer.getInstance().getConfig().getSystem().getUseCompression()==1 ;
+		MycatServer server = MycatServer.getContextServer();
+		boolean usingCompress = server.getConfig().getSystem().getUseCompression()==1 ;
 		if(usingCompress)
 		{
 			 flag |= Capabilities.CLIENT_COMPRESS;
@@ -121,37 +121,23 @@ public class MySQLConnection extends NioBackendConnection {
 		_ROLLBACK.arg = "rollback".getBytes();
 	}
 
-	private volatile long lastTime;
-	private volatile String schema = null;
-	private volatile String oldSchema;
-	private volatile boolean borrowed = false;
-	private volatile boolean modifiedSQLExecuted = false;
-	private volatile int batchCmdCount = 0;
+	private String oldSchema;
+	private int batchCmdCount = 0;
 
-	private MySQLDataSource pool;
-	private boolean fromSlaveDB;
 	private long threadId;
 	private HandshakePacket handshake;
-	private volatile int txIsolation;
-	private volatile boolean autocommit;
 	private long clientFlags;
 	private boolean isAuthenticated;
 	private String user;
 	private String password;
-	private Object attachment;
-	private ResponseHandler respHandler;
 
-	private final AtomicBoolean isQuit;
-	private volatile StatusSync statusSync;
-	private volatile boolean metaDataSyned = true;
-	private volatile int xaStatus = 0;
+	private StatusSync statusSync;
+	private boolean metaDataSyned = true;
+	private int xaStatus = 0;
 
 	public MySQLConnection(SocketChannel channel, boolean fromSlaveDB) {
 		super(channel);
 		this.clientFlags = CLIENT_FLAGS;
-		this.lastTime = TimeUtil.currentTimeMillis();
-		this.isQuit = new AtomicBoolean(false);
-		this.autocommit = true;
 		this.fromSlaveDB = fromSlaveDB;
 	}
 
@@ -172,10 +158,7 @@ public class MySQLConnection extends NioBackendConnection {
 		}
 	}
 
-	public String getSchema() {
-		return this.schema;
-	}
-
+	@Override
 	public void setSchema(String newSchema) {
 		String curSchema = schema;
 		if (curSchema == null) {
@@ -185,14 +168,6 @@ public class MySQLConnection extends NioBackendConnection {
 			this.oldSchema = curSchema;
 			this.schema = newSchema;
 		}
-	}
-
-	public MySQLDataSource getPool() {
-		return pool;
-	}
-
-	public void setPool(MySQLDataSource pool) {
-		this.pool = pool;
 	}
 
 	public String getUser() {
@@ -249,22 +224,6 @@ public class MySQLConnection extends NioBackendConnection {
 		}
 		packet.database = schema;
 		packet.write(this);
-	}
-
-	public boolean isAutocommit() {
-		return autocommit;
-	}
-
-	public Object getAttachment() {
-		return attachment;
-	}
-
-	public void setAttachment(Object attachment) {
-		this.attachment = attachment;
-	}
-
-	public boolean isClosedOrQuit() {
-		return isClosed() || isQuit.get();
 	}
 
 	protected void sendQueryCmd(String query) {
@@ -365,8 +324,7 @@ public class MySQLConnection extends NioBackendConnection {
 	}
 
 	/**
-	 * @return if synchronization finished and execute-sql has already been sent
-	 *         before
+	 * @return if synchronization finished and execute-sql has already been sent before
 	 */
 	@Override
 	public boolean syncAndExecute() {
@@ -387,8 +345,7 @@ public class MySQLConnection extends NioBackendConnection {
 			modifiedSQLExecuted = true;
 		}
 		String xaTXID = sc.getSession().getXaTXID();
-		synAndDoExecute(xaTXID, rrn, sc.getCharsetIndex(), sc.getTxIsolation(),
-				autocommit);
+		synAndDoExecute(xaTXID, rrn, sc.getCharsetIndex(), sc.getTxIsolation(), autocommit);
 	}
 
 	private void synAndDoExecute(String xaTxID, RouteResultsetNode rrn,
@@ -476,35 +433,16 @@ public class MySQLConnection extends NioBackendConnection {
 		synAndDoExecute(null, rrn, this.charsetIndex, this.txIsolation, true);
 	}
 
-	public long getLastTime() {
-		return lastTime;
-	}
-
-	public void setLastTime(long lastTime) {
-		this.lastTime = lastTime;
-	}
-
 	public void quit() {
-		if (isQuit.compareAndSet(false, true) && !isClosed()) {
-			if (isAuthenticated) {
-				write(writeToBuffer(QuitPacket.QUIT, allocate()));
-				write(allocate());
-			} else {
-				close("normal");
-			}
+		if (isClosedOrQuit()) {
+			return;
 		}
-	}
 
-	@Override
-	public void close(String reason) {
-		if (!isClosed.get()) {
-			isQuit.set(true);
-			super.close(reason);
-			pool.connectionClosed(this);
-			if (this.respHandler != null) {
-				this.respHandler.connectionClose(this, reason);
-				respHandler = null;
-			}
+		if (this.isAuthenticated) {
+			write(writeToBuffer(QuitPacket.QUIT, allocate()));
+			write(allocate());
+		} else {
+			close("normal");
 		}
 	}
 
@@ -555,13 +493,15 @@ public class MySQLConnection extends NioBackendConnection {
 		this.statusSync = null;
 		this.modifiedSQLExecuted = false;
 		setResponseHandler(null);
-		this.pool.releaseChannel(this);
+		getPool().releaseChannel(this);
 	}
 
+	@Override
 	public boolean setResponseHandler(ResponseHandler queryHandler) {
-		if (handler instanceof MySQLConnectionHandler) {
-			((MySQLConnectionHandler) handler).setResponseHandler(queryHandler);
-			respHandler = queryHandler;
+		if (this.handler instanceof MySQLConnectionHandler) {
+			MySQLConnectionHandler ch = (MySQLConnectionHandler)this.handler;
+			ch.setResponseHandler(queryHandler);
+			this.respHandler = queryHandler;
 			return true;
 		} else if (queryHandler != null) {
 			log.warn("set not MySQLConnectionHandler '{}'",
@@ -584,14 +524,6 @@ public class MySQLConnection extends NioBackendConnection {
 		}
 	}
 
-	/**
-	 * 记录sql执行信息
-	 */
-	@Override
-	public void recordSql(String host, String schema, String stmt) {
-
-	}
-
 	private static byte[] passwd(String pass, HandshakePacket hs)
 			throws NoSuchAlgorithmException {
 		if (pass == null || pass.length() == 0) {
@@ -607,22 +539,6 @@ public class MySQLConnection extends NioBackendConnection {
 	}
 
 	@Override
-	public boolean isFromSlaveDB() {
-		return fromSlaveDB;
-	}
-
-	@Override
-	public boolean isBorrowed() {
-		return borrowed;
-	}
-
-	@Override
-	public void setBorrowed(boolean borrowed) {
-		this.lastTime = TimeUtil.currentTimeMillis();
-		this.borrowed = borrowed;
-	}
-
-	@Override
 	public String toString() {
 		return "MySQLConnection [id=" + id + ", lastTime=" + lastTime
 				+ ", user=" + user
@@ -634,16 +550,6 @@ public class MySQLConnection extends NioBackendConnection {
 				+ ", host=" + host + ", port=" + port + ", statusSync="
 				+ statusSync + ", writeQueue=" + this.getWriteQueue().size()
 				+ ", modifiedSQLExecuted=" + modifiedSQLExecuted + "]";
-	}
-
-	@Override
-	public boolean isModifiedSQLExecuted() {
-		return modifiedSQLExecuted;
-	}
-
-	@Override
-	public int getTxIsolation() {
-		return txIsolation;
 	}
 
 }

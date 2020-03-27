@@ -40,7 +40,8 @@ public class Offline {
     }
 
     public static void execute(String stmt, ManagerConnection c) {
-        MycatServer.getInstance().offline();
+        MycatServer server = MycatServer.getContextServer();
+        server.offline();
         ok.write(c);
     }
 

@@ -445,7 +445,8 @@ public class RouterUtil {
 	}
 
 	public static void processSQL(ServerConnection sc,SchemaConfig schema,String sql,int sqlType){
-		MycatServer.getInstance().getSequnceProcessor().addNewSql(new SessionSQLPair(sc.getSession(), schema, sql, sqlType));
+		MycatServer server = MycatServer.getContextServer();
+		server.getSequnceProcessor().addNewSql(new SessionSQLPair(sc.getSession(), schema, sql, sqlType));
 	}
 
 	public static boolean processInsert(SchemaConfig schema, int sqlType,
@@ -1187,7 +1188,8 @@ public class RouterUtil {
 				LOGGER.debug("find root parent's node sql " + findRootTBSql);
 			}
 
-			ListenableFuture<String> listenableFuture = MycatServer.getInstance().
+			MycatServer server = MycatServer.getContextServer();
+			ListenableFuture<String> listenableFuture = server.
 					getListeningExecutorService().submit(new Callable<String>() {
 				@Override
 				public String call() throws Exception {
@@ -1236,8 +1238,7 @@ public class RouterUtil {
 							" err:" + t.getMessage());
 					sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR, t.getMessage() + " " + s.toString());
 				}
-			}, MycatServer.getInstance().
-					getListeningExecutorService());
+			}, server.getListeningExecutorService());
 			return true;
 		}
 		return false;

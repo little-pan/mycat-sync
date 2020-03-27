@@ -44,7 +44,8 @@ public abstract class FrontendConnectionFactory {
 		channel.setOption(StandardSocketOptions.SO_KEEPALIVE, true);
 
 		FrontendConnection c = getConnection(channel);
-		MycatServer.getInstance().getConfig().setSocketParams(c, true);
+		MycatServer server = MycatServer.getContextServer();
+		server.getConfig().setSocketParams(c, true);
 		return c;
 	}
 
