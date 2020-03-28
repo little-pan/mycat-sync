@@ -13,7 +13,10 @@ import org.opencloudb.server.ServerConnection;
  *
  */
 public interface RouteStrategy {
-	public RouteResultset route(SystemConfig sysConfig,
-			SchemaConfig schema,int sqlType, String origSQL, String charset, ServerConnection sc, LayerCachePool cachePool)
+
+	RouteResultset route(SystemConfig sysConfig,
+			SchemaConfig schema,int sqlType, String originSQL,
+						 String charset, ServerConnection sc, LayerCachePool cachePool)
 			throws SQLNonTransientException;
+
 }

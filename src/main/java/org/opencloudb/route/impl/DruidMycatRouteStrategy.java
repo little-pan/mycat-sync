@@ -17,6 +17,7 @@ import org.opencloudb.server.parser.ServerParse;
 
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -29,7 +30,6 @@ public class DruidMycatRouteStrategy extends AbstractRouteStrategy {
 	public RouteResultset routeNormalSqlWithAST(SchemaConfig schema,
 			String stmt, RouteResultset rrs, String charset,
 			LayerCachePool cachePool) throws SQLNonTransientException {
-		
 		/**
 		 *  只有mysql时只支持mysql语法
 		 */
@@ -50,7 +50,7 @@ public class DruidMycatRouteStrategy extends AbstractRouteStrategy {
 			statement = parser.parseStatement();
             visitor = new MycatSchemaStatVisitor();
 		} catch (Exception t) {
-	        LOGGER.error("DruidMycatRouteStrategyError", t);
+	        LOGGER.error("DruidMycatRouteStrategy error", t);
 			throw new SQLSyntaxErrorException(t);
 		}
 
@@ -59,14 +59,13 @@ public class DruidMycatRouteStrategy extends AbstractRouteStrategy {
 		 */
 		checkUnSupportedStatement(statement);
 
-
 		DruidParser druidParser = DruidParserFactory.create(schema, statement, visitor);
 		druidParser.parser(schema, rrs, statement, stmt,cachePool,visitor);
 
 		/**
 		 * DruidParser 解析过程中已完成了路由的直接返回
 		 */
-		if ( rrs.isFinishedRoute() ) {
+		if (rrs.isFinishedRoute() ) {
 			return rrs;
 		}
 		
@@ -84,13 +83,11 @@ public class DruidMycatRouteStrategy extends AbstractRouteStrategy {
 			druidParser.getCtx().addRouteCalculateUnit(routeCalculateUnit);
 		}
 		
-		SortedSet<RouteResultsetNode> nodeSet = new TreeSet<RouteResultsetNode>();
+		SortedSet<RouteResultsetNode> nodeSet = new TreeSet<>();
 		for(RouteCalculateUnit unit: druidParser.getCtx().getRouteCalculateUnits()) {
 			RouteResultset rrsTmp = RouterUtil.tryRouteForTables(schema, druidParser.getCtx(), unit, rrs, isSelect(statement), cachePool);
 			if(rrsTmp != null) {
-				for(RouteResultsetNode node :rrsTmp.getNodes()) {
-					nodeSet.add(node);
-				}
+				nodeSet.addAll(Arrays.asList(rrsTmp.getNodes()));
 			}
 		}
 		

@@ -63,16 +63,16 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 	private final RouteResultsetNode node;
 	private final RouteResultset rrs;
 	private final ServerSession session;
-	// only one thread access at one time no need lock
-	private volatile byte packetId;
-	private volatile ByteBuffer buffer;
-	private volatile boolean isRunning;
+	// Single thread access at one time and synchronized, no need lock
+	private byte packetId;
+	private ByteBuffer buffer;
+	private boolean isRunning;
 	private Runnable terminateCallBack;
 	private long startTime;
 
-    private volatile boolean isDefaultNodeShowTable;
-    private volatile boolean isDefaultNodeShowFullTable;
-    private  Set<String> shardingTablesSet;
+    private boolean isDefaultNodeShowTable;
+    private boolean isDefaultNodeShowFullTable;
+    private Set<String> shardingTablesSet;
 	
 	public SingleNodeHandler(RouteResultset rrs, ServerSession session) {
 		this.rrs = rrs;
@@ -163,29 +163,13 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 		executeOn(conn);
 	}
 
-	private void executeOn(BackendConnection conn) {
-		if (this.session.closed()) {
-			endRunning();
-            this.session.clearResources(true);
-			return;
-		}
-
-		conn.setResponseHandler(this);
-		try {
-		    ServerConnection sc = this.session.getSource();
-			conn.execute(this.node, sc, sc.isAutocommit());
-		} catch (Exception e) {
-			executeException(conn, e);
-		}
-	}
-
-	private void executeException(BackendConnection c, Exception e) {
+	@Override
+	public void connectionClose(BackendConnection conn, String reason) {
 		ErrorPacket err = new ErrorPacket();
 		err.packetId = ++packetId;
-		err.errno = ErrorCode.ERR_FOUND_EXCEPION;
-		err.message = StringUtil.encode(e.toString(), session.getSource().getCharset());
-
-		this.backConnectionErr(err, c);
+		err.errno = ErrorCode.ER_ERROR_ON_CLOSE;
+		err.message = StringUtil.encode(reason, session.getSource().getCharset());
+		this.backConnectionErr(err, conn);
 	}
 
 	@Override
@@ -207,28 +191,11 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 		backConnectionErr(err, conn);
 	}
 
-	private void backConnectionErr(ErrorPacket errPkg, BackendConnection conn) {
-		endRunning();
-		
-		ServerConnection source = session.getSource();
-		String errUser = source.getUser();
-		String errHost = source.getHost();
-		int errPort = source.getLocalPort();
-		
-		String errmgs = " errno:" + errPkg.errno + " " + new String(errPkg.message);
-		log.warn("Execute sql error: '{}', frontend host: '{}:{}/{}', con: {}", errmgs, errHost, errPort, errUser, conn);
-		session.releaseConnectionIfSafe(conn, false);
-		
-		source.setTxInterrupt(errmgs);
-		errPkg.write(source);
-		recycleResources();
-	}
-
 	@Override
 	public void okResponse(byte[] data, BackendConnection conn) {        
 		boolean executeResponse = conn.syncAndExecute();
 		if (executeResponse) {			
-			session.releaseConnectionIfSafe(conn, false);
+			session.releaseConnectionIfSafe(conn);
 			endRunning();
 			ServerConnection source = session.getSource();
 			OkPacket ok = new OkPacket();
@@ -262,13 +229,109 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 		// 判断是调用存储过程的话不能在这里释放连接
 		if (!this.rrs.isCallStatement()) {
-            this.session.releaseConnectionIfSafe(conn, false);
+            this.session.releaseConnectionIfSafe(conn);
 			endRunning();
 		}
 
 		eof[3] = ++this.packetId;
 		this.buffer = source.writeToBuffer(eof, allocBuffer());
 		source.write(this.buffer);
+	}
+
+	@Override
+	public void fieldEofResponse(byte[] header, List<byte[]> fields,
+								 byte[] eof, BackendConnection conn) {
+
+		// add by zhuam
+		//查询结果派发
+		QueryResult queryResult = new QueryResult(session.getSource().getUser(),
+				rrs.getSqlType(), rrs.getStatement(), startTime, System.currentTimeMillis());
+		QueryResultDispatcher.dispatchQuery( queryResult );
+
+		header[3] = ++packetId;
+		ServerConnection source = session.getSource();
+		buffer = source.writeToBuffer(header, allocBuffer());
+		for (int i = 0, len = fields.size(); i < len; ++i)
+		{
+			byte[] field = fields.get(i);
+			field[3] = ++packetId;
+			buffer = source.writeToBuffer(field, buffer);
+		}
+		eof[3] = ++packetId;
+		buffer = source.writeToBuffer(eof, buffer);
+
+		if (isDefaultNodeShowTable) {
+			for (String name : shardingTablesSet) {
+				RowDataPacket row = new RowDataPacket(1);
+				row.add(StringUtil.encode(name.toLowerCase(), source.getCharset()));
+				row.packetId = ++packetId;
+				buffer = row.write(buffer, source, true);
+			}
+		}  else
+		if (isDefaultNodeShowFullTable) {
+			for (String name : shardingTablesSet) {
+				RowDataPacket row = new RowDataPacket(1);
+				row.add(StringUtil.encode(name.toLowerCase(), source.getCharset()));
+				row.add(StringUtil.encode("BASE TABLE", source.getCharset()));
+				row.packetId = ++packetId;
+				buffer = row.write(buffer, source, true);
+			}
+		}
+	}
+
+	@Override
+	public void rowResponse(byte[] row, BackendConnection conn) {
+		if(isDefaultNodeShowTable||isDefaultNodeShowFullTable) {
+			RowDataPacket rowDataPacket =new RowDataPacket(1);
+			rowDataPacket.read(row);
+			String table=  StringUtil.decode(rowDataPacket.fieldValues.get(0),conn.getCharset());
+			if(shardingTablesSet.contains(table.toUpperCase())) return;
+		}
+
+		row[3] = ++packetId;
+		buffer = session.getSource().writeToBuffer(row, allocBuffer());
+	}
+
+	private void executeOn(BackendConnection conn) {
+		if (this.session.closed()) {
+			endRunning();
+			this.session.clearResources();
+			return;
+		}
+
+		conn.setResponseHandler(this);
+		try {
+			ServerConnection sc = this.session.getSource();
+			conn.execute(this.node, sc, sc.isAutocommit());
+		} catch (Exception e) {
+			executeException(conn, e);
+		}
+	}
+
+	private void executeException(BackendConnection c, Exception e) {
+		ErrorPacket err = new ErrorPacket();
+		err.packetId = ++packetId;
+		err.errno = ErrorCode.ERR_FOUND_EXCEPION;
+		err.message = StringUtil.encode(e.toString(), session.getSource().getCharset());
+
+		this.backConnectionErr(err, c);
+	}
+
+	private void backConnectionErr(ErrorPacket errPkg, BackendConnection conn) {
+		endRunning();
+
+		ServerConnection source = session.getSource();
+		String errUser = source.getUser();
+		String errHost = source.getHost();
+		int errPort = source.getLocalPort();
+
+		String errmgs = " errno:" + errPkg.errno + " " + new String(errPkg.message);
+		log.warn("Execute sql error: '{}', frontend host: '{}:{}/{}', con: {}", errmgs, errHost, errPort, errUser, conn);
+		session.releaseConnectionIfSafe(conn);
+
+		source.setTxInterrupt(errmgs);
+		errPkg.write(source);
+		recycleResources();
 	}
 
 	/**
@@ -281,74 +344,6 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 			buffer = session.getSource().allocate();
 		}
 		return buffer;
-	}
-
-	@Override
-	public void fieldEofResponse(byte[] header, List<byte[]> fields,
-			byte[] eof, BackendConnection conn) {
-
-			//TODO: add by zhuam
-			//查询结果派发
-			QueryResult queryResult = new QueryResult(session.getSource().getUser(), 
-					rrs.getSqlType(), rrs.getStatement(), startTime, System.currentTimeMillis());
-			QueryResultDispatcher.dispatchQuery( queryResult );
-
-            header[3] = ++packetId;
-            ServerConnection source = session.getSource();
-            buffer = source.writeToBuffer(header, allocBuffer());
-            for (int i = 0, len = fields.size(); i < len; ++i)
-            {
-                byte[] field = fields.get(i);
-                field[3] = ++packetId;
-                buffer = source.writeToBuffer(field, buffer);
-            }
-            eof[3] = ++packetId;
-            buffer = source.writeToBuffer(eof, buffer);
-            
-			if (isDefaultNodeShowTable) {
-				for (String name : shardingTablesSet) {
-					RowDataPacket row = new RowDataPacket(1);
-					row.add(StringUtil.encode(name.toLowerCase(), source.getCharset()));
-					row.packetId = ++packetId;
-					buffer = row.write(buffer, source, true);
-				}
-			}  else
-            if (isDefaultNodeShowFullTable) {
-                for (String name : shardingTablesSet) {
-                    RowDataPacket row = new RowDataPacket(1);
-                    row.add(StringUtil.encode(name.toLowerCase(), source.getCharset()));
-                    row.add(StringUtil.encode("BASE TABLE", source.getCharset()));
-                    row.packetId = ++packetId;
-                    buffer = row.write(buffer, source, true);
-                }
-            }
-	}
-
-	@Override
-	public void rowResponse(byte[] row, BackendConnection conn) {
-        if(isDefaultNodeShowTable||isDefaultNodeShowFullTable) {
-            RowDataPacket rowDataPacket =new RowDataPacket(1);
-            rowDataPacket.read(row);
-            String table=  StringUtil.decode(rowDataPacket.fieldValues.get(0),conn.getCharset());
-            if(shardingTablesSet.contains(table.toUpperCase())) return;
-        }
-
-        row[3] = ++packetId;
-        buffer = session.getSource().writeToBuffer(row, allocBuffer());
-	}
-
-	@Override
-	public void writeQueueAvailable() {
-
-	}
-
-	@Override
-	public void connectionClose(BackendConnection conn, String reason) {
-		ErrorPacket err = new ErrorPacket();
-		err.packetId = ++packetId;
-		err.errno = ErrorCode.ER_ERROR_ON_CLOSE;
-		err.message = StringUtil.encode(reason, session.getSource().getCharset());
-		this.backConnectionErr(err, conn);
 	}
 
 	public void clearResources() {

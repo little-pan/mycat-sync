@@ -51,12 +51,12 @@ public class ShowBackend {
 	private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
 	private static final FieldPacket[] fields = new FieldPacket[FIELD_COUNT];
 	private static final EOFPacket eof = new EOFPacket();
+
 	static {
 		int i = 0;
 		byte packetId = 0;
 		header.packetId = ++packetId;
-		fields[i] = PacketUtil.getField("processor",
-				Fields.FIELD_TYPE_VAR_STRING);
+		fields[i] = PacketUtil.getField("processor", Fields.FIELD_TYPE_VAR_STRING);
 		fields[i++].packetId = ++packetId;
 		fields[i] = PacketUtil.getField("id", Fields.FIELD_TYPE_LONG);
 		fields[i++].packetId = ++packetId;
@@ -76,24 +76,18 @@ public class ShowBackend {
 		fields[i++].packetId = ++packetId;
 		fields[i] = PacketUtil.getField("closed", Fields.FIELD_TYPE_VAR_STRING);
 		fields[i++].packetId = ++packetId;
-		// fields[i] = PacketUtil.getField("run", Fields.FIELD_TYPE_VAR_STRING);
-		// fields[i++].packetId = ++packetId;
-		fields[i] = PacketUtil.getField("borrowed",
-				Fields.FIELD_TYPE_VAR_STRING);
+		fields[i] = PacketUtil.getField("borrowed", Fields.FIELD_TYPE_VAR_STRING);
 		fields[i++].packetId = ++packetId;
 		fields[i] = PacketUtil.getField("SEND_QUEUE", Fields.FIELD_TYPE_LONG);
 		fields[i++].packetId = ++packetId;
 		fields[i] = PacketUtil.getField("schema", Fields.FIELD_TYPE_VAR_STRING);
 		fields[i++].packetId = ++packetId;
-		fields[i] = PacketUtil
-				.getField("charset", Fields.FIELD_TYPE_VAR_STRING);
+		fields[i] = PacketUtil.getField("charset", Fields.FIELD_TYPE_VAR_STRING);
 		fields[i++].packetId = ++packetId;
-		fields[i] = PacketUtil
-				.getField("txlevel", Fields.FIELD_TYPE_VAR_STRING);
+		fields[i] = PacketUtil.getField("txlevel", Fields.FIELD_TYPE_VAR_STRING);
 		fields[i++].packetId = ++packetId;
-		fields[i] = PacketUtil.getField("autocommit",
-				Fields.FIELD_TYPE_VAR_STRING);
-		fields[i++].packetId = ++packetId;
+		fields[i] = PacketUtil.getField("autocommit", Fields.FIELD_TYPE_VAR_STRING);
+		fields[i].packetId = ++packetId;
 		eof.packetId = ++packetId;
 	}
 
@@ -108,7 +102,7 @@ public class ShowBackend {
 		String charset = c.getCharset();
 		MycatServer server = MycatServer.getContextServer();
 		ConnectionManager connectionManager = server.getConnectionManager();
-		for (BackendConnection bc : connectionManager.getBackends().values()) {
+		for (BackendConnection bc: connectionManager.getBackends().values()) {
 			if (bc != null) {
 				RowDataPacket row = getRow(bc, charset);
 				row.packetId = ++packetId;
@@ -122,32 +116,33 @@ public class ShowBackend {
 	}
 
 	private static RowDataPacket getRow(BackendConnection c, String charset) {
+		long threadId = 0;
+		int writeQueueSize = 0;
+
 		RowDataPacket row = new RowDataPacket(FIELD_COUNT);
 		row.add(c.getManager().getName().getBytes());
 		row.add(LongUtil.toBytes(c.getId()));
-		long threadId = 0;
+
 		row.add(LongUtil.toBytes(threadId));
 		row.add(StringUtil.encode(c.getHost(), charset));
 		row.add(IntegerUtil.toBytes(c.getPort()));
 		row.add(IntegerUtil.toBytes(c.getLocalPort()));
 		row.add(LongUtil.toBytes(c.getNetInBytes()));
 		row.add(LongUtil.toBytes(c.getNetOutBytes()));
-		row.add(LongUtil.toBytes((TimeUtil.currentTimeMillis() - c
-				.getStartupTime()) / 1000L));
+		row.add(LongUtil.toBytes((TimeUtil.currentTimeMillis() - c.getStartupTime()) / 1000L));
 		row.add(c.isClosed() ? "true".getBytes() : "false".getBytes());
-		boolean isBorrowed = c.isBorrowed();
-		row.add(isBorrowed ? "true".getBytes() : "false".getBytes());
-		int writeQueueSize = 0;
+		row.add(c.isBorrowed() ? "true".getBytes() : "false".getBytes());
+
 		String schema = "";
 		String charsetInf = "";
 		String txLevel = "";
-		String txAutommit = "";
+		String txAutoCommit = "";
 
 		row.add(IntegerUtil.toBytes(writeQueueSize));
 		row.add(schema.getBytes());
 		row.add(charsetInf.getBytes());
 		row.add(txLevel.getBytes());
-		row.add(txAutommit.getBytes());
+		row.add(txAutoCommit.getBytes());
 
 		return row;
 	}

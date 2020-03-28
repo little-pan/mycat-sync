@@ -24,12 +24,7 @@
 package org.opencloudb.response;
 
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.locks.ReentrantLock;
-
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.locks.Lock;
 
 import org.opencloudb.ConfigInitializer;
 import org.opencloudb.MycatCluster;
@@ -41,6 +36,7 @@ import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.model.QuarantineConfig;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.UserConfig;
+import org.opencloudb.config.util.ConfigException;
 import org.opencloudb.config.util.DnPropertyUtil;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.net.mysql.OkPacket;
@@ -55,19 +51,27 @@ public final class ReloadConfig {
 
 	public static void execute(ManagerConnection c, final boolean loadAll) {
 		MycatServer server = MycatServer.getContextServer();
-		final ReentrantLock lock = server.getConfig().getLock();
-		lock.lock();
+		final Lock lock = server.getConfig().getLock();
+		if (!lock.tryLock()) {
+			c.writeErrMessage(ErrorCode.ER_YES, "Reload config pending");
+			return;
+		}
 		try {
-			ListenableFuture<Boolean> listenableFuture = server.getListeningExecutorService()
-					.submit(new Callable<Boolean>() {
-						@Override
-						public Boolean call() throws Exception
-						{
-
-							return loadAll? reload_all(): reload();
-						}
-					});
-			Futures.addCallback(listenableFuture, new ReloadCallBack(c), server.getListeningExecutorService());
+			// Note: reload not a frequent operation so that here
+			// synchronous execution not a big issue
+			if (loadAll ? reload_all() : reload()) {
+				log.warn("send ok package to client {}", c);
+				OkPacket ok = new OkPacket();
+				ok.packetId = 1;
+				ok.affectedRows = 1;
+				ok.serverStatus = 2;
+				ok.message = "Reload config success".getBytes();
+				ok.write(c);
+			} else {
+				c.writeErrMessage(ErrorCode.ER_YES, "Reload config failure");
+			}
+		} catch (ConfigException cause) {
+			c.writeErrMessage(ErrorCode.ER_YES, "Reload config failure: " + cause);
 		} finally {
 			lock.unlock();
 		}
@@ -93,8 +97,7 @@ public final class ReloadConfig {
 		for (PhysicalDBPool dn : dataHosts.values()) {
 			dn.setSchemas(server.getConfig().getDataNodeSchemasOfDataHost(dn.getHostName()));
 			// init dataHost
-			String index = DnPropertyUtil.loadDnIndexProps().getProperty(dn.getHostName(),
-					"0");
+			String index = DnPropertyUtil.loadDnIndexProps().getProperty(dn.getHostName(), "0");
 			if (!"0".equals(index)) {
 				log.info("init dataHost: {} to use dataSource index: {}", dn.getHostName(), index);
 			}
@@ -120,7 +123,7 @@ public final class ReloadConfig {
 
 		// 处理旧的资源
 		for (PhysicalDBPool dn : cNodes.values()) {
-			dn.clearDataSources("reload config clear old datasources");
+			dn.clearDataSources("reload config clear old dataSources");
 			dn.stopHeartbeat();
 		}
 
@@ -146,40 +149,9 @@ public final class ReloadConfig {
         // 应用重载
         conf.reload(users, schemas, dataNodes, dataHosts, cluster, quarantine,false);
 
-
         //清理缓存
         server.getCacheService().clearCache();
         return true;
     }
-	/**
-	 * 异步执行回调类，用于回写数据给用户等。
-	 */
-	private static class ReloadCallBack implements FutureCallback<Boolean> {
 
-		private ManagerConnection mc;
-
-		private ReloadCallBack(ManagerConnection c) {
-			this.mc = c;
-		}
-
-		@Override
-		public void onSuccess(Boolean result) {
-			if (result) {
-				log.warn("send ok package to client {}", mc);
-				OkPacket ok = new OkPacket();
-				ok.packetId = 1;
-				ok.affectedRows = 1;
-				ok.serverStatus = 2;
-				ok.message = "Reload config success".getBytes();
-				ok.write(mc);
-			} else {
-				mc.writeErrMessage(ErrorCode.ER_YES, "Reload config failure");
-			}
-		}
-
-		@Override
-		public void onFailure(Throwable t) {
-			mc.writeErrMessage(ErrorCode.ER_YES, "Reload config failure");
-		}
-	}
 }

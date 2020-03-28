@@ -33,6 +33,7 @@ import org.opencloudb.util.TimeUtil;
  * @author mycat
  */
 public class ManagerConnection extends FrontendConnection {
+
 	private static final long AUTH_TIMEOUT = 15 * 1000L;
 
 	public ManagerConnection(SocketChannel channel) throws IOException {
@@ -44,8 +45,8 @@ public class ManagerConnection extends FrontendConnection {
 		if (isAuthenticated) {
 			return super.isIdleTimeout();
 		} else {
-			return TimeUtil.currentTimeMillis() > Math.max(lastWriteTime,
-					lastReadTime) + AUTH_TIMEOUT;
+			long expireTime = Math.max(lastWriteTime, lastReadTime) + AUTH_TIMEOUT;
+			return TimeUtil.currentTimeMillis() > expireTime;
 		}
 	}
 

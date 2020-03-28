@@ -26,7 +26,6 @@ package org.opencloudb.net;
 import org.opencloudb.MycatServer;
 import org.opencloudb.buffer.BufferPool;
 import org.opencloudb.statistic.CommandCount;
-import org.opencloudb.util.NameableExecutor;
 import org.opencloudb.util.TimeUtil;
 import org.slf4j.*;
 
@@ -47,7 +46,6 @@ public class ConnectionManager {
 
     protected final String name;
     protected final BufferPool bufferPool;
-    protected final NameableExecutor executor;
 
     protected final ConcurrentMap<Long, FrontendConnection> frontends;
     protected final ConcurrentMap<Long, BackendConnection> backends;
@@ -58,10 +56,9 @@ public class ConnectionManager {
     protected long netInBytes;
     protected long netOutBytes;
 
-    public ConnectionManager(String name, BufferPool bufferPool, NameableExecutor executor) {
+    public ConnectionManager(String name, BufferPool bufferPool) {
         this.name = name;
         this.bufferPool = bufferPool;
-        this.executor = executor;
 
         this.frontends = new ConcurrentHashMap<>();
         this.backends = new ConcurrentHashMap<>();
@@ -87,10 +84,6 @@ public class ConnectionManager {
         }
 
         return size;
-    }
-
-    public NameableExecutor getExecutor() {
-        return this.executor;
     }
 
     public CommandCount getCommands() {

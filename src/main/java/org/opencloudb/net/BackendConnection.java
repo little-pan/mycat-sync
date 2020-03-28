@@ -85,6 +85,47 @@ public abstract class BackendConnection extends AbstractConnection implements Cl
 		this.isFinishConnect = true;
 	}
 
+	public abstract void quit();
+
+	public abstract void query(String sql) throws UnsupportedOperationException;
+
+	public abstract boolean syncAndExecute();
+
+	public abstract void execute(RouteResultsetNode node, ServerConnection source, boolean autocommit);
+
+	public abstract void commit() throws BackendException;
+
+	public abstract void rollback() throws BackendException;
+
+	public void recordSql(String host, String schema, String statement) {
+
+	}
+
+	public void release() {
+		// Deregister from current processor, so that this connection can run
+		// in other processor synchronously at next time
+		if (this.processor != NioProcessor.ensureRunInProcessor()) {
+			throw new IllegalStateException("Fatal: release the connection in another processor or thread");
+		}
+		this.processor = null;
+		this.processKey.attach(null);
+		this.processKey.cancel();
+		this.processKey = null;
+	}
+
+	@Override
+	protected void doClose(String reason) {
+		if (!isClosed()) {
+			super.doClose(reason);
+			this.isQuit = true;
+			this.pool.connectionClosed(this);
+			if (this.respHandler != null) {
+				this.respHandler.connectionClose(this, reason);
+				this.respHandler = null;
+			}
+		}
+	}
+
 	public PhysicalDataSource getPool() {
 		return pool;
 	}
@@ -125,8 +166,6 @@ public abstract class BackendConnection extends AbstractConnection implements Cl
 		this.attachment = attachment;
 	}
 
-	public abstract void quit();
-
 	public boolean setResponseHandler(ResponseHandler responseHandler) {
 		this.respHandler = responseHandler;
 		return true;
@@ -134,20 +173,6 @@ public abstract class BackendConnection extends AbstractConnection implements Cl
 
 	public ResponseHandler getResponseHandler() {
 		return this.respHandler;
-	}
-
-	public abstract void query(String sql) throws UnsupportedOperationException;
-
-	public abstract boolean syncAndExecute();
-
-	public abstract void execute(RouteResultsetNode node, ServerConnection source, boolean autocommit);
-
-	public abstract void commit() throws BackendException;
-
-	public abstract void rollback() throws BackendException;
-
-	public void recordSql(String host, String schema, String statement) {
-
 	}
 
 	public boolean isBorrowed() {
@@ -165,28 +190,6 @@ public abstract class BackendConnection extends AbstractConnection implements Cl
 
 	public boolean isAutocommit() {
 		return this.autocommit;
-	}
-
-	public void release() {
-		// Deregister from current processor, so that this connection can run
-		// in other processor synchronously at next time
-		NioProcessor.ensureRunInProcessor();
-		this.processKey.attach(null);
-		this.processKey.cancel();
-		this.processKey = null;
-	}
-
-	@Override
-	public void close(String reason) {
-		if (!this.isClosed.get()) {
-			this.isQuit = true;
-			super.close(reason);
-			this.pool.connectionClosed(this);
-			if (this.respHandler != null) {
-				this.respHandler.connectionClose(this, reason);
-				this.respHandler = null;
-			}
-		}
 	}
 
 	@Override

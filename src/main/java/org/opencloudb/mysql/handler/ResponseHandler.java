@@ -29,7 +29,6 @@ import org.opencloudb.net.BackendConnection;
 
 /**
  * @author mycat
- * @author mycat
  */
 public interface ResponseHandler {
 
@@ -73,13 +72,8 @@ public interface ResponseHandler {
 	void rowEofResponse(byte[] eof, BackendConnection conn);
 
 	/**
-	 * 写队列为空，可以写数据了
-	 * 
-	 */
-	void writeQueueAvailable();
-
-	/**
-	 * on connection close event
+	 * Handle the connection close event when backend connection closed.
+	 * Note: it can be called by timer executor.
 	 */
 	void connectionClose(BackendConnection conn, String reason);
 

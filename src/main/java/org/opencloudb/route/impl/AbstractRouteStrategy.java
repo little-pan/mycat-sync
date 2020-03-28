@@ -20,14 +20,16 @@ public abstract class AbstractRouteStrategy implements RouteStrategy {
 	private static final Logger LOGGER = Logger.getLogger(AbstractRouteStrategy.class);
 
 	@Override
-	public RouteResultset route(SystemConfig sysConfig, SchemaConfig schema, int sqlType, String origSQL,
-			String charset, ServerConnection sc, LayerCachePool cachePool) throws SQLNonTransientException {
+	public RouteResultset route(SystemConfig sysConfig, SchemaConfig schema,
+								int sqlType, String origSQL, String charset, ServerConnection sc,
+								LayerCachePool cachePool) throws SQLNonTransientException {
 
 		/**
 		 * 处理一些路由之前的逻辑
 		 */
-		if ( beforeRouteProcess(schema, sqlType, origSQL, sc) )
+		if (beforeRouteProcess(schema, sqlType, origSQL, sc)) {
 			return null;
+		}
 
 		/**
 		 * SQL 语句拦截
@@ -43,7 +45,6 @@ public abstract class AbstractRouteStrategy implements RouteStrategy {
 		}
 
 		RouteResultset rrs = new RouteResultset(stmt, sqlType);
-
 		/**
 		 * 优化debug loaddata输出cache的日志会极大降低性能
 		 */
@@ -82,7 +83,7 @@ public abstract class AbstractRouteStrategy implements RouteStrategy {
 	}
 
 	/**
-	 * 路由之前必要的处理
+	 * 路由之前必要的处理： 如果已处理，返回true，否则返回false，需继续处理
 	 */
 	private boolean beforeRouteProcess(SchemaConfig schema, int sqlType, String origSQL, ServerConnection sc)
 			throws SQLNonTransientException {

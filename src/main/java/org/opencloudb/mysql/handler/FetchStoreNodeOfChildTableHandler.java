@@ -23,12 +23,8 @@
  */
 package org.opencloudb.mysql.handler;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
 import org.opencloudb.net.BackendConnection;
@@ -38,82 +34,86 @@ import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.parser.ServerParse;
+import org.opencloudb.util.Callback;
+import org.slf4j.*;
 
 /**
- * company where id=(select company_id from customer where id=3); the one which
+ * "from company where id=(select company_id from customer where id=3);" the one which
  * return data (id) is the datanode to store child table's records
  * 
  * @author wuzhih
  * 
  */
-public class FetchStoreNodeOfChildTableHandler implements ResponseHandler {
-	private static final Logger LOGGER = Logger
-			.getLogger(FetchStoreNodeOfChildTableHandler.class);
-	private String sql;
-	private volatile String result;
-	private volatile String dataNode;
-	private AtomicInteger finished = new AtomicInteger(0);
-	protected final ReentrantLock lock = new ReentrantLock();
+public class FetchStoreNodeOfChildTableHandler extends AbstractResponseHandler {
 
-	public String execute(String schema, String sql, ArrayList<String> dataNodes) {
-		String key = schema + ":" + sql;
-		MycatServer server = MycatServer.getContextServer();
-		CachePool cache = server.getCacheService().getCachePool("ER_SQL2PARENTID");
-		String result = (String) cache.get(key);
-		if (result != null) {
-			return result;
+	private static final Logger log = LoggerFactory.getLogger(FetchStoreNodeOfChildTableHandler.class);
+
+	private final Callback<String> callback;
+	private CachePool cache;
+	private MycatServer server;
+
+	private String sql;
+	private String cacheKey;
+	private List<String> dataNodes;
+	private int curNodeIndex;
+	private String result;
+	private Throwable cause;
+	private String dataNode;
+
+	public FetchStoreNodeOfChildTableHandler(Callback<String> callback) {
+		if (callback == null) {
+			throw new NullPointerException("callback is null");
+		}
+
+		this.callback = callback;
+	}
+
+	public void execute(String schema, String sql, List<String> dataNodes) {
+		this.cacheKey = schema + ":" + sql;
+		this.server = MycatServer.getContextServer();
+		this.cache = this.server.getCacheService().getCachePool("ER_SQL2PARENTID");
+		String dn = (String)this.cache.get(this.cacheKey);
+		if (dn != null) {
+			this.callback.call(dn, null);
+			return;
 		}
 		this.sql = sql;
-		int totalCount = dataNodes.size();
-		long startTime = System.currentTimeMillis();
-		long endTime = startTime + 5 * 60 * 1000L;
-		MycatConfig conf = server.getConfig();
+		this.dataNodes = dataNodes;
+		this.curNodeIndex = 0;
+		log.debug("Find child node with sql '{}'", this.sql);
+		fetch();
+	}
 
-		LOGGER.debug("find child node with sql:" + sql);
-		for (String dn : dataNodes) {
-			if (dataNode != null) {
-				return dataNode;
-			}
-			PhysicalDBNode mysqlDN = conf.getDataNodes().get(dn);
-			try {
-				if (LOGGER.isDebugEnabled()) {
-					LOGGER.debug("execute in datanode " + dn);
-				}
-				mysqlDN.getConnection(mysqlDN.getDatabase(), true,
-						new RouteResultsetNode(dn, ServerParse.SELECT, sql),
-						this, dn);
-			} catch (Exception e) {
-				LOGGER.warn("get connection err " + e);
-			}
-			try {
-				Thread.sleep(200);
-			} catch (InterruptedException e) {
+	protected void fetch() {
+		boolean ok = this.dataNode != null;
 
+		if (ok || this.curNodeIndex >= this.dataNodes.size()) {
+			if (ok) {
+				this.cache.putIfAbsent(this.cacheKey, dataNode);
 			}
+			this.callback.call(this.dataNode, this.cause);
+			return;
 		}
 
-		while (dataNode == null && System.currentTimeMillis() < endTime) {
-			try {
-				Thread.sleep(50);
-			} catch (InterruptedException e) {
-				break;
-			}
-			if (dataNode != null || finished.get() >= totalCount) {
-				break;
-			}
+		MycatConfig conf = this.server.getConfig();
+		String dn = this.dataNodes.get(this.curNodeIndex++);
+		PhysicalDBNode mysqlDN = conf.getDataNodes().get(dn);
+		try {
+			log.debug("execute in datanode '{}'", dn);
+			mysqlDN.getConnection(mysqlDN.getDatabase(), true,
+					new RouteResultsetNode(dn, ServerParse.SELECT, this.sql),
+					this, dn);
+		} catch (Throwable cause) {
+			this.cause = cause;
+			fetch();
 		}
-		if (dataNode != null) {
-			cache.putIfAbsent(key, dataNode);
-		}
-		return dataNode;
-
 	}
 
 	@Override
 	public void connectionAcquired(BackendConnection conn) {
-		conn.setResponseHandler(this);
 		try {
-			conn.query(sql);
+			conn.setResponseHandler(this);
+			conn.query(this.sql);
 		} catch (Exception e) {
 			executeException(conn, e);
 		}
@@ -121,46 +121,53 @@ public class FetchStoreNodeOfChildTableHandler implements ResponseHandler {
 
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
-		finished.incrementAndGet();
-		LOGGER.warn("connectionError " + e);
-
+		try {
+			if (conn != null) conn.close("connectionError " + e);
+			log.warn("connection failed", e);
+		} finally {
+			fetch();
+		}
 	}
 
 	@Override
 	public void errorResponse(byte[] data, BackendConnection conn) {
-		finished.incrementAndGet();
-		ErrorPacket err = new ErrorPacket();
-		err.read(data);
-		LOGGER.warn("errorResponse " + err.errno + " "
-				+ new String(err.message));
-		conn.release();
-
+		try {
+			try {
+				ErrorPacket err = new ErrorPacket();
+				err.read(data);
+				log.warn("errorResponse: errno {}, errmsg {} ", err.errno, new String(err.message));
+			} finally {
+				conn.release();
+			}
+		} finally {
+			fetch();
+		}
 	}
 
 	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
 		boolean executeResponse = conn.syncAndExecute();
-		if (executeResponse) {
-			finished.incrementAndGet();
-			conn.release();
+		try {
+			if (executeResponse) {
+				conn.release();
+			}
+		} finally {
+			fetch();
 		}
-
 	}
 
 	@Override
 	public void rowResponse(byte[] row, BackendConnection conn) {
-		if (LOGGER.isDebugEnabled()) {
-			LOGGER.debug("received rowResponse response," + getColumn(row)
-					+ " from  " + conn);
-		}
-		if (result == null) {
-			result = getColumn(row);
-			dataNode = (String) conn.getAttachment();
-		} else {
-			LOGGER.warn("find multi data nodes for child table store, sql is:  "
-					+ sql);
-		}
+		String res = getColumn(row);
+		log.debug("received rowResponse: response {} from backend {} ", res, conn);
 
+		if (this.result == null) {
+			this.result = res;
+			this.dataNode = (String) conn.getAttachment();
+		} else {
+			log.warn("Find multi data nodes for child table store, sql is '{}'", this.sql);
+		}
+		// next row-eof/error response
 	}
 
 	private String getColumn(byte[] row) {
@@ -172,32 +179,32 @@ public class FetchStoreNodeOfChildTableHandler implements ResponseHandler {
 
 	@Override
 	public void rowEofResponse(byte[] eof, BackendConnection conn) {
-		finished.incrementAndGet();
-		conn.release();
+		try {
+			fetch();
+		} finally {
+			conn.release();
+		}
 	}
 
 	private void executeException(BackendConnection c, Throwable e) {
-		finished.incrementAndGet();
-		LOGGER.warn("executeException   " + e);
-		c.close("exception:" + e);
-
-	}
-
-	@Override
-	public void writeQueueAvailable() {
-
+		try {
+			this.cause = e;
+			log.debug("Fetching store node failed", e);
+			c.close("Fetching store node failed: " + e);
+		} finally {
+			fetch();
+		}
 	}
 
 	@Override
 	public void connectionClose(BackendConnection conn, String reason) {
-
-		LOGGER.warn("connection closed " + conn + " reason:" + reason);
+		log.debug("Connection closed, reason '{}' in backend {}", reason, conn);
 	}
 
 	@Override
 	public void fieldEofResponse(byte[] header, List<byte[]> fields,
 			byte[] eof, BackendConnection conn) {
-
+		// Ignore
 	}
 
 }

@@ -40,7 +40,7 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 	private final String srcStatement;
 	private final int sqlType;
 	private volatile boolean canRunInReadDB;
-	private final boolean hasBlanceFlag;
+	private final boolean hasBalanceFlag;
 
 	private int limitStart;
 	private int limitSize;
@@ -56,7 +56,7 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 		this.srcStatement = srcStatement;
 		this.statement = srcStatement;
 		this.canRunInReadDB = (sqlType == ServerParse.SELECT || sqlType == ServerParse.SHOW);
-		this.hasBlanceFlag = (this.statement != null) && this.statement.startsWith("/*balance*/");
+		this.hasBalanceFlag = (this.statement != null) && this.statement.startsWith("/*balance*/");
 	}
 
 	public void setStatement(String statement) {
@@ -80,8 +80,8 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 			return false;
 		}
 
-		return (autocommit && !this.hasBlanceFlag
-			|| !autocommit && this.hasBlanceFlag);
+		return (autocommit && !this.hasBalanceFlag
+			|| !autocommit && this.hasBalanceFlag);
 	}
 
 	public String getName() {
@@ -186,4 +186,5 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 		}
 		return this.name.compareTo(obj.name);
 	}
+
 }

@@ -33,13 +33,12 @@ import com.alibaba.druid.sql.ast.statement.SQLSelectStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.expr.MySqlSelectGroupByExpr;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlSelectQueryBlock;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlSelectQueryBlock.Limit;
-import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlUnionQuery;
 import com.alibaba.druid.util.JdbcConstants;
 import com.alibaba.druid.wall.spi.WallVisitorUtils;
 
 public class DruidSelectParser extends DefaultDruidParser {
 
-    protected boolean isNeedParseOrderAgg=true;
+    protected boolean isNeedParseOrderAgg = true;
 
     @Override
 	public void statementParse(SchemaConfig schema, RouteResultset rrs, SQLStatement stmt) {
@@ -50,22 +49,15 @@ public class DruidSelectParser extends DefaultDruidParser {
 
 				 parseOrderAggGroupMysql(schema, stmt,rrs, mysqlSelectQuery);
 				 //更改canRunInReadDB属性
-				 if ((mysqlSelectQuery.isForUpdate() || mysqlSelectQuery.isLockInShareMode()) && rrs.isAutocommit() == false)
-				 {
+				 if ((mysqlSelectQuery.isForUpdate() || mysqlSelectQuery.isLockInShareMode()) && !rrs.isAutocommit()) {
 					 rrs.setCanRunInReadDB(false);
 				 }
 
-		} else if (sqlSelectQuery instanceof MySqlUnionQuery) { 
-//			MySqlUnionQuery unionQuery = (MySqlUnionQuery)sqlSelectQuery;
-//			MySqlSelectQueryBlock left = (MySqlSelectQueryBlock)unionQuery.getLeft();
-//			MySqlSelectQueryBlock right = (MySqlSelectQueryBlock)unionQuery.getLeft();
-//			System.out.println();
 		}
 	}
-	protected void parseOrderAggGroupMysql(SchemaConfig schema, SQLStatement stmt, RouteResultset rrs, MySqlSelectQueryBlock mysqlSelectQuery)
-	{
-        if(!isNeedParseOrderAgg)
-        {
+	protected void parseOrderAggGroupMysql(SchemaConfig schema, SQLStatement stmt,
+										   RouteResultset rrs, MySqlSelectQueryBlock mysqlSelectQuery) {
+        if(!isNeedParseOrderAgg) {
             return;
         }
 		Map<String, String> aliaColumns = parseAggGroupCommon(schema, stmt, rrs, mysqlSelectQuery);
@@ -181,10 +173,10 @@ public class DruidSelectParser extends DefaultDruidParser {
 		}
 
 
-        if (isNeedChangeSql)
-        {
+        if (isNeedChangeSql) {
             String sql = stmt.toString();
-            rrs.changeNodeSqlAfterAddLimit(schema,getCurentDbType(),sql,0,-1, false);
+            String dbType = getCurrentDbType();
+            rrs.changeNodeSqlAfterAddLimit(schema, dbType, sql,0,-1, false);
             getCtx().setSql(sql);
         }
 		return aliaColumns;
@@ -280,7 +272,8 @@ public class DruidSelectParser extends DefaultDruidParser {
 				mysqlSelectQuery.setLimit(limit);
 				rrs.setLimitSize(limitSize);
 			    String sql= getSql(rrs, stmt, isNeedAddLimit);
-				rrs.changeNodeSqlAfterAddLimit(schema, getCurentDbType(), sql, 0, limitSize, true);
+			    String dbType = getCurrentDbType();
+				rrs.changeNodeSqlAfterAddLimit(schema, dbType, sql, 0, limitSize, true);
 
 			}
 			Limit limit = mysqlSelectQuery.getLimit();
@@ -310,29 +303,23 @@ public class DruidSelectParser extends DefaultDruidParser {
 							
 						}
 					}
-					
 					mysqlSelectQuery.setLimit(changedLimit);
 
                     String sql= getSql(rrs, stmt, isNeedAddLimit);
-					rrs.changeNodeSqlAfterAddLimit(schema,getCurentDbType(),sql,0, limitStart + limitSize, true);
-
+					String dbType = getCurrentDbType();
+					rrs.changeNodeSqlAfterAddLimit(schema, dbType, sql,
+							0, limitStart + limitSize, true);
 					//设置改写后的sql
 					ctx.setSql(sql);
-
-				}   else
-				{
-
-                        rrs.changeNodeSqlAfterAddLimit(schema,getCurentDbType(),getCtx().getSql(),rrs.getLimitStart(), rrs.getLimitSize(), true);
-					//	ctx.setSql(nativeSql);
-
+				} else {
+					String dbType = getCurrentDbType();
+					rrs.changeNodeSqlAfterAddLimit(schema, dbType, getCtx().getSql(),
+							rrs.getLimitStart(), rrs.getLimitSize(), true);
 				}
-				
-
 			}
 			
 			rrs.setCacheAble(isNeedCache(schema, rrs, mysqlSelectQuery, allConditions));
 		}
-		
 	}
 	
 	/**
@@ -350,28 +337,26 @@ public class DruidSelectParser extends DefaultDruidParser {
 		return map;
 	}
 
-	private void tryRoute(SchemaConfig schema, RouteResultset rrs, LayerCachePool cachePool) throws SQLNonTransientException
-	{
-		if(rrs.isFinishedRoute())
-		{
-			return;//避免重复路由
+	private void tryRoute(SchemaConfig schema, RouteResultset rrs, LayerCachePool cachePool)
+			throws SQLNonTransientException {
+		if(rrs.isFinishedRoute()) {
+			// 避免重复路由
+			return;
 		}
 
-		//无表的select语句直接路由带任一节点
+		// 无表的select语句直接路由到任一节点
         if((ctx.getTables() == null || ctx.getTables().size() == 0)&&(ctx.getTableAliasMap()==null||ctx.getTableAliasMap().isEmpty())) {
 			rrs = RouterUtil.routeToSingleNode(rrs, schema.getRandomDataNode(), ctx.getSql());
 			rrs.setFinishedRoute(true);
 			return;
 		}
-//		RouterUtil.tryRouteForTables(schema, ctx, rrs, true, cachePool);
+
 		SortedSet<RouteResultsetNode> nodeSet = new TreeSet<RouteResultsetNode>();
 		boolean isAllGlobalTable = RouterUtil.isAllGlobalTable(ctx, schema);
 		for (RouteCalculateUnit unit : ctx.getRouteCalculateUnits()) {
 			RouteResultset rrsTmp = RouterUtil.tryRouteForTables(schema, ctx, unit, rrs, true, cachePool);
-			if (rrsTmp != null&&rrsTmp.getNodes()!=null) {
-				for (RouteResultsetNode node : rrsTmp.getNodes()) {
-					nodeSet.add(node);
-				}
+			if (rrsTmp != null&&rrsTmp.getNodes() != null) {
+				nodeSet.addAll(Arrays.asList(rrsTmp.getNodes()));
 			}
 			if(isAllGlobalTable) {//都是全局表时只计算一遍路由
 				break;
@@ -379,7 +364,6 @@ public class DruidSelectParser extends DefaultDruidParser {
 		}
 		
 		if(nodeSet.size() == 0) {
-
             Collection<String> stringCollection= ctx.getTableAliasMap().values() ;
             for (String table : stringCollection)
             {
@@ -398,48 +382,29 @@ public class DruidSelectParser extends DefaultDruidParser {
 		RouteResultsetNode[] nodes = new RouteResultsetNode[nodeSet.size()];
 		int i = 0;
 		for (Iterator<RouteResultsetNode> iterator = nodeSet.iterator(); iterator.hasNext();) {
-			nodes[i] = (RouteResultsetNode) iterator.next();
+			nodes[i] = iterator.next();
 			i++;
-			
 		}
 		
 		rrs.setNodes(nodes);
 		rrs.setFinishedRoute(true);
 	}
 
-
-	protected String getCurentDbType()
-	{
+	protected String getCurrentDbType() {
 		return JdbcConstants.MYSQL;
 	}
 
-
-
-
-	protected String getSql( RouteResultset rrs,SQLStatement stmt, boolean isNeedAddLimit)
-	{
-		if(getCurentDbType().equalsIgnoreCase("mysql")&&(isNeedChangeLimit(rrs)||isNeedAddLimit))
-		{
-
-				return stmt.toString();
-
+	protected String getSql(RouteResultset rrs, SQLStatement stmt, boolean isNeedAddLimit) {
+		if("mysql".equalsIgnoreCase(getCurrentDbType())
+				&& (isNeedChangeLimit(rrs) || isNeedAddLimit)) {
+			return stmt.toString();
 		}
 
-	 return getCtx().getSql();
+		return getCtx().getSql();
 	}
 
-
-	
 	protected boolean isNeedChangeLimit(RouteResultset rrs) {
-		if(rrs.getNodes() == null) {
-			return false;
-		} else {
-			if(rrs.getNodes().length > 1) {
-				return true;
-			}
-			return false;
-		
-		} 
+		return  (rrs.getNodes() != null && rrs.getNodes().length > 1);
 	}
 	
 	private boolean isNeedCache(SchemaConfig schema, RouteResultset rrs, 
@@ -477,26 +442,22 @@ public class DruidSelectParser extends DefaultDruidParser {
 	 */
 	private boolean isNeedAddLimit(SchemaConfig schema, RouteResultset rrs, 
 			MySqlSelectQueryBlock mysqlSelectQuery, Map<String, Map<String, Set<ColumnRoutePair>>> allConditions) {
-//		ctx.getTablesAndConditions().get(key))
-		  if(rrs.getLimitSize()>-1)
-		  {
-			  return false;
-		  }else
-		if(schema.getDefaultMaxLimit() == -1) {
+
+		if(rrs.getLimitSize()>-1) {
 			return false;
-		} else if (mysqlSelectQuery.getLimit() != null) {//语句中已有limit
+		}else if(schema.getDefaultMaxLimit() == -1) {
+			return false;
+		} else if (mysqlSelectQuery.getLimit() != null) { // 语句中已有limit
 			return false;
 		} else if(ctx.getTables().size() == 1) {
 			String tableName = ctx.getTables().get(0);
 			TableConfig tableConfig = schema.getTables().get(tableName);
-			if(tableConfig==null)
-			{
-			 return    schema.getDefaultMaxLimit() > -1;   //   找不到则取schema的配置
+			if(tableConfig == null) {
+				return schema.getDefaultMaxLimit() > -1;   //   找不到则取schema的配置
 			}
 
 			boolean isNeedAddLimit= tableConfig.isNeedAddLimit();
-			if(!isNeedAddLimit)
-			{
+			if(!isNeedAddLimit) {
 				return false;//优先从配置文件取
 			}
 
@@ -505,24 +466,22 @@ public class DruidSelectParser extends DefaultDruidParser {
 			}
 
 			String primaryKey = schema.getTables().get(tableName).getPrimaryKey();
-
-//			schema.getTables().get(ctx.getTables().get(0)).getParentKey() != null;
 			if(allConditions.get(tableName) == null) {//无条件
 				return true;
 			}
-			
+
 			if (allConditions.get(tableName).get(primaryKey) != null) {//条件中带主键
 				return false;
 			}
-			
+
 			return true;
 		} else if(rrs.hasPrimaryKeyToCache() && ctx.getTables().size() == 1){//只有一个表且条件中有主键,不需要limit了,因为主键只能查到一条记录
 			return false;
-		} else {//多表或无表
+		} else { // 多表或无表
 			return false;
 		}
-		
 	}
+
 	private String getAliaColumn(Map<String, String> aliaColumns,String column ){
 		String alia=aliaColumns.get(column);
 		if (alia==null){
@@ -632,11 +591,11 @@ public class DruidSelectParser extends DefaultDruidParser {
 		{
 			throw new RuntimeException(e);
 		}
-		if (isNeedChangeLimit(rrs))
-		{
+		if (isNeedChangeLimit(rrs)) {
 			one.setRight(new SQLIntegerExpr(0));
 			String sql = stmt.toString();
-			rrs.changeNodeSqlAfterAddLimit(schema,getCurentDbType(), sql,0,lastrownum, false);
+			String dbType = getCurrentDbType();
+			rrs.changeNodeSqlAfterAddLimit(schema, dbType, sql,0,lastrownum, false);
 			//设置改写后的sql
 			getCtx().setSql(sql);
 		}

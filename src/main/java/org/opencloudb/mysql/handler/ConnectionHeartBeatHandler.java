@@ -39,12 +39,12 @@ import org.slf4j.*;
  * @author wuzhih
  * 
  */
-public class ConnectionHeartBeatHandler implements ResponseHandler {
+public class ConnectionHeartBeatHandler extends AbstractResponseHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(ConnectionHeartBeatHandler.class);
 
 	protected final ReentrantLock lock = new ReentrantLock();
-	private final ConcurrentHashMap<Long, HeartBeatCon> allCons = new ConcurrentHashMap<Long, HeartBeatCon>();
+	private final ConcurrentHashMap<Long, HeartBeatCon> allCons = new ConcurrentHashMap<>();
 
 	public void heartBeat(BackendConnection conn, String sql) {
 		log.debug("Heartbeat for idle backend {}: sql '{}'", conn, sql);
@@ -81,16 +81,6 @@ public class ConnectionHeartBeatHandler implements ResponseHandler {
 	}
 
 	@Override
-	public void connectionAcquired(BackendConnection conn) {
-		// not called
-	}
-
-	@Override
-	public void connectionError(Throwable e, BackendConnection conn) {
-		// not called
-	}
-
-	@Override
 	public void errorResponse(byte[] data, BackendConnection conn) {
 		removeFinished(conn);
 		try {
@@ -114,7 +104,7 @@ public class ConnectionHeartBeatHandler implements ResponseHandler {
 
 	@Override
 	public void rowResponse(byte[] row, BackendConnection conn) {
-
+		// Ignore
 	}
 
 	@Override
@@ -131,11 +121,6 @@ public class ConnectionHeartBeatHandler implements ResponseHandler {
 
 	private void removeFinished(BackendConnection con) {
 		this.allCons.remove(con.getId());
-	}
-
-	@Override
-	public void writeQueueAvailable() {
-
 	}
 
 	@Override

@@ -23,21 +23,16 @@
  */
 package org.opencloudb.mysql.handler;
 
-import java.util.List;
-
 import org.opencloudb.net.BackendConnection;
 import org.opencloudb.net.BackendException;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.server.ServerSession;
 import org.opencloudb.server.ServerConnection;
-import org.slf4j.*;
 
 /**
  * @author mycat
  */
-public class CommitNodeHandler implements ResponseHandler {
-
-	private static final Logger log = LoggerFactory.getLogger(CommitNodeHandler.class);
+public class CommitNodeHandler extends AbstractResponseHandler {
 
 	private final ServerSession session;
 
@@ -51,14 +46,9 @@ public class CommitNodeHandler implements ResponseHandler {
 	}
 
 	@Override
-	public void connectionAcquired(BackendConnection conn) {
-        log.error("Unexpected invocation in commit handler");
-	}
-
-	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
-		session.clearResources(false);
-		ServerConnection source = session.getSource();
+		this.session.clearResources();
+		ServerConnection source = this.session.getSource();
 		source.write(ok);
 	}
 
@@ -69,36 +59,6 @@ public class CommitNodeHandler implements ResponseHandler {
 		String errInfo = new String(errPkg.message);
 		this.session.getSource().setTxInterrupt(errInfo);
 		errPkg.write(session.getSource());
-	}
-
-	@Override
-	public void rowEofResponse(byte[] eof, BackendConnection conn) {
-		log.error("Unexpected packet for backend {} bound by source {}", conn, this.session.getSource());
-	}
-
-	@Override
-	public void fieldEofResponse(byte[] header, List<byte[]> fields, byte[] eof, BackendConnection conn) {
-        log.error("Unexpected packet for backend {} bound by source {}", conn, this.session.getSource());
-	}
-
-	@Override
-	public void rowResponse(byte[] row, BackendConnection conn) {
-        log.error("Unexpected packet for backend {} bound by source {}", conn, this.session.getSource());
-	}
-
-	@Override
-	public void writeQueueAvailable() {
-
-	}
-
-	@Override
-	public void connectionError(Throwable e, BackendConnection conn) {
-
-	}
-
-	@Override
-	public void connectionClose(BackendConnection conn, String reason) {
-
 	}
 
 }

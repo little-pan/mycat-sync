@@ -30,6 +30,7 @@ import org.opencloudb.MycatServer;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.net.FrontendConnection;
+import org.opencloudb.net.NioProcessor;
 import org.opencloudb.route.RouteResultset;
 import org.opencloudb.server.handler.MysqlProcHandler;
 import org.opencloudb.server.parser.ServerParse;
@@ -63,7 +64,7 @@ public class ServerConnection extends FrontendConnection {
 
 	@Override
 	public boolean isIdleTimeout() {
-		if (isAuthenticated) {
+		if (this.isAuthenticated) {
 			return super.isIdleTimeout();
 		} else {
 			return TimeUtil.currentTimeMillis() > Math.max(lastWriteTime,
@@ -98,24 +99,24 @@ public class ServerConnection extends FrontendConnection {
 	/**
 	 * 设置是否需要中断当前事务
 	 */
-	public void setTxInterrupt(String txInterrputMsg) {
-		if (!autocommit && !txInterrupted) {
-			txInterrupted = true;
-			this.txInterrputMsg = txInterrputMsg;
+	public void setTxInterrupt(String txInterruptMsg) {
+		if (!this.autocommit && !this.txInterrupted) {
+			this.txInterrupted = true;
+			this.txInterrputMsg = txInterruptMsg;
 		}
 	}
 
 	public boolean isTxInterrupted()
 	{
-		return txInterrupted;
+		return this.txInterrupted;
 	}
 
 	public ServerSession getSession() {
-		return session;
+		return this.session;
 	}
 
-	public void setSession(ServerSession session2) {
-		this.session = session2;
+	public void setSession(ServerSession session) {
+		this.session = session;
 	}
 
 	@Override
@@ -186,12 +187,11 @@ public class ServerConnection extends FrontendConnection {
 		}
 
 		// 路由计算
-		RouteResultset rrs = null;
+		RouteResultset rrs;
 		try {
 			rrs = server.getRouterservice()
 					.route(server.getConfig().getSystem(),
 							schema, type, sql, this.charset, this);
-
 		} catch (Exception e) {
 			StringBuilder s = new StringBuilder();
 			log.warn(s.append(this).append(sql).toString() + " error:" + e.toString(), e);
@@ -199,6 +199,7 @@ public class ServerConnection extends FrontendConnection {
 			writeErrMessage(ErrorCode.ER_PARSE_ERROR, msg == null ? e.getClass().getSimpleName() : msg);
 			return null;
 		}
+
 		return rrs;
 	}
 
@@ -219,7 +220,7 @@ public class ServerConnection extends FrontendConnection {
 		}
 		if (rrs != null) {
 			// session执行
-			session.execute(rrs, type);
+			this.session.execute(rrs, type);
 		}
 	}
 
@@ -246,21 +247,24 @@ public class ServerConnection extends FrontendConnection {
 	 *            发起者为null表示是自己
 	 */
 	public void cancel(final FrontendConnection sponsor) {
-		super.manager.getExecutor().execute(new Runnable() {
+		Runnable cancelTask = new Runnable() {
 			@Override
 			public void run() {
 				session.cancel(sponsor);
 			}
-		});
+		};
+		NioProcessor.currentProcessor().execute(cancelTask);
 	}
 
 	@Override
-	public void close(String reason) {
-		super.close(reason);
-		session.terminate();
-		if(getLoadDataInfileHandler()!=null)
-		{
-			getLoadDataInfileHandler().clear();
+	protected void doClose(String reason) {
+		if (!isClosed()) {
+			super.doClose(reason);
+			this.session.terminate();
+			if(this.loadDataInfileHandler != null) {
+				this.loadDataInfileHandler.clear();
+				this.loadDataInfileHandler = null;
+			}
 		}
 	}
 

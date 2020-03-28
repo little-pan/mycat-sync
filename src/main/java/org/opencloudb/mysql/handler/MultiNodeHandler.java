@@ -33,16 +33,16 @@ import org.slf4j.*;
 /**
  * @author mycat
  */
-abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
+abstract class MultiNodeHandler extends AbstractResponseHandler implements Terminatable {
 
 	private static final Logger log = LoggerFactory.getLogger(MultiNodeHandler.class);
 
 	protected final ServerSession session;
 	private boolean isFailed = false;
-	protected volatile String error;
-	protected byte packetId;
+	protected String error;
 	protected boolean errorResponsed = false;
 	protected boolean isClosedByDiscard = false;
+	protected byte packetId;
 
 	private int nodeCount;
 	private Runnable terminateCallBack;
@@ -78,7 +78,7 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 
 	protected boolean canClose(BackendConnection conn, boolean failed) {
 		// release this connection if safe
-		this.session.releaseConnectionIfSafe(conn, false);
+		this.session.releaseConnectionIfSafe(conn);
 		boolean allFinished = false;
 		if (failed) {
 			allFinished = decrementCountBy(1);
@@ -107,7 +107,7 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 
 	@Override
 	public void errorResponse(byte[] data, BackendConnection conn) {
-		this.session.releaseConnectionIfSafe(conn, false);
+		this.session.releaseConnectionIfSafe(conn);
 
 		ErrorPacket err = new ErrorPacket();
 		err.read(data);
@@ -122,7 +122,7 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 	public boolean clearIfSessionClosed(ServerSession session) {
 		if (session.closed()) {
 			log.debug("session closed, clear resources in session {} ", session);
-			session.clearResources(true);
+			session.clearResources();
 			clearResources();
 			return true;
 		} else {
@@ -168,7 +168,7 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 				createErrPkg(this.error).write(this.session.getSource());
 			}
 			// clear session resources, release all
-			log.debug("error all end, clear session resource in session {}", this.session);
+			log.debug("all error finished, clear session resources in session {}", this.session);
 			if (this.session.getSource().isAutocommit()) {
 				this.session.closeAndClearResources(this.error);
 			} else {
@@ -179,6 +179,7 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 		}
 	}
 
+	@Override
 	public void connectionClose(BackendConnection conn, String reason) {
 		if(this.isClosedByDiscard){
 			log.debug("Close backend but 'isClosedByDiscard' is set:" +
@@ -191,8 +192,8 @@ abstract class MultiNodeHandler implements ResponseHandler, Terminatable {
 		if (!finished) {
 			finished = decrementCountBy(1);
 		}
-		if (error == null) {
-			error = "back connection closed ";
+		if (this.error == null) {
+			this.error = "back connection closed ";
 		}
 		tryErrorFinished(finished);
 	}

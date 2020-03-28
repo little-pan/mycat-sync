@@ -71,7 +71,8 @@ public class DefaultDruidParser implements DruidParser {
 	 * 子类覆盖该方法一般是将SQLStatement转型后再解析（如转型为MySqlInsertStatement）
 	 */
 	@Override
-	public void statementParse(SchemaConfig schema, RouteResultset rrs, SQLStatement stmt) throws SQLNonTransientException {
+	public void statementParse(SchemaConfig schema, RouteResultset rrs, SQLStatement stmt)
+			throws SQLNonTransientException {
 		
 	}
 	

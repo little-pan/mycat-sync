@@ -1,5 +1,7 @@
 package org.opencloudb.classloader;
 
+import org.slf4j.*;
+
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -9,9 +11,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.log4j.Logger;
-import org.opencloudb.config.model.SystemConfig;
-
 /**
  * used for mycat's catlet class loader ,catlet's class file is stored in
  * Mycat_home/catlet dir
@@ -20,21 +19,21 @@ import org.opencloudb.config.model.SystemConfig;
  * 
  */
 public class DynaClassLoader {
-	private static final Logger LOGGER = Logger.getLogger("DynaClassLoader");
+
+	private static final Logger log = LoggerFactory.getLogger(DynaClassLoader.class);
+
 	/** key- class full name */
-	private static Map<String, DynaClass> loadedDynaClassMap = new ConcurrentHashMap<String, DynaClass>();
+	private static Map<String, DynaClass> loadedDynaClassMap = new ConcurrentHashMap<>();
 	private final String extClassHome;
 	private final MyDynaClassLoader myClassLoader;
 	private final long classCheckMilis;
 
 	public DynaClassLoader(String extClassHome, int classCheckSeconds) {
-		super();
 		this.extClassHome = extClassHome;
 		classCheckMilis = classCheckSeconds * 1000L;
 		myClassLoader = new MyDynaClassLoader();
-		LOGGER.info("dyna class load from " + extClassHome
-				+ ",and auto check for class file modified every "
-				+ classCheckSeconds + " seconds");
+		log.info("dyna class load from '{}', and auto check for class file modified " +
+				"every {} seconds", extClassHome, classCheckSeconds);
 	}
 
 	public Object getInstanceofClass(String className) throws Exception {
@@ -65,7 +64,7 @@ public class DynaClassLoader {
 	/**
 	 * 加载某个类的字节码
 	 * 
-	 * @param c
+	 * @param path
 	 * @return
 	 * @throws IOException
 	 */
@@ -87,7 +86,7 @@ public class DynaClassLoader {
 		}
 	}
 
-	private boolean checkChanged(DynaClass dynaClass) throws IOException {
+	private boolean checkChanged(DynaClass dynaClass) {
 		boolean isChanged = false;
 		File f = new File(dynaClass.filePath);
 		if (f.exists()) {
@@ -115,7 +114,7 @@ public class DynaClassLoader {
 		/**
 		 * 加载某个类
 		 * 
-		 * @param c
+		 * @param name
 		 * @return
 		 * @throws ClassNotFoundException
 		 * @throws IOException
@@ -134,14 +133,14 @@ public class DynaClassLoader {
 				try {
 					dynaClass = searchFile(extClassHome, name);
 				} catch (Exception e) {
-					LOGGER.error("SearchFileError", e);
+					log.error("SearchFileError", e);
 				}
 			}
 
 			if (dynaClass == null) {
 				return super.loadClass(name);
 			} else {
-				LOGGER.info("load class from file "+dynaClass.filePath);
+				log.info("load class from file '{}'", dynaClass.filePath);
 				Class<?> cNew = null;
 				if (dynaClass.isJar) {
 					cNew =dynaClass.realClass;
@@ -196,9 +195,7 @@ public class DynaClassLoader {
 				}
 				return null;
 			}
-			
 		}
-
 	}
 
 	public void clearUnUsedClass() {
@@ -209,7 +206,7 @@ public class DynaClassLoader {
 			Map.Entry<String, DynaClass> entry = itor.next();
 			DynaClass dyCls = entry.getValue();
 			if (dyCls.lastModified < deadTime) {
-				LOGGER.info("clear unused catlet " + entry.getKey());
+				log.info("clear unused catlet {}", entry.getKey());
 				dyCls.clear();
 				itor.remove();
 			}

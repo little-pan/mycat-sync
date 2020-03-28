@@ -23,7 +23,6 @@
  */
 package org.opencloudb.manager;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.handler.ClearHandler;
 import org.opencloudb.handler.ConfFileHandler;
@@ -40,13 +39,16 @@ import org.opencloudb.parser.ManagerParse;
 import org.opencloudb.response.KillConnection;
 import org.opencloudb.response.Offline;
 import org.opencloudb.response.Online;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public class ManagerQueryHandler implements FrontendQueryHandler {
-    private static final Logger     LOGGER = Logger.getLogger(ManagerQueryHandler.class);
-    private static final int        SHIFT  = 8;
+
+    private static final Logger       log = LoggerFactory.getLogger(ManagerQueryHandler.class);
+
+    private static final int        SHIFT = 8;
     private final ManagerConnection source;
     protected Boolean               readOnly;
 
@@ -61,9 +63,8 @@ public class ManagerQueryHandler implements FrontendQueryHandler {
     @Override
     public void query(String sql) {
         ManagerConnection c = this.source;
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug(new StringBuilder().append(c).append(sql).toString());
-        }
+        log.debug("Execute sql '{}' in {}", sql, c);
+
         int rs = ManagerParse.parse(sql);
         switch (rs & 0xff) {
             case ManagerParse.SELECT:
@@ -107,6 +108,7 @@ public class ManagerQueryHandler implements FrontendQueryHandler {
                 break;
             default:
                 c.writeErrMessage(ErrorCode.ER_YES, "Unsupported statement");
+                break;
         }
     }
 

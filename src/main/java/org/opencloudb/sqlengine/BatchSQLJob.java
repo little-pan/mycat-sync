@@ -7,12 +7,11 @@ import org.opencloudb.MycatServer;
 
 public class BatchSQLJob {
 
-	private ConcurrentHashMap<Integer, SQLJob> runningJobs = new ConcurrentHashMap<Integer, SQLJob>();
-	private ConcurrentLinkedQueue<SQLJob> waitingJobs = new ConcurrentLinkedQueue<SQLJob>();
+	private ConcurrentHashMap<Integer, SQLJob> runningJobs = new ConcurrentHashMap<>();
+	private ConcurrentLinkedQueue<SQLJob> waitingJobs = new ConcurrentLinkedQueue<>();
 	private volatile boolean noMoreJobInput = false;
 
 	public void addJob(SQLJob newJob, boolean parallExecute) {
-
 		if (parallExecute) {
 			runJob(newJob);
 		} else {
@@ -33,7 +32,7 @@ public class BatchSQLJob {
 	private void runJob(SQLJob newJob) {
 		MycatServer server = MycatServer.getContextServer();
 		runningJobs.put(newJob.getId(), newJob);
-		server.getBusinessExecutor().execute(newJob);
+		server.getProcessorPool().getNextProcessor().execute(newJob);
 	}
 
 	public boolean jobFinished(SQLJob sqlJob) {

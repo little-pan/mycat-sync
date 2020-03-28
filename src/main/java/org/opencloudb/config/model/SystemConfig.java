@@ -27,6 +27,8 @@ import java.io.File;
 import java.io.IOException;
 
 import org.opencloudb.config.Isolations;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 系统基础配置项
@@ -34,6 +36,8 @@ import org.opencloudb.config.Isolations;
  * @author mycat
  */
 public final class SystemConfig {
+
+	static final Logger log = LoggerFactory.getLogger(SystemConfig.class);
 
 	public static final String SYS_HOME = "MYCAT_HOME";
 	private static final int DEFAULT_PORT = 8066;
@@ -297,6 +301,8 @@ public final class SystemConfig {
 	}
 
 	public void setProcessorExecutor(int processorExecutor) {
+		log.warn("Business executor is deprecated, and the setting 'processorExecutor = {}' ignored",
+				processorExecutor);
 		this.processorExecutor = processorExecutor;
 	}
 

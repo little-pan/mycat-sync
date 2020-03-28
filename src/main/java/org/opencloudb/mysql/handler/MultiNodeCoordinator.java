@@ -1,6 +1,5 @@
 package org.opencloudb.mysql.handler;
 
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -10,11 +9,11 @@ import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.ServerSession;
 import org.opencloudb.sqlcmd.SQLCtrlCommand;
 
-public class MultiNodeCoordinator implements ResponseHandler {
-	private static final Logger LOGGER = Logger
-			.getLogger(MultiNodeCoordinator.class);
+public class MultiNodeCoordinator extends AbstractResponseHandler {
+	private static final Logger LOGGER = Logger.getLogger(MultiNodeCoordinator.class);
+
 	private final AtomicInteger runningCount = new AtomicInteger(0);
-	private final AtomicInteger faileCount = new AtomicInteger(0);
+	private final AtomicInteger failedCount = new AtomicInteger(0);
 	private volatile int nodeCount;
 	private final ServerSession session;
 	private SQLCtrlCommand cmdHandler;
@@ -30,7 +29,7 @@ public class MultiNodeCoordinator implements ResponseHandler {
 		runningCount.set(initCount);
 		nodeCount = initCount;
 		failed.set(false);
-		faileCount.set(0);
+		failedCount.set(0);
 		// 执行
 		int started = 0;
 		for (RouteResultsetNode rrn : session.getTargetKeys()) {
@@ -65,69 +64,30 @@ public class MultiNodeCoordinator implements ResponseHandler {
 	}
 
 	@Override
-	public void connectionError(Throwable e, BackendConnection conn) {
-	}
-
-	@Override
-	public void connectionAcquired(BackendConnection conn) {
-
-	}
-
-	@Override
 	public void errorResponse(byte[] err, BackendConnection conn) {
-		faileCount.incrementAndGet();
+		this.failedCount.incrementAndGet();
 
 		if (this.cmdHandler.releaseConOnErr()) {
-			session.releaseConnection(conn);
+			this.session.releaseConnection(conn);
 		} else {
-			session.releaseConnectionIfSafe(conn, false);
+			this.session.releaseConnectionIfSafe(conn);
 		}
-		if (this.finished()) {
-			cmdHandler.errorResponse(session, err, this.nodeCount, this.faileCount.get());
-			if (cmdHandler.isAutoClearSessionCons()) {
-				session.clearResources(session.getSource().isTxInterrupted());
-			}
+		if (finished()) {
+			this.cmdHandler.errorResponse(session, err, this.nodeCount, this.failedCount.get());
 		}
 	}
 
 	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
-		if (this.cmdHandler.relaseConOnOK()) {
-			session.releaseConnection(conn);
+		if (this.cmdHandler.releaseConOnOK()) {
+			this.session.releaseConnection(conn);
 		} else {
-			session.releaseConnectionIfSafe(conn, false);
+			this.session.releaseConnectionIfSafe(conn);
 		}
-		if (this.finished()) {
-			cmdHandler.okResponse(session, ok);
-			if (cmdHandler.isAutoClearSessionCons()) {
-				session.clearResources(false);
-			}
+
+		if (finished()) {
+			this.cmdHandler.okResponse(session, ok);
 		}
-	}
-
-	@Override
-	public void fieldEofResponse(byte[] header, List<byte[]> fields,
-			byte[] eof, BackendConnection conn) {
-
-	}
-
-	@Override
-	public void rowResponse(byte[] row, BackendConnection conn) {
-
-	}
-
-	@Override
-	public void rowEofResponse(byte[] eof, BackendConnection conn) {
-	}
-
-	@Override
-	public void writeQueueAvailable() {
-
-	}
-
-	@Override
-	public void connectionClose(BackendConnection conn, String reason) {
-
 	}
 
 }

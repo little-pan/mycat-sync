@@ -171,15 +171,15 @@ public abstract class FrontendConnection extends AbstractConnection {
 	}
 
 	public void loadDataInfileStart(String sql) {
-		if (loadDataInfileHandler != null) {
+		if (this.loadDataInfileHandler != null) {
 			try {
-				loadDataInfileHandler.start(sql);
+				this.loadDataInfileHandler.start(sql);
 			} catch (Exception e) {
 				log.error("Load data error", e);
 				writeErrMessage(ErrorCode.ERR_HANDLE_DATA, e.getMessage());
 			}
 		} else {
-			writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, "load data infile sql is not  unsupported!");
+			writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, "load data infile sql is not unsupported!");
 		}
 	}
 
@@ -365,7 +365,7 @@ public abstract class FrontendConnection extends AbstractConnection {
 	}
 
 	public LoadDataInfileHandler getLoadDataInfileHandler() {
-		return loadDataInfileHandler;
+		return this.loadDataInfileHandler;
 	}
 
 	public void setLoadDataInfileHandler(LoadDataInfileHandler loadDataInfileHandler) {

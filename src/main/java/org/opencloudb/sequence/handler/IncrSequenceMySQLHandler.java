@@ -3,7 +3,6 @@ package org.opencloudb.sequence.handler;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,10 +12,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.log4j.Logger;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
+import org.opencloudb.mysql.handler.AbstractResponseHandler;
 import org.opencloudb.net.BackendConnection;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.config.util.ConfigException;
-import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.route.RouteResultsetNode;
@@ -24,13 +23,12 @@ import org.opencloudb.server.parser.ServerParse;
 
 public class IncrSequenceMySQLHandler implements SequenceHandler {
 
-	protected static final Logger LOGGER = Logger
-			.getLogger(IncrSequenceMySQLHandler.class);
+	protected static final Logger LOGGER = Logger.getLogger(IncrSequenceMySQLHandler.class);
 
 	private static final String SEQUENCE_DB_PROPS = "sequence_db_conf.properties";
 	protected static final String errSeqResult = "-999999999,null";
 	protected static Map<String, String> latestErrors = new ConcurrentHashMap<String, String>();
-	private final FetchMySQLSequnceHandler mysqlSeqFetcher = new FetchMySQLSequnceHandler();
+	private final FetchMySQLSequenceHandler mysqlSeqFetcher = new FetchMySQLSequenceHandler();
 
 	private static class IncrSequenceMySQLHandlerHolder {
 		private static final IncrSequenceMySQLHandler instance = new IncrSequenceMySQLHandler();
@@ -156,9 +154,9 @@ public class IncrSequenceMySQLHandler implements SequenceHandler {
 	}
 }
 
-class FetchMySQLSequnceHandler implements ResponseHandler {
-	private static final Logger LOGGER = Logger
-			.getLogger(FetchMySQLSequnceHandler.class);
+class FetchMySQLSequenceHandler extends AbstractResponseHandler {
+
+	private static final Logger LOGGER = Logger.getLogger(FetchMySQLSequenceHandler.class);
 
 	public void execute(SequenceVal seqVal) {
 		MycatServer server = MycatServer.getContextServer();
@@ -185,7 +183,6 @@ class FetchMySQLSequnceHandler implements ResponseHandler {
 
 	@Override
 	public void connectionAcquired(BackendConnection conn) {
-
 		conn.setResponseHandler(this);
 		try {
 			conn.query(((SequenceVal) conn.getAttachment()).sql);
@@ -198,21 +195,21 @@ class FetchMySQLSequnceHandler implements ResponseHandler {
 	public void connectionError(Throwable e, BackendConnection conn) {
 		((SequenceVal) conn.getAttachment()).dbfinished = true;
 		LOGGER.warn("connectionError " + e);
-
 	}
 
 	@Override
 	public void errorResponse(byte[] data, BackendConnection conn) {
 		SequenceVal seqVal = ((SequenceVal) conn.getAttachment());
-		seqVal.dbfinished = true;
-
-		ErrorPacket err = new ErrorPacket();
-		err.read(data);
-		String errMsg = new String(err.message);
-		LOGGER.warn("errorResponse " + err.errno + " " + errMsg);
-		IncrSequenceMySQLHandler.latestErrors.put(seqVal.seqName, errMsg);
-		conn.release();
-
+		try {
+			seqVal.dbfinished = true;
+			ErrorPacket err = new ErrorPacket();
+			err.read(data);
+			String errMsg = new String(err.message);
+			LOGGER.warn("errorResponse " + err.errno + " " + errMsg);
+			IncrSequenceMySQLHandler.latestErrors.put(seqVal.seqName, errMsg);
+		} finally {
+			conn.release();
+		}
 	}
 
 	@Override
@@ -222,7 +219,6 @@ class FetchMySQLSequnceHandler implements ResponseHandler {
 			((SequenceVal) conn.getAttachment()).dbfinished = true;
 			conn.release();
 		}
-
 	}
 
 	@Override
@@ -254,24 +250,6 @@ class FetchMySQLSequnceHandler implements ResponseHandler {
 		IncrSequenceMySQLHandler.latestErrors.put(seqVal.seqName, errMgs);
 		LOGGER.warn("executeException   " + errMgs);
 		c.close("exception:" +errMgs);
-
-	}
-
-	@Override
-	public void writeQueueAvailable() {
-
-	}
-
-	@Override
-	public void connectionClose(BackendConnection conn, String reason) {
-
-		LOGGER.warn("connection closed " + conn + " reason:" + reason);
-	}
-
-	@Override
-	public void fieldEofResponse(byte[] header, List<byte[]> fields,
-			byte[] eof, BackendConnection conn) {
-
 	}
 
 }
@@ -302,8 +280,6 @@ class SequenceVal {
 		}
 	}
 
-	FetchMySQLSequnceHandler seqHandler;
-
 	public void setCurValue(long newValue) {
 		curVal.set(newValue);
 		successFetched = true;
@@ -313,13 +289,12 @@ class SequenceVal {
 		long start = System.currentTimeMillis();
 		long end = start + 10 * 1000;
 		while (System.currentTimeMillis() < end) {
-			if (dbretVal == IncrSequenceMySQLHandler.errSeqResult) {
-				throw new java.lang.RuntimeException(
-						"sequnce not found in db table ");
+			if (dbretVal.equals(IncrSequenceMySQLHandler.errSeqResult)) {
+				throw new RuntimeException("Sequence not found in db table");
 			} else if (dbretVal != null) {
 				String[] items = dbretVal.split(",");
-				Long curVal = Long.valueOf(items[0]);
-				int span = Integer.valueOf(items[1]);
+				long curVal = Long.parseLong(items[0]);
+				int span = Integer.parseInt(items[1]);
 				return new Long[] { curVal, curVal + span };
 			} else {
 				try {
@@ -338,10 +313,11 @@ class SequenceVal {
 	}
 
 	public long nextValue() {
-		if (successFetched == false) {
-			throw new java.lang.RuntimeException(
-					"sequnce fetched failed  from db ");
+		if (!successFetched) {
+			throw new RuntimeException("Sequence fetched failed  from db");
 		}
+
 		return curVal.incrementAndGet();
 	}
+
 }

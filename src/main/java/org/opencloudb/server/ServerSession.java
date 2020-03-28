@@ -24,12 +24,8 @@
 package org.opencloudb.server;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.opencloudb.MycatServer;
@@ -38,7 +34,6 @@ import org.opencloudb.mysql.handler.CommitNodeHandler;
 import org.opencloudb.mysql.handler.MultiNodeCoordinator;
 import org.opencloudb.mysql.handler.MultiNodeQueryHandler;
 import org.opencloudb.mysql.handler.RollbackNodeHandler;
-import org.opencloudb.mysql.handler.RollbackReleaseHandler;
 import org.opencloudb.mysql.handler.SingleNodeHandler;
 import org.opencloudb.net.BackendConnection;
 import org.opencloudb.net.BackendException;
@@ -56,8 +51,9 @@ public class ServerSession implements Session {
 
     static final Logger log = LoggerFactory.getLogger(ServerSession.class);
 
+    // Note: it's thread-safe, session only run in single processor thread.
 	private final ServerConnection source;
-	private final ConcurrentHashMap<RouteResultsetNode, BackendConnection> target;
+	private final Map<RouteResultsetNode, BackendConnection> target;
 	// life-cycle: each sql execution
 	private volatile SingleNodeHandler singleNodeHandler;
 	private volatile MultiNodeQueryHandler multiNodeHandler;
@@ -68,9 +64,9 @@ public class ServerSession implements Session {
 
 	public ServerSession(ServerConnection source) {
 		this.source = source;
-		this.target = new ConcurrentHashMap<>(2, 0.75f);
-		multiNodeCoordinator = new MultiNodeCoordinator(this);
-		commitHandler = new CommitNodeHandler(this);
+		this.target = new HashMap<>(2, 0.75f);
+		this.multiNodeCoordinator = new MultiNodeCoordinator(this);
+		this.commitHandler = new CommitNodeHandler(this);
 	}
 
 	@Override
@@ -80,11 +76,11 @@ public class ServerSession implements Session {
 
 	@Override
 	public int getTargetCount() {
-		return target.size();
+		return this.target.size();
 	}
 
 	public Set<RouteResultsetNode> getTargetKeys() {
-		return target.keySet();
+		return this.target.keySet();
 	}
 
 	public BackendConnection getTarget(RouteResultsetNode key) {
@@ -93,10 +89,6 @@ public class ServerSession implements Session {
 
 	public Map<RouteResultsetNode, BackendConnection> getTargetMap() {
 		return this.target;
-	}
-
-	public BackendConnection removeTarget(RouteResultsetNode key) {
-		return target.remove(key);
 	}
 
 	@Override
@@ -124,8 +116,18 @@ public class ServerSession implements Session {
 		}
 	}
 
+	protected BackendConnection singleBackend() {
+		Collection<BackendConnection> bc = this.target.values();
+		Iterator<BackendConnection> it = bc.iterator();
+		if (!it.hasNext() || bc.size() > 1) {
+			throw new IllegalStateException("Too many backend connections existing");
+		}
+
+		return it.next();
+	}
+
 	@Override
-	public void commit()  {
+	public void commit() {
 		final int initCount = this.target.size();
 
 		if (initCount <= 0) {
@@ -135,7 +137,7 @@ public class ServerSession implements Session {
 			this.source.write(buffer);
 		} else if (initCount == 1) {
             log.debug("single node in current transaction");
-			BackendConnection con = this.target.elements().nextElement();
+			BackendConnection con = singleBackend();
 			this.commitHandler.commit(con);
 		} else {
             log.debug("multi node commit to send: node count {}", initCount);
@@ -167,68 +169,56 @@ public class ServerSession implements Session {
 	 * {@link ServerConnection#isClosed()} must be true before invoking this
 	 */
 	public void terminate() {
-		for (BackendConnection node : target.values()) {
-			node.close("client closed ");
+		for (BackendConnection node: target.values()) {
+			node.close("Server session closed");
 		}
-		target.clear();
+		this.target.clear();
 		clearHandlesResources();
 	}
 
 	public void closeAndClearResources(String reason) {
-		for (BackendConnection node : target.values()) {
+		for (BackendConnection node : this.target.values()) {
 			node.close(reason);
 		}
-		target.clear();
+		this.target.clear();
 		clearHandlesResources();
 	}
 
-	public void releaseConnectionIfSafe(BackendConnection conn, boolean needRollback) {
+	public void releaseConnectionIfSafe(BackendConnection conn) {
 		RouteResultsetNode node = (RouteResultsetNode) conn.getAttachment();
-
-		if (node != null) {
-			if (this.source.isAutocommit() || conn.isFromSlaveDB()
-					|| !conn.isModifiedSQLExecuted()) {
-				releaseConnection((RouteResultsetNode) conn.getAttachment(), needRollback);
-			}
+		if (this.source.isAutocommit() || conn.isFromSlaveDB() || !conn.isModifiedSQLExecuted()) {
+			if (node != null) releaseConnection(node);
 		}
 	}
 
-	private void releaseConnection(RouteResultsetNode rrn, boolean needRollback) {
-		BackendConnection c = target.remove(rrn);
-		if (c != null) {
-            log.debug("release backend {}", c);
-			if (c.getAttachment() != null) {
-				c.setAttachment(null);
+	private void releaseConnection(RouteResultsetNode rrn) {
+		final BackendConnection bc = this.target.remove(rrn);
+
+		if (bc != null) {
+            log.debug("release backend {}", bc);
+
+			bc.setAttachment(null);
+			if (bc.isClosedOrQuit()) {
+				return;
 			}
-			if (!c.isClosedOrQuit()) {
-				if (c.isAutocommit()) {
-					c.release();
-				} else {
-					c.setResponseHandler(new RollbackReleaseHandler());
-                    try {
-                        c.rollback();
-                    } catch (BackendException e) {
-                        c.close("rollback failed when releasing: " + e);
-                    }
-                }
-			}
+			// Here only do release, rollback should be trigger by frontend user!
+			bc.release();
 		}
 	}
 
-	public void releaseConnections(boolean needRollback) {
+	public void releaseConnections() {
 		for (RouteResultsetNode rrn : this.target.keySet()) {
-			releaseConnection(rrn, needRollback);
+			releaseConnection(rrn);
 		}
 	}
 
-	public void releaseConnection(BackendConnection con) {
+	public void releaseConnection(final BackendConnection con) {
 		Iterator<Entry<RouteResultsetNode, BackendConnection>> it = target.entrySet().iterator();
 		while (it.hasNext()) {
-			BackendConnection theCon = it.next().getValue();
-			if (theCon == con) {
+			final BackendConnection c = it.next().getValue();
+			if (c == con) {
                 it.remove();
 				con.release();
-                log.debug("release backend {}", con);
 				break;
 			}
 		}
@@ -238,23 +228,24 @@ public class ServerSession implements Session {
 	 * @return previous bound connection
 	 */
 	public BackendConnection bindConnection(RouteResultsetNode key, BackendConnection conn) {
-		return target.put(key, conn);
+		return this.target.put(key, conn);
 	}
 
 	public boolean tryExistsCon(final BackendConnection conn, RouteResultsetNode node) {
 		if (conn == null) {
 			return false;
 		}
+
 		if (!conn.isFromSlaveDB() || node.canRunINReadDB(getSource().isAutocommit())) {
-            log.debug("found connections in session to use backend {} for {}", conn, node);
+            log.debug("found connection in session to use for node '{}': backend {}", node,  conn);
 			conn.setAttachment(node);
 			return true;
 		} else {
-			// slavedb connection and can't use anymore, release it
-            log.debug("release slave connection, can't be used in transaction {} for {}", conn, node);
-			releaseConnection(node, false);
+			// Slave db connection and can't use anymore, release it
+            log.debug("release slave connection, can't be used in transaction for {}: backend {}", node, conn);
+			releaseConnection(node);
+			return false;
 		}
-		return false;
 	}
 
 	protected void kill() {
@@ -279,21 +270,21 @@ public class ServerSession implements Session {
 	}
 
 	private void clearHandlesResources() {
-		SingleNodeHandler singleHandler = singleNodeHandler;
+		SingleNodeHandler singleHandler = this.singleNodeHandler;
 		if (singleHandler != null) {
 			singleHandler.clearResources();
-			singleNodeHandler = null;
+			this.singleNodeHandler = null;
 		}
-		MultiNodeQueryHandler multiHandler = multiNodeHandler;
+		MultiNodeQueryHandler multiHandler = this.multiNodeHandler;
 		if (multiHandler != null) {
 			multiHandler.clearResources();
-			multiNodeHandler = null;
+			this.multiNodeHandler = null;
 		}
 	}
 
-	public void clearResources(final boolean needRollback) {
-        log.debug("clear session resources in session {}", this);
-		this.releaseConnections(needRollback);
+	public void clearResources() {
+        log.debug("Clear session resources in session {}", this);
+		releaseConnections();
 		clearHandlesResources();
 	}
 
@@ -309,12 +300,12 @@ public class ServerSession implements Session {
 	public void setXATXEnabled(boolean xaTXEnabled) {
 		log.debug("XA Transaction enabled in source {}", this.getSource());
 		if (xaTXEnabled && this.xaTXID == null) {
-			xaTXID = genXATXID();
+			this.xaTXID = genXATXID();
 		}
 	}
 
 	public String getXaTXID() {
-		return xaTXID;
+		return this.xaTXID;
 	}
 
 }

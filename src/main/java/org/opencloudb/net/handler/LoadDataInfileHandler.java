@@ -28,8 +28,7 @@ package org.opencloudb.net.handler;
  * 
  * @author magicdoom
  */
-public interface LoadDataInfileHandler
-{
+public interface LoadDataInfileHandler {
 
     void start(String sql);
 

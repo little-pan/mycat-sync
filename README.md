@@ -5,7 +5,7 @@ non-blocking IO for simplicity and the most important goal of database shard and
 complicated and error-prone multi-thread asynchronous non-blocking IO.
 
 Database middleware such as mycat, mainly choices one of four thread models:
-1) Synchronous blocking mode: frontend processor thread  + BIO -> the same processor thread  + BIO <br/>
+1) Synchronous blocking mode: frontend processor thread  + BIO -> the same processor thread  + BIO in backend <br/>
 Require massive threads in frontend, high overhead and it's inefficient in backend when handling multi-node.
 
 2) Asynchronous blocking mode: frontend processor thread + BIO -> one or more business threads + BIO in backend <br/>

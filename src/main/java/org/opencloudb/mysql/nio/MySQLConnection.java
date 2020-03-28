@@ -515,15 +515,6 @@ public class MySQLConnection extends BackendConnection {
 		return this.respHandler;
 	}
 
-	/**
-	 * 写队列为空，可以继续写数据
-	 */
-	public void writeQueueAvailable() {
-		if (respHandler != null) {
-			respHandler.writeQueueAvailable();
-		}
-	}
-
 	private static byte[] passwd(String pass, HandshakePacket hs)
 			throws NoSuchAlgorithmException {
 		if (pass == null || pass.length() == 0) {

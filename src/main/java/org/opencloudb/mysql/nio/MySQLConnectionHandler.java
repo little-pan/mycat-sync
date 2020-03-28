@@ -74,7 +74,7 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 
 	@Override
 	public void handle(byte[] data) {
-		offerData(data, source.getManager().getExecutor());
+		offerData(data);
 	}
 
 	@Override
@@ -171,9 +171,9 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 	 * load data file 请求文件数据包处理
 	 */
 	private void handleRequestPacket(byte[] data) {
-		ResponseHandler respHand = responseHandler;
-		if (respHand != null && respHand instanceof LoadDataResponseHandler) {
-			((LoadDataResponseHandler) respHand).requestDataResponse(data, source);
+		ResponseHandler respHand = this.responseHandler;
+		if (respHand instanceof LoadDataResponseHandler) {
+			((LoadDataResponseHandler) respHand).requestDataResponse(data, this.source);
 		} else {
 			closeNoHandler();
 		}
@@ -183,9 +183,9 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 	 * 字段数据包结束处理
 	 */
 	private void handleFieldEofPacket(byte[] data) {
-		ResponseHandler respHand = responseHandler;
+		ResponseHandler respHand = this.responseHandler;
 		if (respHand != null) {
-			respHand.fieldEofResponse(header, fields, data, source);
+			respHand.fieldEofResponse(this.header, this.fields, data, this.source);
 		} else {
 			closeNoHandler();
 		}
@@ -195,20 +195,19 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 	 * 行数据包处理
 	 */
 	private void handleRowPacket(byte[] data) {
-		ResponseHandler respHand = responseHandler;
+		ResponseHandler respHand = this.responseHandler;
 		if (respHand != null) {
-			respHand.rowResponse(data, source);
+			respHand.rowResponse(data, this.source);
 		} else {
 			closeNoHandler();
-
 		}
 	}
 
 	private void closeNoHandler() {
-		if (!source.isClosedOrQuit()) {
-			source.close("no handler");
+		if (!this.source.isClosedOrQuit()) {
+			this.source.close("no handler");
 			logger.warn("no handler bind in this con " + this + " client:"
-					+ source);
+					+ this.source);
 		}
 	}
 
@@ -216,8 +215,8 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 	 * 行数据包结束处理
 	 */
 	private void handleRowEofPacket(byte[] data) {
-		if (responseHandler != null) {
-			responseHandler.rowEofResponse(data, source);
+		if (this.responseHandler != null) {
+			this.responseHandler.rowEofResponse(data, this.source);
 		} else {
 			closeNoHandler();
 		}

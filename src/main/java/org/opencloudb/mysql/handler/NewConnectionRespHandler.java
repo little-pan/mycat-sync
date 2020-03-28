@@ -23,60 +23,23 @@
  */
 package org.opencloudb.mysql.handler;
 
-import java.util.List;
-
 import org.opencloudb.net.BackendConnection;
 import org.slf4j.*;
 
-public class NewConnectionRespHandler implements ResponseHandler {
+public class NewConnectionRespHandler extends AbstractResponseHandler {
 
-	private static final Logger log = LoggerFactory.getLogger(NewConnectionRespHandler.class);
+	static final Logger log = LoggerFactory.getLogger(NewConnectionRespHandler.class);
 
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
 		log.warn("Connection failed", e);
+		if (conn != null) conn.close("Connection error");
 	}
 
 	@Override
 	public void connectionAcquired(BackendConnection conn) {
 		conn.release();
 		log.debug("Acquired backend {}", conn);
-	}
-
-	@Override
-	public void errorResponse(byte[] err, BackendConnection conn) {
-		log.warn("Caught error '{}' in backend {}", new String(err), conn);
-	}
-
-	@Override
-	public void okResponse(byte[] ok, BackendConnection conn) {
-		log.debug("okResponse in backend {}", conn);
-	}
-
-	@Override
-	public void fieldEofResponse(byte[] header, List<byte[]> fields,
-			byte[] eof, BackendConnection conn) {
-		log.debug("fieldEofResponse in backend {}", conn);
-	}
-
-	@Override
-	public void rowResponse(byte[] row, BackendConnection conn) {
-		log.debug("rowResponse in backend {}", conn);
-	}
-
-	@Override
-	public void rowEofResponse(byte[] eof, BackendConnection conn) {
-		log.debug("rowEofResponse in backend {}", conn);
-	}
-
-	@Override
-	public void writeQueueAvailable() {
-
-	}
-
-	@Override
-	public void connectionClose(BackendConnection conn, String reason) {
-		
 	}
 
 }

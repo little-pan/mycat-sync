@@ -168,7 +168,7 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 					: decrementCountBy(1);
 			if (isEndPacket) {
 				if (this.autocommit) {// clear all connections
-					this.session.releaseConnections(false);
+					this.session.releaseConnections();
 				}
 				if (isFail() || this.session.closed()) {
 					tryErrorFinished(true);
@@ -220,7 +220,7 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 		if (decrementCountBy(1)) {
 			if (!this.isCallProcedure) {
 				if (this.autocommit) {// clear all connections
-					this.session.releaseConnections(false);
+					this.session.releaseConnections();
 				}
 				if (this.isFail() || session.closed()) {
 					tryErrorFinished(true);
@@ -434,14 +434,9 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 
 	@Override
 	public void clearResources() {
-		if (dataMergeSvr != null) {
-			dataMergeSvr.clear();
+		if (this.dataMergeSvr != null) {
+			this.dataMergeSvr.clear();
 		}
-	}
-
-	@Override
-	public void writeQueueAvailable() {
-
 	}
 
 	@Override

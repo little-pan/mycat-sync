@@ -23,7 +23,6 @@
  */
 package org.opencloudb.mysql.handler;
 
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,12 +31,10 @@ import org.opencloudb.net.BackendConnection;
 import org.slf4j.*;
 
 /**
- * wuzh
- * 
- * @author mycat
+ * @author wuzh
  * 
  */
-public class GetConnectionHandler implements ResponseHandler {
+public class GetConnectionHandler extends AbstractResponseHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(GetConnectionHandler.class);
 
@@ -105,37 +102,6 @@ public class GetConnectionHandler implements ResponseHandler {
             log.warn("Caught error {} in conn {}", new String(err), conn);
         }
         conn.release();
-	}
-
-	@Override
-	public void okResponse(byte[] ok, BackendConnection conn) {
-	    if (log.isDebugEnabled()) {
-            log.debug("Received ok {} in conn {}", new String(ok), conn);
-        }
-	}
-
-	@Override
-	public void fieldEofResponse(byte[] header, List<byte[]> fields, byte[] eof, BackendConnection conn) {
-	}
-
-	@Override
-	public void rowResponse(byte[] row, BackendConnection conn) {
-
-	}
-
-	@Override
-	public void rowEofResponse(byte[] eof, BackendConnection conn) {
-
-	}
-
-	@Override
-	public void writeQueueAvailable() {
-
-	}
-
-	@Override
-	public void connectionClose(BackendConnection conn, String reason) {
-
 	}
 
 }

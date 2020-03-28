@@ -23,8 +23,6 @@
  */
 package org.opencloudb.route;
 
-import org.opencloudb.MycatConfig;
-import org.opencloudb.MycatServer;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.mpp.HavingCols;
 import org.opencloudb.parser.util.PageSQLUtil;
@@ -39,6 +37,7 @@ import java.util.Map;
  * @author mycat
  */
 public final class RouteResultset implements Serializable {
+
     private String statement; // 原始语句
     private final int sqlType;
     private RouteResultsetNode[] nodes; // 路由结果节点
@@ -57,42 +56,16 @@ public final class RouteResultset implements Serializable {
     // 是否为全局表，只有在insert、update、delete、ddl里会判断并修改。默认不是全局表，用于修正全局表修改数据的反馈。
     private boolean globalTableFlag = false;
 
-    //是否完成了路由
+    // 是否完成了路由
     private boolean isFinishedRoute = false;
 
-    //是否自动提交，此属性主要用于记录ServerConnection上的autocommit状态
+    // 是否自动提交，此属性主要用于记录ServerConnection上的autocommit状态
     private boolean autocommit = true;
 
     private boolean isLoadData = false;
 
     //是否可以在从库运行,此属性主要供RouteResultsetNode获取
     private Boolean canRunInReadDB;
-
-    public boolean isLoadData()
-    {
-        return isLoadData;
-    }
-
-    public void setLoadData(boolean isLoadData)
-    {
-        this.isLoadData = isLoadData;
-    }
-
-    public boolean isFinishedRoute() {
-        return isFinishedRoute;
-    }
-
-    public void setFinishedRoute(boolean isFinishedRoute) {
-        this.isFinishedRoute = isFinishedRoute;
-    }
-
-    public boolean isGlobalTable() {
-        return globalTableFlag;
-    }
-
-    public void setGlobalTable(boolean globalTableFlag) {
-        this.globalTableFlag = globalTableFlag;
-    }
 
     public RouteResultset(String stmt, int sqlType) {
         this.statement = stmt;
@@ -124,6 +97,62 @@ public final class RouteResultset implements Serializable {
         }
     }
 
+    public void changeNodeSqlAfterAddLimit(SchemaConfig schemaConfig, String sourceDbType, String sql,
+                                           int offset, int count, boolean isNeedConvert) {
+        if (nodes != null)
+        {
+
+            Map<String, String> dataNodeDbTypeMap = schemaConfig.getDataNodeDbTypeMap();
+            Map<String, String> sqlMapCache = new HashMap<>();
+            for (RouteResultsetNode node : nodes)
+            {
+                String dbType = dataNodeDbTypeMap.get(node.getName());
+                if (sourceDbType.equalsIgnoreCase("mysql"))
+                {
+                    node.setStatement(sql);   //mysql之前已经加好limit
+                } else if (sqlMapCache.containsKey(dbType))
+                {
+                    node.setStatement(sqlMapCache.get(dbType));
+                } else if(isNeedConvert)
+                {
+                    String nativeSql = PageSQLUtil.convertLimitToNativePageSql(dbType, sql, offset, count);
+                    sqlMapCache.put(dbType, nativeSql);
+                    node.setStatement(nativeSql);
+                }  else {
+                    node.setStatement(sql);
+                }
+
+                node.setLimitStart(offset);
+                node.setLimitSize(count);
+            }
+        }
+    }
+
+    public boolean isLoadData()
+    {
+        return isLoadData;
+    }
+
+    public void setLoadData(boolean isLoadData)
+    {
+        this.isLoadData = isLoadData;
+    }
+
+    public boolean isFinishedRoute() {
+        return isFinishedRoute;
+    }
+
+    public void setFinishedRoute(boolean isFinishedRoute) {
+        this.isFinishedRoute = isFinishedRoute;
+    }
+
+    public boolean isGlobalTable() {
+        return globalTableFlag;
+    }
+
+    public void setGlobalTable(boolean globalTableFlag) {
+        this.globalTableFlag = globalTableFlag;
+    }
 
     public SQLMerge getSqlMerge() {
         return sqlMerge;
@@ -191,7 +220,7 @@ public final class RouteResultset implements Serializable {
     /**
      * return primary key items ,first is table name ,seconds is primary key
      *
-     * @return
+     * @return the dot separated parts of primary key
      */
     public String[] getPrimaryKeyItems() {
         return primaryKey.split("\\.");
@@ -269,38 +298,6 @@ public final class RouteResultset implements Serializable {
 
     public void setCallStatement(boolean callStatement) {
         this.callStatement = callStatement;
-    }
-
-    public void changeNodeSqlAfterAddLimit(SchemaConfig schemaConfig, String sourceDbType, String sql, int offset, int count, boolean isNeedConvert) {
-        if (nodes != null)
-        {
-
-            Map<String, String> dataNodeDbTypeMap = schemaConfig.getDataNodeDbTypeMap();
-            Map<String, String> sqlMapCache = new HashMap<>();
-            for (RouteResultsetNode node : nodes)
-            {
-                String dbType = dataNodeDbTypeMap.get(node.getName());
-                if (sourceDbType.equalsIgnoreCase("mysql"))
-                {
-                    node.setStatement(sql);   //mysql之前已经加好limit
-                } else if (sqlMapCache.containsKey(dbType))
-                {
-                    node.setStatement(sqlMapCache.get(dbType));
-                } else if(isNeedConvert)
-                {
-                    String nativeSql = PageSQLUtil.convertLimitToNativePageSql(dbType, sql, offset, count);
-                    sqlMapCache.put(dbType, nativeSql);
-                    node.setStatement(nativeSql);
-                }  else {
-                    node.setStatement(sql);
-                }
-
-                node.setLimitStart(offset);
-                node.setLimitSize(count);
-            }
-
-
-        }
     }
 
     public boolean isAutocommit() {

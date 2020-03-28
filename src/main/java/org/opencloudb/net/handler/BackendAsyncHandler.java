@@ -23,8 +23,6 @@
  */
 package org.opencloudb.net.handler;
 
-import java.util.concurrent.Executor;
-
 import org.opencloudb.net.Handler;
 
 /**
@@ -32,14 +30,8 @@ import org.opencloudb.net.Handler;
  */
 public abstract class BackendAsyncHandler implements Handler {
 
-protected void offerData(byte[] data, Executor executor) {
+	protected void offerData(byte[] data) {
 		handleData(data);
-
-		// if (dataQueue.offer(data)) {
-		// handleQueue(executor);
-		// } else {
-		// offerDataError();
-		// }
 	}
 
 	protected abstract void offerDataError();

@@ -104,16 +104,14 @@ public class ServerQueryHandler implements FrontendQueryHandler {
 			c.writeErrMessage(ErrorCode.ER_SYNTAX_ERROR, "Unsupported command");
 			break;
 		case ServerParse.MYSQL_CMD_COMMENT:
-			c.write(c.writeToBuffer(OkPacket.OK, c.allocate()));
-			break;
 		case ServerParse.MYSQL_COMMENT:
 			c.write(c.writeToBuffer(OkPacket.OK, c.allocate()));
 			break;
-            case ServerParse.LOAD_DATA_INFILE_SQL:
-                c.loadDataInfileStart(sql);
-                break;
+    	case ServerParse.LOAD_DATA_INFILE_SQL:
+            c.loadDataInfileStart(sql);
+            break;
 		default:
-			if(readOnly){
+			if(this.readOnly){
 				log.warn("User readonly: sql '{}'", sql);
 				c.writeErrMessage(ErrorCode.ER_USER_READ_ONLY, "User readonly");
 				break;

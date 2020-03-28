@@ -121,10 +121,9 @@ public class StatisticsSqlInterceptor implements SQLInterceptor {
      */
     @Override
     public String interceptSQL(String sql, int sqlType) {
-        log.debug("sql interceptSQL:");
+        log.debug("sql interceptSQL '{}'", sql);
         final String sqls = DefaultSqlInterceptor.processEscape(sql);
-        MycatServer server = MycatServer.getContextServer();
-        server.getBusinessExecutor().execute(new StatisticsSqlRunner(sqlType, sqls));
+        new StatisticsSqlRunner(sqlType, sqls).run();
         return sql;
     }
     

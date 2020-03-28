@@ -33,14 +33,8 @@ public class CommitCommand implements SQLCtrlCommand {
 	}
 
 	@Override
-	public boolean relaseConOnOK() {
+	public boolean releaseConOnOK() {
 		return true;
-	}
-
-	@Override
-	public boolean isAutoClearSessionCons() {
-		// need rollback when err
-		return false;
 	}
 
 }

@@ -2,7 +2,7 @@
 <!DOCTYPE mycat:schema SYSTEM "schema.dtd">
 <mycat:schema xmlns:mycat="http://org.opencloudb/">
 
-	<schema name="test" checkSQLschema="false" sqlMaxLimit="100" dataNode="dn1">
+	<schema name="test" checkSQLschema="false" dataNode="dn1">
 		<!-- auto sharding by id (long) -->
 		<table name="travelrecord" dataNode="dn1,dn2,dn3" rule="auto-sharding-long" />
 

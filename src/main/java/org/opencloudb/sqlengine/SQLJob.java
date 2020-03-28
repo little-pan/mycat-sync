@@ -4,10 +4,10 @@ import java.util.List;
 
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
+import org.opencloudb.mysql.handler.AbstractResponseHandler;
 import org.opencloudb.net.BackendConnection;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.backend.PhysicalDataSource;
-import org.opencloudb.mysql.handler.ResponseHandler;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.parser.ServerParse;
@@ -19,7 +19,7 @@ import org.slf4j.*;
  * @author wuzhih
  * 
  */
-public class SQLJob implements ResponseHandler, Runnable {
+public class SQLJob extends AbstractResponseHandler implements Runnable {
 
 	public static final Logger log = LoggerFactory.getLogger(SQLJob.class);
 
@@ -147,11 +147,6 @@ public class SQLJob implements ResponseHandler, Runnable {
 	public void rowEofResponse(byte[] eof, BackendConnection conn) {
 		conn.release();
 		doFinished(false);
-	}
-
-	@Override
-	public void writeQueueAvailable() {
-
 	}
 
 	@Override

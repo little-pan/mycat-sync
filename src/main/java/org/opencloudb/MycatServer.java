@@ -36,8 +36,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
 import org.opencloudb.backend.PhysicalDBPool;
 import org.opencloudb.buffer.BufferPool;
 import org.opencloudb.cache.CacheService;
@@ -82,10 +80,9 @@ public class MycatServer {
 	private final long startupTime;
 
 	private ConnectionManager connectionManager;
-	private NioProcessorPool processorPool;
-	private NameableExecutor businessExecutor;
+	private NioProcessorPool svrProcessorPool;
+    private NioProcessorPool mgrProcessorPool;
 	private NameableExecutor timerExecutor;
-	private ListeningExecutorService listeningExecutorService;
 
 	public MycatServer() {
 	    String prefix = NAME + "Timer-";
@@ -141,25 +138,21 @@ public class MycatServer {
             // server startup
             log.info("=======================================================");
             log.info("{} is ready to startup ...", NAME);
-            log.info("Total processors: {}, business executor: {}, buffer chunk size: {}, " +
+            log.info("Total processors: {}, buffer chunk size: {}, " +
                             "buffer pool capacity(bufferPool / bufferChunk) is: {}",
-                    system.getProcessors(), system.getProcessorExecutor(),
-                    system.getProcessorBufferChunk(), system.getProcessorBufferPool() / system.getProcessorBufferChunk());
+                    system.getProcessors(), system.getProcessorBufferChunk(),
+                    system.getProcessorBufferPool() / system.getProcessorBufferChunk());
             log.info("Transaction isolation level: {}", Isolations.getName(system.getTxIsolation()));
             log.info("Sysconfig params: {}", system);
 
             // startup processors
-            final int threadPoolSize = system.getProcessorExecutor();
             long processBufferPool = system.getProcessorBufferPool();
             int processBufferChunk = system.getProcessorBufferChunk();
             int socketBufferLocalPercent = system.getProcessorBufferLocalPercent();
             this.bufferPool = new BufferPool(processBufferPool, processBufferChunk,
                     socketBufferLocalPercent / processorCount);
-            this.businessExecutor = ExecutorUtil.create("BusinessExecutor", threadPoolSize);
-            this.connectionManager = new ConnectionManager("ConnectionMgr",
-                    this.bufferPool, this.businessExecutor);
+            this.connectionManager = new ConnectionManager("ConnectionMgr", this.bufferPool);
             this.timerExecutor = ExecutorUtil.create("Timer-", system.getTimerExecutor());
-            this.listeningExecutorService = MoreExecutors.listeningDecorator(businessExecutor);
 
             if (system.getUsingAIO() == 1) {
                 log.warn("Aio network handler deprecated and ignore");
@@ -168,8 +161,11 @@ public class MycatServer {
             NioAcceptor manager = null, server = null;
             boolean failed = true;
             try {
-                String name = AbstractProcessor.PROCESSOR_THREAD_PREFIX + "NioProcessorPool";
-                this.processorPool = new NioProcessorPool(name, processorCount);
+                String name = AbstractProcessor.PROCESSOR_THREAD_PREFIX + "SvrProcessor";
+                this.svrProcessorPool = new NioProcessorPool(name, processorCount);
+                // Use an independent processor pool in manager for management isolation
+                name = AbstractProcessor.PROCESSOR_THREAD_PREFIX + "MgrProcessor";
+                this.mgrProcessorPool = new NioProcessorPool(name, 2);
 
                 // init dataHost
                 Map<String, PhysicalDBPool> dataHosts = config.getDataHosts();
@@ -188,13 +184,13 @@ public class MycatServer {
                 String bindIp = system.getBindIp();
                 ManagerConnectionFactory mcFactory = new ManagerConnectionFactory();
                 manager = new NioAcceptor(NAME + "Manager", bindIp, system.getManagerPort(),
-                        mcFactory, this.processorPool);
+                        mcFactory, this.mgrProcessorPool);
                 manager.start();
                 manager.awaitStarted();
 
                 ServerConnectionFactory scFactory = new ServerConnectionFactory();
                 server  = new NioAcceptor(NAME + "Server",  bindIp, system.getServerPort(),
-                        scFactory, this.processorPool);
+                        scFactory, this.svrProcessorPool);
                 server.start();
                 server.awaitStarted();
 
@@ -203,9 +199,11 @@ public class MycatServer {
             } finally {
                 if (failed) {
                     IoUtil.close(manager);
+                    IoUtil.close(this.mgrProcessorPool);
+                    if (this.mgrProcessorPool != null) this.mgrProcessorPool.join();
                     IoUtil.close(server);
-                    IoUtil.close(this.processorPool);
-                    this.processorPool.join();
+                    IoUtil.close(this.svrProcessorPool);
+                    if (this.svrProcessorPool != null) this.svrProcessorPool.join();
                 }
             }
         } finally {
@@ -438,7 +436,7 @@ public class MycatServer {
     }
 
     public NioProcessorPool getProcessorPool () {
-        return this.processorPool;
+        return this.svrProcessorPool;
     }
 
     public MycatConfig getConfig() {
@@ -473,10 +471,6 @@ public class MycatServer {
 		return cacheService;
 	}
 
-	public NameableExecutor getBusinessExecutor() {
-		return businessExecutor;
-	}
-
 	public RouteService getRouterservice() {
 		return routerService;
 	}
@@ -503,10 +497,6 @@ public class MycatServer {
 
 	public void online() {
 		isOnline.set(true);
-	}
-
-	public ListeningExecutorService getListeningExecutorService() {
-		return listeningExecutorService;
 	}
 
 }

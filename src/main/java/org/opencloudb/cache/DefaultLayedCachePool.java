@@ -23,22 +23,24 @@
  */
 package org.opencloudb.cache;
 
+import org.slf4j.*;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.log4j.Logger;
-
 public class DefaultLayedCachePool implements LayerCachePool {
-	private static final Logger LOGGER = Logger
-			.getLogger(DefaultLayedCachePool.class);
+
+	private static final Logger log = LoggerFactory.getLogger(DefaultLayedCachePool.class);
+
+	protected static final String defaultCache = "default";
+	public static final String DEFAULT_CACHE_COUNT = "DEFAULT_CACHE_COUNT";
+	public static final String DEFAULT_CACHE_EXPIRE_SECONDS = "DEFAULT_CACHE_EXPIRE_SECONDS";
+
 	protected Map<String, CachePool> allCaches = new HashMap<String, CachePool>();
 	protected final ReentrantLock lock = new ReentrantLock();
 	protected int defaultCacheSize;
 	protected int defaulExpiredSeconds;
-	protected static final String defaultCache = "default";
-	public static final String DEFAULT_CACHE_COUNT = "DEFAULT_CACHE_COUNT";
-	public static final String DEFAULT_CACHE_EXPIRE_SECONDS = "DEFAULT_CACHE_EXPIRE_SECONDS";
 	private final CachePoolFactory poolFactory;
 	private final String name;
 
@@ -75,9 +77,9 @@ public class DefaultLayedCachePool implements LayerCachePool {
 	 * @param cacheName
 	 * @return
 	 */
-	public CachePool createChildCache(String cacheName, int size,
-			int expireSeconds) {
-		LOGGER.info("create child Cache: " + cacheName+ " for layered cache "+name+ ", size "+size+", expire seconds "+expireSeconds);
+	public CachePool createChildCache(String cacheName, int size, int expireSeconds) {
+		log.info("create child Cache '{}' for layered cache {}, size {}, expire seconds {}",
+				cacheName, name, size, expireSeconds);
 		CachePool child = this.poolFactory.createCachePool(name + "."
 				+ cacheName, size, expireSeconds);
 		allCaches.put(cacheName, child);
@@ -97,11 +99,10 @@ public class DefaultLayedCachePool implements LayerCachePool {
 
 	@Override
 	public void clearCache() {
-		LOGGER.info("clear cache ");
+		log.info("clear cache");
 		for (CachePool pool : allCaches.values()) {
 			pool.clearCache();
 		}
-
 	}
 
 	@Override

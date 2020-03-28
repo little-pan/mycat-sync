@@ -28,7 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
+import org.slf4j.*;
 
 /**
  * cache service for other component default using memory cache encache
@@ -37,13 +37,13 @@ import org.apache.log4j.Logger;
  * 
  */
 public class CacheService {
-	private static final Logger logger = Logger.getLogger(CacheService.class);
 
-	private final Map<String, CachePoolFactory> poolFactorys = new HashMap<String, CachePoolFactory>();
-	private final Map<String, CachePool> allPools = new HashMap<String, CachePool>();
+	private static final Logger log = LoggerFactory.getLogger(CacheService.class);
+
+	private final Map<String, CachePoolFactory> poolFactorys = new HashMap<>();
+	private final Map<String, CachePool> allPools = new HashMap<>();
 
 	public CacheService() {
-
 		// load cache pool defined
 		try {
 			init();
@@ -85,8 +85,8 @@ public class CacheService {
 									+ value);
 				}
 				String type = valueItems[0];
-				int size = Integer.valueOf(valueItems[1]);
-				int timeOut = Integer.valueOf(valueItems[2]);
+				int size = Integer.parseInt(valueItems[1]);
+				int timeOut = Integer.parseInt(valueItems[2]);
 				createPool(cacheName, type, size, timeOut);
 			} else if (key.startsWith(layedPoolKeyPref)) {
 				String cacheName = key.substring(layedPoolKeyPref.length());
@@ -95,23 +95,22 @@ public class CacheService {
 				int index = cacheName.indexOf(".");
 				if (index < 0) {// root layer
 					String type = valueItems[0];
-					int size = Integer.valueOf(valueItems[1]);
-					int timeOut = Integer.valueOf(valueItems[2]);
+					int size = Integer.parseInt(valueItems[1]);
+					int timeOut = Integer.parseInt(valueItems[2]);
 					createLayeredPool(cacheName, type, size, timeOut);
 				} else {
 					// root layers' children
 					String parent = cacheName.substring(0, index);
 					String child = cacheName.substring(index + 1);
 					CachePool pool = this.allPools.get(parent);
-					if (pool == null || !(pool instanceof LayerCachePool)) {
-						throw new java.lang.IllegalArgumentException(
+					if (!(pool instanceof LayerCachePool)) {
+						throw new IllegalArgumentException(
 								"parent pool not exists or not layered cache pool:"
-										+ parent + " the child cache is:"
-										+ child);
+										+ parent + " the child cache is: " + child);
 					}
 
-					int size = Integer.valueOf(valueItems[0]);
-					int timeOut = Integer.valueOf(valueItems[1]);
+					int size = Integer.parseInt(valueItems[0]);
+					int timeOut = Integer.parseInt(valueItems[1]);
 					((DefaultLayedCachePool) pool).createChildCache(child,
 							size, timeOut);
 				}
@@ -119,22 +118,18 @@ public class CacheService {
 		}
 	}
 
-	private void createLayeredPool(String cacheName, String type, int size,
-			int expireSeconds) {
+	private void createLayeredPool(String cacheName, String type, int size, int expireSeconds) {
 		checkExists(cacheName);
-		logger.info("create layer cache pool " + cacheName + " of type " + type
-				+ " ,default cache size " + size + " ,default expire seconds"
-				+ expireSeconds);
-		DefaultLayedCachePool layerdPool = new DefaultLayedCachePool(cacheName,
-				this.getCacheFact(type), size, expireSeconds);
-		this.allPools.put(cacheName, layerdPool);
-
+		log.info("create layer cache pool '{}' of type '{}', default cache size {}, " +
+				"default expire seconds {}", cacheName, type, size, expireSeconds);
+		DefaultLayedCachePool layeredPool = new DefaultLayedCachePool(cacheName,
+			this.getCacheFact(type), size, expireSeconds);
+		this.allPools.put(cacheName, layeredPool);
 	}
 
 	private void checkExists(String poolName) {
 		if (allPools.containsKey(poolName)) {
-			throw new java.lang.IllegalArgumentException(
-					"duplicate cache pool name: " + poolName);
+			throw new IllegalArgumentException("duplicate cache pool name: " + poolName);
 		}
 	}
 
@@ -143,7 +138,6 @@ public class CacheService {
 		CachePoolFactory factry = (CachePoolFactory) Class.forName(
 				factryClassName).newInstance();
 		poolFactorys.put(factryType, factry);
-
 	}
 
 	private void createPool(String poolName, String type, int cacheSize,
@@ -183,13 +177,10 @@ public class CacheService {
 	}
 
 	public void clearCache() {
-
-		logger.info("clear all cache pool ");
-		for (CachePool pool : allPools.values()) {
-
+		log.info("clear all cache pool");
+		for (CachePool pool: this.allPools.values()) {
 			pool.clearCache();
 		}
-
 	}
 
 }

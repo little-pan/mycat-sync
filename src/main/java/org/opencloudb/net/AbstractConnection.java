@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.google.common.base.Strings;
 import org.opencloudb.mysql.CharsetUtil;
 import static org.opencloudb.util.CompressUtil.*;
 import org.opencloudb.util.IoUtil;
@@ -50,6 +49,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 	private static final int OP_NOT_READ = ~SelectionKey.OP_READ;
 	private static final int OP_NOT_WRITE = ~SelectionKey.OP_WRITE;
 
+	private final AtomicBoolean isClosed;
 	protected long id;
 
 	protected String host;
@@ -70,7 +70,6 @@ public abstract class AbstractConnection implements ClosableConnection {
 	// Note: it's thread-safe for processor bind mode
 	protected final Queue<ByteBuffer> writeQueue = new LinkedList<>();
 	protected int readBufferOffset;
-	protected final AtomicBoolean isClosed;
 	protected long startupTime;
 	protected long lastReadTime;
 	protected long lastWriteTime;
@@ -83,6 +82,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 
 	private long idleTimeout;
 	protected ConnectionManager manager;
+	protected NioProcessor processor;
 
 	public AbstractConnection(SocketChannel channel) {
 		this.channel = channel;
@@ -93,6 +93,12 @@ public abstract class AbstractConnection implements ClosableConnection {
 	}
 
 	public void onRegister(Selector selector, boolean autoRead) {
+		NioProcessor currentProcessor = NioProcessor.ensureRunInProcessor();
+		if (this.processor != null && this.processor != currentProcessor) {
+			throw new IllegalStateException("Connection has been assigned to another processor");
+		}
+		setProcessor(currentProcessor);
+
 		// recall here for running in current processor's selector
 		// when reuse this connection from connection pool after it's released.
 		try {
@@ -317,8 +323,8 @@ public abstract class AbstractConnection implements ClosableConnection {
 			}
 			while ((buffer = this.writeQueue.poll()) != null) {
 				if (buffer.limit() == 0) {
-					this.recycle(buffer);
-					this.close("quit send");
+					recycle(buffer);
+					close("quit send");
 					return true;
 				}
 
@@ -402,21 +408,42 @@ public abstract class AbstractConnection implements ClosableConnection {
     }
 
 	@Override
-	public void close(String reason) {
-		if (!isClosed()) {
-			closeSocket();
-			this.isClosed.set(true);
-			if (this.manager != null) {
-                this.manager.removeConnection(this);
-			}
-			this.cleanup();
-			this.isSupportCompress = false;
+	public final void close(String reason) {
+		final NioProcessor processor = this.processor;
 
-			// Ignore null information
-			if (Strings.isNullOrEmpty(reason)) {
-				return;
+		this.closeReason = reason;
+		if (processor == null) {
+			this.closeTask.run();
+		} else {
+			processor.execute(this.closeTask);
+		}
+	}
+
+	private volatile String closeReason;
+	private final Runnable closeTask = new Runnable() {
+		@Override
+		public void run() {
+			doClose(closeReason);
+		}
+	};
+
+	protected void doClose(String reason) {
+		final NioProcessor processor = this.processor;
+		if (processor != null && processor != NioProcessor.ensureRunInProcessor()) {
+			throw new IllegalStateException("Fatal: close the connection in another processor or thread");
+		}
+
+		if (this.isClosed.compareAndSet(false, true)) {
+			try {
+				closeSocket();
+				if (this.manager != null) {
+					this.manager.removeConnection(this);
+				}
+			} finally {
+				cleanup();
 			}
-			log.info("Close connection, reason: {}, conn: {}", reason, this);
+			this.isSupportCompress = false;
+			log.info("Close connection for reason '{}': {}", reason, this);
 		}
 	}
 
@@ -470,6 +497,16 @@ public abstract class AbstractConnection implements ClosableConnection {
             length |= (buffer.get(++offset) & 0xff) << 16;
             return length + headerSize;
         }
+	}
+
+	@Override
+	public NioProcessor getProcessor() {
+		return processor;
+	}
+
+	@Override
+	public void setProcessor(NioProcessor processor) {
+		this.processor = processor;
 	}
 
 	public Queue<ByteBuffer> getWriteQueue() {

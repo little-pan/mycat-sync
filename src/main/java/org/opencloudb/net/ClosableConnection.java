@@ -25,8 +25,16 @@ package org.opencloudb.net;
 
 public interface ClosableConnection {
 
+	NioProcessor getProcessor();
+
+	void setProcessor(NioProcessor processor);
+
 	String getCharset();
 
+	/** Close this connection. This method is an entry of concurrency,
+	 * both current processor thread and timer executor can call this method.
+	 * So we should post the close() work to current processor if it existing.
+	 */
 	void close(String reason);
 
 	boolean isClosed();

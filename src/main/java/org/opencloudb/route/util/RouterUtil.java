@@ -5,9 +5,7 @@ import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlInsertStatement;
 import com.alibaba.druid.sql.dialect.mysql.parser.MySqlStatementParser;
 import com.alibaba.druid.wall.spi.WallVisitorUtils;
 import com.google.common.base.Strings;
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
+
 import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.cache.LayerCachePool;
@@ -26,12 +24,12 @@ import org.opencloudb.route.SessionSQLPair;
 import org.opencloudb.route.function.AbstractPartitionAlgorithm;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.parser.ServerParse;
+import org.opencloudb.util.Callback;
 import org.opencloudb.util.StringUtil;
 
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 import java.util.*;
-import java.util.concurrent.Callable;
 
 /**
  * 从ServerRouterUtil中抽取的一些公用方法，路由解析工具类
@@ -92,22 +90,21 @@ public class RouterUtil {
 	 * 
 	 * @author mycat
 	 */
-	public static RouteResultset routeToSingleNode(RouteResultset rrs,
-			String dataNode, String stmt) {
+	public static RouteResultset routeToSingleNode(RouteResultset rrs, String dataNode, String stmt) {
 		if (dataNode == null) {
 			return rrs;
 		}
+
 		RouteResultsetNode[] nodes = new RouteResultsetNode[1];
-		nodes[0] = new RouteResultsetNode(dataNode, rrs.getSqlType(), stmt);//rrs.getStatement()
+		nodes[0] = new RouteResultsetNode(dataNode, rrs.getSqlType(), stmt);
 		rrs.setNodes(nodes);
 		rrs.setFinishedRoute(true);
 		if (rrs.getCanRunInReadDB() != null) {
 			nodes[0].setCanRunInReadDB(rrs.getCanRunInReadDB());
 		}
+
 		return rrs;
 	}
-
-
 
 	/**
 	 * 修复DDL路由
@@ -635,11 +632,11 @@ public class RouterUtil {
 														// rule to
 														// find
 														// datanode
-			Set<ColumnRoutePair> parentColVal = new HashSet<ColumnRoutePair>(1);
+			Set<ColumnRoutePair> parentColVal = new HashSet<>(1);
 			ColumnRoutePair pair = new ColumnRoutePair(joinKeyVal);
 			parentColVal.add(pair);
 			Set<String> dataNodeSet = ruleCalculate(tc.getParentTC(), parentColVal);
-			if (dataNodeSet.isEmpty() || dataNodeSet.size() > 1) {
+			if (dataNodeSet.size() != 1) {
 				throw new SQLNonTransientException(
 						"parent key can't find  valid datanode ,expect 1 but found: "
 								+ dataNodeSet.size());
@@ -649,8 +646,10 @@ public class RouterUtil {
 				LOGGER.debug("found partion node (using parent partion rule directly) for child table to insert  "
 						+ dn + " sql :" + stmt);
 			}
+
 			return RouterUtil.routeToSingleNode(rrs, dn, stmt);
 		}
+
 		return null;
 	}
 
@@ -1140,15 +1139,26 @@ public class RouterUtil {
 	}
 
 
-	public static boolean processERChildTable(final SchemaConfig schema, final String origSQL,
+	/** Handle sql with ER child table.
+	 *
+	 * @param schema
+	 * @param originSQL
+	 * @param sc
+	 *
+	 * @return true if sql handled, otherwise false
+	 *
+	 * @throws SQLNonTransientException
+	 */
+	public static boolean processERChildTable(final SchemaConfig schema, final String originSQL,
 	                                          final ServerConnection sc) throws SQLNonTransientException {
-		String tableName = StringUtil.getTableName(origSQL).toUpperCase();
+		String tableName = StringUtil.getTableName(originSQL).toUpperCase();
 		final TableConfig tc = schema.getTables().get(tableName);
 
 		if (null != tc && tc.isChildTable()) {
-			final RouteResultset rrs = new RouteResultset(origSQL, ServerParse.INSERT);
+			final RouteResultset rrs = new RouteResultset(originSQL, ServerParse.INSERT);
 			String joinKey = tc.getJoinKey();
-			MySqlInsertStatement insertStmt = (MySqlInsertStatement) (new MySqlStatementParser(origSQL)).parseInsert();
+			MySqlStatementParser parser = new MySqlStatementParser(originSQL);
+			MySqlInsertStatement insertStmt = (MySqlInsertStatement)parser.parseInsert();
 			int joinKeyIndex = getJoinKeyIndex(insertStmt.getColumns(), joinKey);
 
 			if (joinKeyIndex == -1) {
@@ -1167,15 +1177,16 @@ public class RouterUtil {
 			String sql = insertStmt.toString();
 
 			// try to route by ER parent partion key
-			RouteResultset theRrs = RouterUtil.routeByERParentKey(sc, schema, ServerParse.INSERT, sql, rrs, tc, joinKeyVal);
+			final RouteResultset parentRrs = RouterUtil.routeByERParentKey(sc, schema,
+					ServerParse.INSERT, sql, rrs, tc, joinKeyVal);
 
-			if (theRrs != null) {
+			if (parentRrs != null) {
 				boolean processedInsert=false;
                 if ( sc!=null && tc.isAutoIncrement()) {
                     String primaryKey = tc.getPrimaryKey();
                     processedInsert=processInsert(sc,schema,ServerParse.INSERT,sql,tc.getName(),primaryKey);
                 }
-                if(processedInsert==false){
+                if(!processedInsert){
                 	rrs.setFinishedRoute(true);
                     sc.getSession().execute(rrs, ServerParse.INSERT);
                 }
@@ -1188,59 +1199,52 @@ public class RouterUtil {
 				LOGGER.debug("find root parent's node sql " + findRootTBSql);
 			}
 
-			MycatServer server = MycatServer.getContextServer();
-			ListenableFuture<String> listenableFuture = server.
-					getListeningExecutorService().submit(new Callable<String>() {
+			Callback<String> callback = new Callback<String>() {
 				@Override
-				public String call() throws Exception {
-					FetchStoreNodeOfChildTableHandler fetchHandler = new FetchStoreNodeOfChildTableHandler();
-					return fetchHandler.execute(schema.getName(), findRootTBSql, tc.getRootParent().getDataNodes());
-				}
-			});
-
-
-			Futures.addCallback(listenableFuture, new FutureCallback<String>() {
-				@Override
-				public void onSuccess(String result) {
-					if (Strings.isNullOrEmpty(result)) {
-						StringBuilder s = new StringBuilder();
-						LOGGER.warn(s.append(sc.getSession()).append(origSQL).toString() +
-								" err:" + "can't find (root) parent sharding node for sql:" + origSQL);
-						sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR, "can't find (root) parent sharding node for sql:" + origSQL);
-						return;
-					}
-
-					if (LOGGER.isDebugEnabled()) {
-						LOGGER.debug("found partion node for child table to insert " + result + " sql :" + origSQL);
-					}
-
-					boolean processedInsert=false;
-                    if ( sc!=null && tc.isAutoIncrement()) {
-                        try {
-                            String primaryKey = tc.getPrimaryKey();
-							processedInsert=processInsert(sc,schema,ServerParse.INSERT,origSQL,tc.getName(),primaryKey);
-						} catch (SQLNonTransientException e) {
-							LOGGER.warn("sequence processInsert error,",e);
-		                    sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR , "sequence processInsert error," + e.getMessage());
+				public void call(String result, Throwable cause) {
+					if (result != null) {
+						if (Strings.isNullOrEmpty(result)) {
+							StringBuilder s = new StringBuilder();
+							LOGGER.warn(s.append(sc.getSession()).append(originSQL).toString() +
+									" err:" + "can't find (root) parent sharding node for sql:" + originSQL);
+							sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR,
+									"can't find (root) parent sharding node for sql:" + originSQL);
+							return;
 						}
-                    }
-                    if(!processedInsert){
-                    	RouteResultset executeRrs = RouterUtil.routeToSingleNode(rrs, result, origSQL);
-    					sc.getSession().execute(executeRrs, ServerParse.INSERT);
-                    }
 
-				}
+						if (LOGGER.isDebugEnabled()) {
+							LOGGER.debug("found partion node for child table to insert " + result + " sql :" + originSQL);
+						}
 
-				@Override
-				public void onFailure(Throwable t) {
-					StringBuilder s = new StringBuilder();
-					LOGGER.warn(s.append(sc.getSession()).append(origSQL).toString() +
-							" err:" + t.getMessage());
-					sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR, t.getMessage() + " " + s.toString());
+						boolean processedInsert = false;
+						if ( sc!=null && tc.isAutoIncrement()) {
+							try {
+								String primaryKey = tc.getPrimaryKey();
+								processedInsert=processInsert(sc,schema,ServerParse.INSERT, originSQL,tc.getName(),primaryKey);
+							} catch (SQLNonTransientException e) {
+								LOGGER.warn("sequence processInsert error,",e);
+								sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR ,
+										"sequence processInsert error," + e.getMessage());
+							}
+						}
+						if(!processedInsert){
+							RouteResultset executeRrs = RouterUtil.routeToSingleNode(rrs, result, originSQL);
+							sc.getSession().execute(executeRrs, ServerParse.INSERT);
+						}
+					} else {
+						StringBuilder s = new StringBuilder();
+						LOGGER.warn(s.append(sc.getSession()).append(originSQL).toString() +
+								" error:" + cause.getMessage());
+						sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR, cause.getMessage() + " " + s.toString());
+					}
 				}
-			}, server.getListeningExecutorService());
+			};
+			FetchStoreNodeOfChildTableHandler fetchHandler = new FetchStoreNodeOfChildTableHandler(callback);
+			fetchHandler.execute(schema.getName(), findRootTBSql, tc.getRootParent().getDataNodes());
+
 			return true;
 		}
+
 		return false;
 	}
 
