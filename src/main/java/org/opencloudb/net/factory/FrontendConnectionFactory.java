@@ -25,7 +25,6 @@ package org.opencloudb.net.factory;
 
 import java.io.IOException;
 import java.net.StandardSocketOptions;
-import java.nio.channels.NetworkChannel;
 import java.nio.channels.SocketChannel;
 
 import org.opencloudb.MycatServer;

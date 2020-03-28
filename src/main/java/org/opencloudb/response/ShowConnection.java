@@ -31,6 +31,7 @@ import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
 import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.FrontendConnection;
+import org.opencloudb.net.NioProcessor;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
@@ -59,8 +60,7 @@ public final class ShowConnection {
 		byte packetId = 0;
 		header.packetId = ++packetId;
 
-		fields[i] = PacketUtil.getField("PROCESSOR",
-				Fields.FIELD_TYPE_VAR_STRING);
+		fields[i] = PacketUtil.getField("PROCESSOR", Fields.FIELD_TYPE_VAR_STRING);
 		fields[i++].packetId = ++packetId;
 
 		fields[i] = PacketUtil.getField("ID", Fields.FIELD_TYPE_LONG);
@@ -81,8 +81,7 @@ public final class ShowConnection {
 		fields[i] = PacketUtil.getField("SCHEMA", Fields.FIELD_TYPE_VAR_STRING);
 		fields[i++].packetId = ++packetId;
 
-		fields[i] = PacketUtil
-				.getField("CHARSET", Fields.FIELD_TYPE_VAR_STRING);
+		fields[i] = PacketUtil.getField("CHARSET", Fields.FIELD_TYPE_VAR_STRING);
 		fields[i++].packetId = ++packetId;
 
 		fields[i] = PacketUtil.getField("NET_IN", Fields.FIELD_TYPE_LONGLONG);
@@ -91,8 +90,7 @@ public final class ShowConnection {
 		fields[i] = PacketUtil.getField("NET_OUT", Fields.FIELD_TYPE_LONGLONG);
 		fields[i++].packetId = ++packetId;
 
-		fields[i] = PacketUtil.getField("ALIVE_TIME(S)",
-				Fields.FIELD_TYPE_LONGLONG);
+		fields[i] = PacketUtil.getField("ALIVE_TIME(S)", Fields.FIELD_TYPE_LONGLONG);
 		fields[i++].packetId = ++packetId;
 
 		fields[i] = PacketUtil.getField("RECV_BUFFER", Fields.FIELD_TYPE_LONG);
@@ -101,13 +99,11 @@ public final class ShowConnection {
 		fields[i] = PacketUtil.getField("SEND_QUEUE", Fields.FIELD_TYPE_LONG);
 		fields[i++].packetId = ++packetId;
 
-		fields[i] = PacketUtil
-				.getField("txlevel", Fields.FIELD_TYPE_VAR_STRING);
+		fields[i] = PacketUtil.getField("txlevel", Fields.FIELD_TYPE_VAR_STRING);
 		fields[i++].packetId = ++packetId;
 
-		fields[i] = PacketUtil.getField("autocommit",
-				Fields.FIELD_TYPE_VAR_STRING);
-		fields[i++].packetId = ++packetId;
+		fields[i] = PacketUtil.getField("autocommit", Fields.FIELD_TYPE_VAR_STRING);
+		fields[i].packetId = ++packetId;
 
 		eof.packetId = ++packetId;
 	}
@@ -132,11 +128,9 @@ public final class ShowConnection {
 		MycatServer server = MycatServer.getContextServer();
 		ConnectionManager manager = server.getConnectionManager();
 		for (FrontendConnection fc : manager.getFrontends().values()) {
-			if (fc != null) {
-				RowDataPacket row = getRow(fc, charset);
-				row.packetId = ++packetId;
-				buffer = row.write(buffer, c, true);
-			}
+			RowDataPacket row = getRow(fc, charset);
+			row.packetId = ++packetId;
+			buffer = row.write(buffer, c, true);
 		}
 
 		// write last eof
@@ -150,7 +144,8 @@ public final class ShowConnection {
 
 	private static RowDataPacket getRow(FrontendConnection c, String charset) {
 		RowDataPacket row = new RowDataPacket(FIELD_COUNT);
-		row.add(c.getManager().getName().getBytes());
+		NioProcessor processor = c.getProcessor();
+		row.add(processor == null? null: processor.getName().getBytes());
 		row.add(LongUtil.toBytes(c.getId()));
 		row.add(StringUtil.encode(c.getHost(), charset));
 		row.add(IntegerUtil.toBytes(c.getPort()));

@@ -29,10 +29,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -74,7 +71,7 @@ public class MycatServer {
     private final AtomicLong xaIDInc = new AtomicLong();
 
 	private final MycatConfig config;
-	private final ScheduledExecutorService timer;
+	private final ScheduledThreadPoolExecutor timer;
 	private final SQLRecorder sqlRecorder;
 	private final AtomicBoolean isOnline;
 	private final long startupTime;
@@ -88,12 +85,12 @@ public class MycatServer {
 	    String prefix = NAME + "Timer-";
         ThreadFactory timerFactory = ExecutorUtil.createFactory(prefix, true);
 		this.config = new MycatConfig();
-        this.timer = Executors.newSingleThreadScheduledExecutor(timerFactory);
+        this.timer = new ScheduledThreadPoolExecutor(1, timerFactory);
 		this.sqlRecorder = new SQLRecorder(this.config.getSystem().getSqlRecordCount());
 		this.isOnline = new AtomicBoolean(true);
         this.cacheService = new CacheService();
         this.routerService = new RouteService(cacheService);
-		// load datanode active index from properties
+		// Load datanode active index from properties
         this.dnIndexProperties = loadDnIndexProps();
 		try {
 		    String interceptor = this.config.getSystem().getSqlInterceptor();
@@ -152,7 +149,7 @@ public class MycatServer {
             this.bufferPool = new BufferPool(processBufferPool, processBufferChunk,
                     socketBufferLocalPercent / processorCount);
             this.connectionManager = new ConnectionManager("ConnectionMgr", this.bufferPool);
-            this.timerExecutor = ExecutorUtil.create("Timer-", system.getTimerExecutor());
+            this.timerExecutor = ExecutorUtil.create("TimerExecutor", system.getTimerExecutor());
 
             if (system.getUsingAIO() == 1) {
                 log.warn("Aio network handler deprecated and ignore");
@@ -444,6 +441,10 @@ public class MycatServer {
         return this.svrProcessorPool;
     }
 
+    public NioProcessorPool getManagerProcessorPool () {
+        return this.mgrProcessorPool;
+    }
+
     public MycatConfig getConfig() {
         return config;
     }
@@ -503,5 +504,9 @@ public class MycatServer {
 	public void online() {
 		isOnline.set(true);
 	}
+
+    public ThreadPoolExecutor getMycatTimer() {
+	    return this.timer;
+    }
 
 }

@@ -31,6 +31,7 @@ import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
 import org.opencloudb.net.BackendConnection;
 import org.opencloudb.net.ConnectionManager;
+import org.opencloudb.net.NioProcessor;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
@@ -120,7 +121,8 @@ public class ShowBackend {
 		int writeQueueSize = 0;
 
 		RowDataPacket row = new RowDataPacket(FIELD_COUNT);
-		row.add(c.getManager().getName().getBytes());
+		NioProcessor processor = c.getProcessor();
+		row.add(processor == null? null: processor.getName().getBytes());
 		row.add(LongUtil.toBytes(c.getId()));
 
 		row.add(LongUtil.toBytes(threadId));

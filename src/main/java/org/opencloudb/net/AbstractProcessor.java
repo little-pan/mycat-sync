@@ -50,4 +50,6 @@ public abstract class AbstractProcessor implements Runnable {
         return (threadName.startsWith(PROCESSOR_THREAD_PREFIX));
     }
 
+    public abstract boolean isActive();
+
 }

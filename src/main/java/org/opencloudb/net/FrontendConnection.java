@@ -364,6 +364,12 @@ public abstract class FrontendConnection extends AbstractConnection {
 		this.isAccepted = isAccepted;
 	}
 
+	@Override
+	public void setManager(ConnectionManager manager) {
+		manager.frontends.put(this.id, this);
+		super.setManager(manager);
+	}
+
 	public LoadDataInfileHandler getLoadDataInfileHandler() {
 		return this.loadDataInfileHandler;
 	}

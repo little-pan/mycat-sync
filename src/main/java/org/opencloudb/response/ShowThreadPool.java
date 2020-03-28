@@ -26,11 +26,13 @@ package org.opencloudb.response;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.Fields;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
+import org.opencloudb.net.NioProcessorPool;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
@@ -49,8 +51,7 @@ import org.opencloudb.util.StringUtil;
 public final class ShowThreadPool {
 
 	private static final int FIELD_COUNT = 6;
-	private static final ResultSetHeaderPacket header = PacketUtil
-			.getHeader(FIELD_COUNT);
+	private static final ResultSetHeaderPacket header = PacketUtil.getHeader(FIELD_COUNT);
 	private static final FieldPacket[] fields = new FieldPacket[FIELD_COUNT];
 	private static final EOFPacket eof = new EOFPacket();
 	static {
@@ -67,17 +68,14 @@ public final class ShowThreadPool {
 		fields[i] = PacketUtil.getField("ACTIVE_COUNT", Fields.FIELD_TYPE_LONG);
 		fields[i++].packetId = ++packetId;
 
-		fields[i] = PacketUtil.getField("TASK_QUEUE_SIZE",
-				Fields.FIELD_TYPE_LONG);
+		fields[i] = PacketUtil.getField("TASK_QUEUE_SIZE", Fields.FIELD_TYPE_LONG);
 		fields[i++].packetId = ++packetId;
 
-		fields[i] = PacketUtil.getField("COMPLETED_TASK",
-				Fields.FIELD_TYPE_LONGLONG);
+		fields[i] = PacketUtil.getField("COMPLETED_TASK", Fields.FIELD_TYPE_LONGLONG);
 		fields[i++].packetId = ++packetId;
 
-		fields[i] = PacketUtil.getField("TOTAL_TASK",
-				Fields.FIELD_TYPE_LONGLONG);
-		fields[i++].packetId = ++packetId;
+		fields[i] = PacketUtil.getField("TOTAL_TASK", Fields.FIELD_TYPE_LONGLONG);
+		fields[i].packetId = ++packetId;
 
 		eof.packetId = ++packetId;
 	}
@@ -87,7 +85,6 @@ public final class ShowThreadPool {
 
 		// write header
 		buffer = header.write(buffer, c, true);
-
 		// write fields
 		for (FieldPacket field : fields) {
 			buffer = field.write(buffer, c, true);
@@ -98,13 +95,24 @@ public final class ShowThreadPool {
 
 		// write rows
 		byte packetId = eof.packetId;
-		List<NameableExecutor> executors = getExecutors();
-		for (NameableExecutor exec : executors) {
-			if (exec != null) {
-				RowDataPacket row = getRow(exec, c.getCharset());
-				row.packetId = ++packetId;
-				buffer = row.write(buffer, c, true);
-			}
+		String charset = c.getCharset();
+
+		for (NameableExecutor exec : getExecutors()) {
+			RowDataPacket row = getRow(exec, charset);
+			row.packetId = ++packetId;
+			buffer = row.write(buffer, c, true);
+		}
+
+		MycatServer server = MycatServer.getContextServer();
+		ThreadPoolExecutor mycatTimer = server.getMycatTimer();
+		RowDataPacket row = getRow(MycatServer.NAME+"Timer", mycatTimer, charset);
+		row.packetId = ++packetId;
+		buffer = row.write(buffer, c, true);
+
+		for (NioProcessorPool pool : getProcessorPools()) {
+			row = getRow(pool.getName(), pool, charset);
+			row.packetId = ++packetId;
+			buffer = row.write(buffer, c, true);
 		}
 
 		// write last eof
@@ -117,13 +125,30 @@ public final class ShowThreadPool {
 	}
 
 	private static RowDataPacket getRow(NameableExecutor exec, String charset) {
+		return getRow(exec.getName(), exec, charset);
+	}
+
+	private static RowDataPacket getRow(String name, ThreadPoolExecutor exec, String charset) {
 		RowDataPacket row = new RowDataPacket(FIELD_COUNT);
-		row.add(StringUtil.encode(exec.getName(), charset));
+		row.add(StringUtil.encode(name, charset));
 		row.add(IntegerUtil.toBytes(exec.getPoolSize()));
 		row.add(IntegerUtil.toBytes(exec.getActiveCount()));
 		row.add(IntegerUtil.toBytes(exec.getQueue().size()));
 		row.add(LongUtil.toBytes(exec.getCompletedTaskCount()));
 		row.add(LongUtil.toBytes(exec.getTaskCount()));
+
+		return row;
+	}
+
+	private static RowDataPacket getRow(String name, NioProcessorPool pool, String charset) {
+		RowDataPacket row = new RowDataPacket(FIELD_COUNT);
+		row.add(StringUtil.encode(name, charset));
+		row.add(IntegerUtil.toBytes(pool.getPoolSize()));
+		row.add(IntegerUtil.toBytes(pool.getActiveCount()));
+		row.add(IntegerUtil.toBytes(pool.getQueueSize()));
+		row.add(LongUtil.toBytes(pool.getCompletedTaskCount()));
+		row.add(LongUtil.toBytes(pool.getTaskCount()));
+
 		return row;
 	}
 
@@ -132,6 +157,15 @@ public final class ShowThreadPool {
 		List<NameableExecutor> list = new ArrayList<>(1);
 
 		list.add(server.getTimerExecutor());
+		return list;
+	}
+
+	private static List<NioProcessorPool> getProcessorPools() {
+		MycatServer server = MycatServer.getContextServer();
+		List<NioProcessorPool> list = new ArrayList<>(2);
+
+		list.add(server.getProcessorPool());
+		list.add(server.getManagerProcessorPool());
 		return list;
 	}
 

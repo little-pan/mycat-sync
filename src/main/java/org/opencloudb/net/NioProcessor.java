@@ -30,6 +30,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.opencloudb.MycatServer;
@@ -56,6 +57,9 @@ public final class NioProcessor extends AbstractProcessor {
 	private final Queue<Runnable> taskQueue;
 	private long connectCount;
 
+	private final AtomicInteger queueSize = new AtomicInteger();
+	private final AtomicLong taskCount = new AtomicLong();
+	private boolean active;
 	private volatile boolean shutdown;
 	private Thread processThread;
 
@@ -93,6 +97,8 @@ public final class NioProcessor extends AbstractProcessor {
 			task.run();
 		} else {
 			this.taskQueue.offer(task);
+			this.queueSize.incrementAndGet();
+			this.taskCount.incrementAndGet();
 			this.selector.wakeup();
 		}
 	}
@@ -160,7 +166,9 @@ public final class NioProcessor extends AbstractProcessor {
 			Selector selector = this.selector;
 			for (;;) {
 				++this.processCount;
+				this.active = false;
 				int n = selector.select();
+				this.active = true;
 				// 1. process IO task
 				processTasks();
 				// 2. Process IO event
@@ -187,6 +195,23 @@ public final class NioProcessor extends AbstractProcessor {
 			LOCAL_PROCESSOR.remove();
 			MycatServer.removeContextServer();
 		}
+	}
+
+	@Override
+	public boolean isActive() {
+		return this.active;
+	}
+
+	public int getQueueSize() {
+		return this.queueSize.get();
+	}
+
+	public long getTaskCount() {
+		return this.taskCount.get();
+	}
+
+	public long getCompletedTaskCount() {
+		return (getTaskCount() - getQueueSize());
 	}
 
 	private void processEvents(SelectionKey key) {
@@ -223,6 +248,7 @@ public final class NioProcessor extends AbstractProcessor {
 			if (con == null) {
 				break;
 			}
+			this.queueSize.decrementAndGet();
 			register(con, true);
 		}
 
@@ -233,6 +259,7 @@ public final class NioProcessor extends AbstractProcessor {
 				break;
 			}
 			try {
+				this.queueSize.decrementAndGet();
 				task.run();
 			} catch (Throwable cause) {
 				log.warn("Execute task failed", cause);
@@ -297,6 +324,8 @@ public final class NioProcessor extends AbstractProcessor {
 		}
 
 		this.registerQueue.offer(c);
+		this.queueSize.incrementAndGet();
+		this.taskCount.incrementAndGet();
 		this.selector.wakeup();
 	}
 

@@ -1,17 +1,16 @@
 package org.opencloudb.net;
 
-import org.opencloudb.MycatServer;
-
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class NioProcessorPool implements AutoCloseable {
 
+	protected final String name;
 	private final NioProcessor[] processors;
 	private final AtomicInteger nextProcessor;
 
-	public NioProcessorPool(String name, int poolSize)
-			throws IOException {
+	public NioProcessorPool(String name, int poolSize) throws IOException {
+		this.name = name;
 		this.processors = new NioProcessor[poolSize];
 		boolean failed = true;
 		try {
@@ -32,6 +31,46 @@ public class NioProcessorPool implements AutoCloseable {
 				}
 			}
 		}
+	}
+
+	public String getName() {
+		return this.name;
+	}
+
+	public int getPoolSize() {
+		return this.processors.length;
+	}
+
+	public int getActiveCount() {
+		int n = 0;
+		for (NioProcessor p: this.processors) {
+			if (p.isActive()) ++n;
+		}
+		return n;
+	}
+
+	public int getQueueSize() {
+		int n = 0;
+		for (NioProcessor p: this.processors) {
+			n += p.getQueueSize();
+		}
+		return n;
+	}
+
+	public long getTaskCount() {
+		int n = 0;
+		for (NioProcessor p: this.processors) {
+			n += p.getTaskCount();
+		}
+		return n;
+	}
+
+	public long getCompletedTaskCount() {
+		int n = 0;
+		for (NioProcessor p: this.processors) {
+			n += p.getCompletedTaskCount();
+		}
+		return n;
 	}
 
 	public NioProcessor getNextProcessor() {

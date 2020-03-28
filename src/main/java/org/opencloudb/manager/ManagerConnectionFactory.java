@@ -24,7 +24,6 @@
 package org.opencloudb.manager;
 
 import java.io.IOException;
-import java.nio.channels.NetworkChannel;
 import java.nio.channels.SocketChannel;
 
 import org.opencloudb.MycatPrivileges;
@@ -44,6 +43,7 @@ public class ManagerConnectionFactory extends FrontendConnectionFactory {
         server.getConfig().setSocketParams(c, true);
         c.setPrivileges(MycatPrivileges.instance());
         c.setQueryHandler(new ManagerQueryHandler(c));
+
         return c;
     }
 

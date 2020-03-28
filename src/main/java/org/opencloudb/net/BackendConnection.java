@@ -126,6 +126,12 @@ public abstract class BackendConnection extends AbstractConnection implements Cl
 		}
 	}
 
+	@Override
+	public void setManager(ConnectionManager manager) {
+		manager.backends.put(this.id, this);
+		super.setManager(manager);
+	}
+
 	public PhysicalDataSource getPool() {
 		return pool;
 	}
