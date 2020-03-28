@@ -11,6 +11,4 @@
         <appender-ref ref="STDOUT" />
     </root>
 
-    <logger name="org.opencloudb.jdbc.JDBCHeartbeat" level="INFO" />
-
 </configuration>

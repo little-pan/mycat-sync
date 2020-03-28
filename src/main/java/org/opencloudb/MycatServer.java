@@ -238,6 +238,7 @@ public class MycatServer {
 			@Override
 			public void run() {
 				try {
+                    log.debug("Clear catlet class");
 					catletClassLoader.clearUnUsedClass();
 				} catch (Exception e) {
                     log.warn("catletClassClear error ", e);
@@ -323,6 +324,7 @@ public class MycatServer {
     protected void checkBackendCons() {
         setContextServer(this);
         try {
+            log.debug("Check backend connections");
             this.connectionManager.checkBackendCons();
         } catch (Exception e) {
             log.warn("checkBackendCons caught error", e);
@@ -334,6 +336,7 @@ public class MycatServer {
     protected void checkFrontCons() {
 	    setContextServer(this);
         try {
+            log.debug("Check frontend connections");
             this.connectionManager.checkFrontCons();
         } catch (Exception e) {
             log.warn("checkFrontCons caught error", e);
@@ -374,6 +377,7 @@ public class MycatServer {
                     public void run() {
                         setContextServer(self);
                         try {
+                            log.debug("The dataNode connection heartbeat runs");
                             Map<String, PhysicalDBPool> nodes = config.getDataHosts();
                             for (PhysicalDBPool node : nodes.values()) {
                                 node.heartbeatCheck(heartPeriod);
@@ -406,6 +410,7 @@ public class MycatServer {
                     public void run() {
                         setContextServer(self);
                         try {
+                            log.debug("The dataNode heartbeat runs");
                             Map<String, PhysicalDBPool> nodes = config.getDataHosts();
                             for (PhysicalDBPool node : nodes.values()) {
                                 node.heartbeat();
