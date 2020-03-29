@@ -222,10 +222,30 @@ public final class NioProcessor extends AbstractProcessor {
 
 	private void cleanup() {
 		this.active = false;
+		cleanupFrontends();
 		IoUtil.close(this.selector);
 		cleanupTaskQueue();
 		LOCAL_PROCESSOR.remove();
 		MycatServer.removeContextServer();
+	}
+
+	private void cleanupFrontends() {
+		if (!isOpen()) {
+			log.debug("{} has been closed", this.name);
+			return;
+		}
+		Set<SelectionKey> keys = this.selector.keys();
+		for (SelectionKey key: keys) {
+			try {
+				Object att = key.attachment();
+				if (att instanceof FrontendConnection) {
+					FrontendConnection fc = (FrontendConnection) att;
+					fc.close(this.name + " is closing");
+				}
+			} catch (Throwable cause) {
+				log.error("Fatal: close frontend connection", cause);
+			}
+		}
 	}
 
 	private void cleanupTaskQueue() {
@@ -270,7 +290,7 @@ public final class NioProcessor extends AbstractProcessor {
 						con.onWrite();
 					}
 				} catch (Throwable e) {
-					log.warn("Process failed in connection " + con, e);
+					log.warn("Process failed in conn " + con, e);
 					Throwable cause = e.getCause();
 					if (cause == null) {
 						cause = e;
@@ -366,7 +386,7 @@ public final class NioProcessor extends AbstractProcessor {
 
 	final void accept(final AbstractConnection c) throws IllegalStateException {
 		if (!isOpen()) {
-			throw new IllegalStateException("Processor has closed");
+			throw new IllegalStateException(this.name + " has been closed");
 		}
 
 		AcceptTask postTask = new AcceptTask(c);

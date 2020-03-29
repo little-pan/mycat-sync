@@ -140,19 +140,33 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 	public void execute() {
 	    log.debug("execute SQL in node '{}'", this.node);
+
 		this.startTime = System.currentTimeMillis();
-		ServerConnection sc = this.session.getSource();
 		this.isRunning = true;
 		this.packetId = 0;
+
 		final BackendConnection conn = this.session.getTarget(this.node);
 		if (this.session.tryExistsCon(conn, this.node)) {
 			executeOn(conn);
 		} else {
+			ServerConnection source = this.session.getSource();
 			// create new connection
 			MycatServer server = MycatServer.getContextServer();
 			MycatConfig conf = server.getConfig();
 			PhysicalDBNode dn = conf.getDataNodes().get(this.node.getName());
-			dn.getConnection(dn.getDatabase(), sc.isAutocommit(), this.node, this, this.node);
+			if (dn == null) {
+				endRunning();
+				String charset = source.getCharset(), node = this.node.getName();
+				String errmsg = "Unknown datanode '"+ node +"'";
+				ErrorPacket err = ErrorPacket.create(++this.packetId,
+						ErrorCode.ER_WRONG_ARGUMENTS, errmsg, charset);
+				err.write(source);
+				return;
+			}
+
+			String db = dn.getDatabase();
+			boolean ac = source.isAutocommit();
+			dn.getConnection(db, ac, this.node, this, this.node);
 		}
 	}
 
@@ -165,20 +179,18 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 	@Override
 	public void connectionClose(BackendConnection conn, String reason) {
-		ErrorPacket err = new ErrorPacket();
-		err.packetId = ++packetId;
-		err.errno = ErrorCode.ER_ERROR_ON_CLOSE;
-		err.message = StringUtil.encode(reason, session.getSource().getCharset());
-		this.backConnectionErr(err, conn);
+		String charset = this.session.getSource().getCharset();
+		ErrorPacket err = ErrorPacket.create(++this.packetId,
+				ErrorCode.ER_ERROR_ON_CLOSE, reason, charset);
+		backConnectionErr(err, conn);
 	}
 
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
 		endRunning();
-		ErrorPacket err = new ErrorPacket();
-		err.packetId = ++packetId;
-		err.errno = ErrorCode.ER_NEW_ABORTING_CONNECTION;
-		err.message = StringUtil.encode(e.getMessage(), session.getSource().getCharset());
+		String charset = this.session.getSource().getCharset();
+		ErrorPacket err = ErrorPacket.create(++this.packetId,
+				ErrorCode.ER_NEW_ABORTING_CONNECTION, e.getMessage(), charset);
 		ServerConnection source = session.getSource();
 		source.write(err.write(allocBuffer(), source, true));
 	}
@@ -187,7 +199,7 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 	public void errorResponse(byte[] data, BackendConnection conn) {
 		ErrorPacket err = new ErrorPacket();
 		err.read(data);
-		err.packetId = ++packetId;
+		err.packetId = ++this.packetId;
 		backConnectionErr(err, conn);
 	}
 
@@ -195,12 +207,12 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 	public void okResponse(byte[] data, BackendConnection conn) {        
 		boolean executeResponse = conn.syncAndExecute();
 		if (executeResponse) {			
-			session.releaseConnectionIfSafe(conn);
+			this.session.releaseConnectionIfSafe(conn);
 			endRunning();
-			ServerConnection source = session.getSource();
+			ServerConnection source = this.session.getSource();
 			OkPacket ok = new OkPacket();
 			ok.read(data);
-			if (rrs.isLoadData()) {
+			if (this.rrs.isLoadData()) {
 				byte lastPackId = source.getLoadDataInfileHandler().getLastPackId();
 				ok.packetId = ++lastPackId;// OK_PACKET
 				source.getLoadDataInfileHandler().clear();
@@ -281,15 +293,16 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 	@Override
 	public void rowResponse(byte[] row, BackendConnection conn) {
-		if(isDefaultNodeShowTable||isDefaultNodeShowFullTable) {
+		if(this.isDefaultNodeShowTable || this.isDefaultNodeShowFullTable) {
 			RowDataPacket rowDataPacket =new RowDataPacket(1);
 			rowDataPacket.read(row);
 			String table=  StringUtil.decode(rowDataPacket.fieldValues.get(0),conn.getCharset());
-			if(shardingTablesSet.contains(table.toUpperCase())) return;
+			if(this.shardingTablesSet.contains(table.toUpperCase())) return;
 		}
 
-		row[3] = ++packetId;
-		buffer = session.getSource().writeToBuffer(row, allocBuffer());
+		row[3] = ++this.packetId;
+		ServerConnection source = this.session.getSource();
+		this.buffer = source.writeToBuffer(row, allocBuffer());
 	}
 
 	private void executeOn(BackendConnection conn) {
@@ -325,11 +338,12 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 		String errHost = source.getHost();
 		int errPort = source.getLocalPort();
 
-		String errmgs = " errno:" + errPkg.errno + " " + new String(errPkg.message);
-		log.warn("Execute sql error: '{}', frontend host: '{}:{}/{}', con: {}", errmgs, errHost, errPort, errUser, conn);
+		String errmsg = " errno:" + errPkg.errno + " " + new String(errPkg.message);
+		log.warn("Execute sql error: '{}', frontend host: '{}:{}/{}', con: {}",
+				errmsg, errHost, errPort, errUser, conn);
 		session.releaseConnectionIfSafe(conn);
 
-		source.setTxInterrupt(errmgs);
+		source.setTxInterrupt(errmsg);
 		errPkg.write(source);
 		recycleResources();
 	}

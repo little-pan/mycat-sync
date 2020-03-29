@@ -285,9 +285,9 @@ public abstract class AbstractConnection implements ClosableConnection {
 
     public void write(final ByteBuffer buffer) {
 		if(isSupportCompress()) {
-			final ByteBuffer newBuffer = compressMysqlPacket(buffer,
-						this, this.compressUnfinishedDataQueue);
-			this.writeQueue.offer(newBuffer);
+			AbstractConnection con = this;
+			ByteBuffer newBuf = compressMysqlPacket(buffer, con, con.compressUnfinishedDataQueue);
+			this.writeQueue.offer(newBuf);
 		} else {
 			this.writeQueue.offer(buffer);
 		}
@@ -327,7 +327,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 				this.writeQueueSize--;
 				if (buffer.limit() == 0) {
 					recycle(buffer);
-					close("quit send");
+					close("'quit' sent");
 					return true;
 				}
 
@@ -367,7 +367,7 @@ public abstract class AbstractConnection implements ClosableConnection {
                 buffer.flip();
                 ByteBuffer newBuf = allocate(capacity + buffer.limit() + 1);
                 newBuf.put(buffer);
-                this.recycle(buffer);
+                recycle(buffer);
                 return newBuf;
             }
         } else {
@@ -403,7 +403,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 
     private void writeNotSend(ByteBuffer buffer) {
         if(isSupportCompress()) {
-            ByteBuffer newBuffer = compressMysqlPacket(buffer,this, compressUnfinishedDataQueue);
+            ByteBuffer newBuffer = compressMysqlPacket(buffer,this, this.compressUnfinishedDataQueue);
             this.writeQueue.offer(newBuffer);
         } else {
             this.writeQueue.offer(buffer);
@@ -416,7 +416,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 		final NioProcessor processor = this.processor;
 
 		this.closeReason = reason;
-		if (processor == null) {
+		if (processor == null || !processor.isOpen()) {
 			this.closeTask.run();
 		} else {
 			processor.execute(this.closeTask);

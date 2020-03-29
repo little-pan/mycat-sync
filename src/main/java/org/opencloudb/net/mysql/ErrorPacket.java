@@ -29,6 +29,7 @@ import java.nio.ByteBuffer;
 import org.opencloudb.mysql.BufferUtil;
 import org.opencloudb.mysql.MySQLMessage;
 import org.opencloudb.net.FrontendConnection;
+import org.opencloudb.util.StringUtil;
 
 /**
  * From server to client in response to command, if error.
@@ -42,7 +43,7 @@ import org.opencloudb.net.FrontendConnection;
  * 5                           sqlstate (5 characters)
  * n                           message
  * 
- * @see http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#Error_Packet
+ * @see <a href="http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#Error_Packet">Error_Packet</a>
  * </pre>
  * 
  * @author mycat
@@ -93,6 +94,7 @@ public class ErrorPacket extends MySQLPacket {
 		c.recycle(buffer);
 		return data;
 	}
+
 	public byte[] writeToBytes() {
 		ByteBuffer buffer = ByteBuffer.allocate(calcPacketSize()+4);
 		int size = calcPacketSize();
@@ -112,11 +114,9 @@ public class ErrorPacket extends MySQLPacket {
 		return data;
 	}
 	@Override
-	public ByteBuffer write(ByteBuffer buffer, FrontendConnection c,
-			boolean writeSocketIfFull) {
+	public ByteBuffer write(ByteBuffer buffer, FrontendConnection c, boolean writeSocketIfFull) {
 		int size = calcPacketSize();
-		buffer = c.checkWriteBuffer(buffer, c.getPacketHeaderSize() + size,
-				writeSocketIfFull);
+		buffer = c.checkWriteBuffer(buffer, c.getPacketHeaderSize() + size, writeSocketIfFull);
 		BufferUtil.writeUB3(buffer, size);
 		buffer.put(packetId);
 		buffer.put(fieldCount);
@@ -126,14 +126,13 @@ public class ErrorPacket extends MySQLPacket {
 		if (message != null) {
 			buffer = c.writeToBuffer(message, buffer);
 		}
+
 		return buffer;
 	}
 
-
-
 	public void write(FrontendConnection c) {
 		ByteBuffer buffer = c.allocate();
-		buffer = this.write(buffer, c, true);
+		buffer = write(buffer, c, true);
 		c.write(buffer);
 	}
 
@@ -149,6 +148,14 @@ public class ErrorPacket extends MySQLPacket {
 	@Override
 	protected String getPacketInfo() {
 		return "MySQL Error Packet";
+	}
+
+	public static ErrorPacket create(byte id, int errno, String errmsg, String charset) {
+		ErrorPacket error = new ErrorPacket();
+		error.packetId = id;
+		error.errno = errno;
+		error.message = StringUtil.encode(errmsg, charset);
+		return error;
 	}
 
 }
