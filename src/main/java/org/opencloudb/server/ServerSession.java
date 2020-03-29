@@ -55,12 +55,12 @@ public class ServerSession implements Session {
 	private final ServerConnection source;
 	private final Map<RouteResultsetNode, BackendConnection> target;
 	// life-cycle: each sql execution
-	private volatile SingleNodeHandler singleNodeHandler;
-	private volatile MultiNodeQueryHandler multiNodeHandler;
-	private volatile RollbackNodeHandler rollbackHandler;
+	private SingleNodeHandler singleNodeHandler;
+	private MultiNodeQueryHandler multiNodeHandler;
+	private RollbackNodeHandler rollbackHandler;
 	private final MultiNodeCoordinator multiNodeCoordinator;
 	private final CommitNodeHandler commitHandler;
-	private volatile String xaTXID;
+	private String xaTXID;
 
 	public ServerSession(ServerConnection source) {
 		this.source = source;
@@ -169,7 +169,8 @@ public class ServerSession implements Session {
 	 * {@link ServerConnection#isClosed()} must be true before invoking this
 	 */
 	public void terminate() {
-		for (BackendConnection node: target.values()) {
+		Collection<BackendConnection> cons = new ArrayList<>(this.target.values());
+		for (BackendConnection node: cons) {
 			node.close("Server session closed");
 		}
 		this.target.clear();
@@ -177,7 +178,8 @@ public class ServerSession implements Session {
 	}
 
 	public void closeAndClearResources(String reason) {
-		for (BackendConnection node : this.target.values()) {
+		Collection<BackendConnection> cons = new ArrayList<>(this.target.values());
+		for (final BackendConnection node: cons) {
 			node.close(reason);
 		}
 		this.target.clear();
@@ -193,9 +195,13 @@ public class ServerSession implements Session {
 
 	private void releaseConnection(RouteResultsetNode rrn) {
 		final BackendConnection bc = this.target.remove(rrn);
+		if (bc == null) {
+			return;
+		}
 
-		if (bc != null) {
-            log.debug("release backend {}", bc);
+		boolean failed = true;
+		try {
+			log.debug("release backend {}", bc);
 
 			bc.setAttachment(null);
 			if (bc.isClosedOrQuit()) {
@@ -203,11 +209,18 @@ public class ServerSession implements Session {
 			}
 			// Here only do release, rollback should be trigger by frontend user!
 			bc.release();
+
+			failed = false;
+		} finally {
+			if (failed) {
+				bc.close("Fatal: release backend connection");
+			}
 		}
 	}
 
 	public void releaseConnections() {
-		for (RouteResultsetNode rrn : this.target.keySet()) {
+		Set<RouteResultsetNode> nodes = new HashSet<>(this.target.keySet());
+		for (final RouteResultsetNode rrn: nodes) {
 			releaseConnection(rrn);
 		}
 	}

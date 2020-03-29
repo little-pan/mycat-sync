@@ -539,7 +539,7 @@ public class MySQLConnection extends BackendConnection {
 				+ ", txIsolation=" + txIsolation + ", autocommit=" + autocommit
 				+ ", attachment=" + attachment + ", respHandler=" + respHandler
 				+ ", host=" + host + ", port=" + port + ", statusSync="
-				+ statusSync + ", writeQueue=" + this.getWriteQueue().size()
+				+ statusSync + ", writeQueue=" + this.writeQueueSize
 				+ ", modifiedSQLExecuted=" + modifiedSQLExecuted + "]";
 	}
 

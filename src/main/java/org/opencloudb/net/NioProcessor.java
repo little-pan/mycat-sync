@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.opencloudb.MycatServer;
+import org.opencloudb.statistic.CommandCount;
 import org.opencloudb.util.IoUtil;
 import org.slf4j.*;
 
@@ -48,18 +49,32 @@ public final class NioProcessor extends AbstractProcessor {
 
 	private static final ThreadLocal<NioProcessor> LOCAL_PROCESSOR = new ThreadLocal<>();
 	private static final AtomicLong ID_GENERATOR = new AtomicLong();
+	private static final String IO_RATIO_PROP = "org.opencloudb.net.ioRatio";
+	private static final int ioRatio = Integer.getInteger(IO_RATIO_PROP, 50);
+
+	static {
+		if (ioRatio <= 0 || ioRatio > 100) {
+			String s = "'"+IO_RATIO_PROP+"' should be in (1, 100], actually is " + ioRatio;
+			throw new ExceptionInInitializerError(s);
+		}
+	}
 
 	private final MycatServer server;
 
 	private final Selector selector;
-	private final Queue<AbstractConnection> registerQueue;
 	private long processCount;
 	private final Queue<Runnable> taskQueue;
 	private long connectCount;
 
-	private final AtomicInteger queueSize = new AtomicInteger();
-	private final AtomicLong taskCount = new AtomicLong();
+	// Statistics
+	private final AtomicInteger queueSize;
+	private long taskCount;
 	private boolean active;
+	private final CommandCount commands;
+	private final AtomicInteger frontendCount;
+	private long netInBytes;
+	private long netOutBytes;
+
 	private volatile boolean shutdown;
 	private Thread processThread;
 
@@ -74,8 +89,10 @@ public final class NioProcessor extends AbstractProcessor {
 		boolean failed = true;
 		try {
 			this.selector = selector;
-			this.registerQueue = new ConcurrentLinkedQueue<>();
+			this.queueSize = new AtomicInteger();
 			this.taskQueue = new ConcurrentLinkedQueue<>();
+			this.commands = new CommandCount();
+			this.frontendCount = new AtomicInteger();
 			failed = false;
 		} finally {
 			if (failed) {
@@ -96,11 +113,15 @@ public final class NioProcessor extends AbstractProcessor {
 		if (currentProcessor() == this) {
 			task.run();
 		} else {
-			this.taskQueue.offer(task);
-			this.queueSize.incrementAndGet();
-			this.taskCount.incrementAndGet();
-			this.selector.wakeup();
+			executeLater(task);
 		}
+	}
+
+	public void executeLater(Runnable task) {
+		this.taskQueue.offer(task);
+		this.queueSize.incrementAndGet();
+		this.taskCount++;
+		this.selector.wakeup();
 	}
 
 	public static void runInProcessor(Runnable task) {
@@ -169,17 +190,21 @@ public final class NioProcessor extends AbstractProcessor {
 				this.active = false;
 				int n = selector.select();
 				this.active = true;
-				// 1. process IO task
-				processTasks();
-				// 2. Process IO event
-				if (n > 0) {
-					Set<SelectionKey> keys = selector.selectedKeys();
+
+				if (ioRatio == 100) {
 					try {
-						for (SelectionKey key: keys) {
-							processEvents(key);
-						}
+						processEvents(n);
 					} finally {
-						keys.clear();
+						processTasks(0);
+					}
+				} else {
+					long startTime = System.nanoTime();
+					try {
+						processEvents(n);
+					} finally {
+						long ioTime = System.nanoTime() - startTime;
+						long timeoutNanos = ioTime * (100 - ioRatio) / ioRatio;
+						processTasks(timeoutNanos);
 					}
 				}
 
@@ -191,78 +216,94 @@ public final class NioProcessor extends AbstractProcessor {
 		} catch (IOException e) {
 			log.error(this.name +": process failed", e);
 		} finally {
-			IoUtil.close(this.selector);
-			LOCAL_PROCESSOR.remove();
-			MycatServer.removeContextServer();
+			cleanup();
 		}
 	}
 
-	@Override
-	public boolean isActive() {
-		return this.active;
+	private void cleanup() {
+		this.active = false;
+		IoUtil.close(this.selector);
+		cleanupTaskQueue();
+		LOCAL_PROCESSOR.remove();
+		MycatServer.removeContextServer();
 	}
 
-	public int getQueueSize() {
-		return this.queueSize.get();
+	private void cleanupTaskQueue() {
+		for (;;) {
+			final Runnable task = this.taskQueue.poll();
+			if (task == null) {
+				break;
+			}
+			if (task instanceof AcceptTask) {
+				AcceptTask at = (AcceptTask)task;
+				at.con.close("Processor has been closed");
+			}
+		}
 	}
 
-	public long getTaskCount() {
-		return this.taskCount.get();
-	}
-
-	public long getCompletedTaskCount() {
-		return (getTaskCount() - getQueueSize());
-	}
-
-	private void processEvents(SelectionKey key) {
-		Object att = key.attachment();
-		if (att == null || !key.isValid()) {
-			key.cancel();
+	private void processEvents(int keyCount) {
+		if (keyCount <= 0) {
 			return;
 		}
 
-		AbstractConnection con = (AbstractConnection) att;
+		Set<SelectionKey> keys = selector.selectedKeys();
 		try {
-			if (key.isConnectable()) {
-				++this.connectCount;
-				finishConnect(key, con);
-				return;
-			}
+			for (final SelectionKey key: keys) {
+				Object att = key.attachment();
+				if (att == null || !key.isValid()) {
+					key.cancel();
+					continue;
+				}
 
-			if (key.isValid() && key.isReadable()) {
-				con.onRead();
-			}
-			if (key.isValid() && key.isWritable()) {
-				con.onWrite();
-			}
-		} catch (Throwable e) {
-			log.warn("Process failed", e);
-			con.close("Process failed: " + e.getCause());
+				AbstractConnection con = (AbstractConnection) att;
+				try {
+					if (key.isConnectable()) {
+						++this.connectCount;
+						finishConnect(key, con);
+						continue;
+					}
+
+					if (key.isValid() && key.isReadable()) {
+						con.onRead();
+					}
+					if (key.isValid() && key.isWritable()) {
+						con.onWrite();
+					}
+				} catch (Throwable e) {
+					log.warn("Process failed in connection " + con, e);
+					Throwable cause = e.getCause();
+					if (cause == null) {
+						cause = e;
+					}
+					con.close("Process failed: " + cause);
+				}
+			} // rof
+		} finally {
+			keys.clear();
 		}
 	}
 
-	private void processTasks() {
-		// 1. register accepted
-		for (;;) {
-			AbstractConnection con = this.registerQueue.poll();
-			if (con == null) {
-				break;
-			}
-			this.queueSize.decrementAndGet();
-			register(con, true);
-		}
+	private void processTasks(final long timeoutNanos) {
+		final long expires = System.nanoTime() + timeoutNanos;
+		long runTasks = 0;
 
-		// 2. run task such as register connection
 		for (;;) {
 			Runnable task = this.taskQueue.poll();
 			if (task == null) {
 				break;
 			}
+
 			try {
 				this.queueSize.decrementAndGet();
 				task.run();
 			} catch (Throwable cause) {
 				log.warn("Execute task failed", cause);
+			}
+
+			if ((timeoutNanos > 0)
+					&& ((++runTasks & 0x3F) == 0)
+					&& (System.nanoTime() >= expires)) {
+				break;
 			}
 		}
 	}
@@ -271,9 +312,14 @@ public final class NioProcessor extends AbstractProcessor {
 		register((AbstractConnection)con, autoRead);
 	}
 
-	public void register (AbstractConnection con, boolean autoRead) {
+	protected void register (AbstractConnection con, boolean autoRead) {
 		ensureRunInProcessor(this);
 		try {
+			if (!isOpen()) {
+				con.close("Processor has closed");
+				return;
+			}
+
 			con.onRegister(this.selector, autoRead);
 		} catch (Throwable e) {
 			log.warn("Register failed", e);
@@ -318,15 +364,39 @@ public final class NioProcessor extends AbstractProcessor {
 		}
 	}
 
-	final void postRegister(AbstractConnection c) throws IllegalStateException {
+	final void accept(final AbstractConnection c) throws IllegalStateException {
 		if (!isOpen()) {
 			throw new IllegalStateException("Processor has closed");
 		}
 
-		this.registerQueue.offer(c);
-		this.queueSize.incrementAndGet();
-		this.taskCount.incrementAndGet();
-		this.selector.wakeup();
+		AcceptTask postTask = new AcceptTask(c);
+		execute(postTask);
+	}
+
+	class AcceptTask implements Runnable {
+
+		final AbstractConnection con;
+
+		public AcceptTask(AbstractConnection con) {
+			this.con = con;
+		}
+
+		@Override
+		public void run() {
+			boolean failed = true;
+			try {
+				MycatServer server = contextServer();
+				ConnectionManager manager = server.getConnectionManager();
+				this.con.setManager(manager);
+				register(this.con, true);
+				failed = false;
+			} finally {
+				if (failed) {
+					this.con.close("Fatal: register connection");
+				}
+			}
+		}
+
 	}
 
 	private void clearSelectionKey(SelectionKey key) {
@@ -362,8 +432,29 @@ public final class NioProcessor extends AbstractProcessor {
 		}
 	}
 
-	final Queue<AbstractConnection> getRegisterQueue() {
-		return this.registerQueue;
+	@Override
+	public boolean isActive() {
+		return this.active;
+	}
+
+	public int getQueueSize() {
+		return this.queueSize.get();
+	}
+
+	public long getTaskCount() {
+		return this.taskCount;
+	}
+
+	public long getCompletedTaskCount() {
+		return (getTaskCount() - getQueueSize());
+	}
+
+	public CommandCount getCommands() {
+		return this.commands;
+	}
+
+	public AtomicInteger getFrontendCount() {
+		return this.frontendCount;
 	}
 
 	final long getProcessCount() {
@@ -371,7 +462,38 @@ public final class NioProcessor extends AbstractProcessor {
 	}
 
 	public long getConnectCount() {
-		return connectCount;
+		return this.connectCount;
+	}
+
+	public long getNetInBytes() {
+		return this.netInBytes;
+	}
+
+	public void addNetInBytes(long bytes) {
+		this.netInBytes += bytes;
+	}
+
+	public long getNetOutBytes() {
+		return this.netOutBytes;
+	}
+
+	public void addNetOutBytes(long bytes) {
+		this.netOutBytes += bytes;
+	}
+
+	public int getWriteQueueSize() {
+		ConnectionManager manager = contextServer().getConnectionManager();
+		return manager.getWriteQueueSize(this);
+	}
+
+	public int getFrontendSize() {
+		ConnectionManager manager = contextServer().getConnectionManager();
+		return manager.getFrontendSize(this);
+	}
+
+	public int getBackendSize() {
+		ConnectionManager manager = contextServer().getConnectionManager();
+		return manager.getBackendSize(this);
 	}
 
 }

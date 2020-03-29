@@ -23,13 +23,16 @@
  */
 package org.opencloudb.response;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.Fields;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
-import org.opencloudb.net.ConnectionManager;
+import org.opencloudb.net.FrontendException;
+import org.opencloudb.net.NioProcessor;
+import org.opencloudb.net.NioProcessorPool;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.FieldPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
@@ -102,12 +105,23 @@ public final class ShowCommand {
         buffer = eof.write(buffer, c,true);
 
         // write rows
-        byte packetId = eof.packetId;
         MycatServer server = MycatServer.getContextServer();
-        ConnectionManager manager = server.getConnectionManager();
-        RowDataPacket row = getRow(manager, c.getCharset());
-        row.packetId = ++packetId;
-        buffer = row.write(buffer, c,true);
+        NioProcessorPool pool;
+        byte packetId = eof.packetId;
+
+        pool = server.getProcessorPool();
+        for (NioProcessor p: pool.getProcessors()) {
+            RowDataPacket row = getRow(p, c.getCharset());
+            row.packetId = ++packetId;
+            buffer = row.write(buffer, c,true);
+        }
+
+        pool = server.getManagerProcessorPool();
+        for (NioProcessor p: pool.getProcessors()) {
+            RowDataPacket row = getRow(p, c.getCharset());
+            row.packetId = ++packetId;
+            buffer = row.write(buffer, c,true);
+        }
 
         // write last eof
         EOFPacket lastEof = new EOFPacket();
@@ -118,20 +132,24 @@ public final class ShowCommand {
         c.write(buffer);
     }
 
-    private static RowDataPacket getRow(ConnectionManager manager, String charset) {
-        CommandCount cc = manager.getCommands();
+    private static RowDataPacket getRow(NioProcessor processor, String charset) {
+        CommandCount cc = processor.getCommands();
         RowDataPacket row = new RowDataPacket(FIELD_COUNT);
-        row.add(manager.getName().getBytes());
-        row.add(LongUtil.toBytes(cc.initDBCount()));
-        row.add(LongUtil.toBytes(cc.queryCount()));
-        row.add(LongUtil.toBytes(cc.stmtPrepareCount()));
-        row.add(LongUtil.toBytes(cc.stmtExecuteCount()));
-        row.add(LongUtil.toBytes(cc.stmtCloseCount()));
-        row.add(LongUtil.toBytes(cc.pingCount()));
-        row.add(LongUtil.toBytes(cc.killCount()));
-        row.add(LongUtil.toBytes(cc.quitCount()));
-        row.add(LongUtil.toBytes(cc.otherCount()));
-        return row;
+        try {
+            row.add(processor.getName().getBytes(charset));
+            row.add(LongUtil.toBytes(cc.initDBCount()));
+            row.add(LongUtil.toBytes(cc.queryCount()));
+            row.add(LongUtil.toBytes(cc.stmtPrepareCount()));
+            row.add(LongUtil.toBytes(cc.stmtExecuteCount()));
+            row.add(LongUtil.toBytes(cc.stmtCloseCount()));
+            row.add(LongUtil.toBytes(cc.pingCount()));
+            row.add(LongUtil.toBytes(cc.killCount()));
+            row.add(LongUtil.toBytes(cc.quitCount()));
+            row.add(LongUtil.toBytes(cc.otherCount()));
+            return row;
+        } catch (final UnsupportedEncodingException e) {
+            throw new FrontendException("Unsupported encoding: "+charset, e);
+        }
     }
 
 }

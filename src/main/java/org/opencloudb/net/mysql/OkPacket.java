@@ -42,15 +42,14 @@ import org.opencloudb.net.FrontendConnection;
  * 2                           warning_count
  * n   (until end of packet)   message fix:(Length Coded String)
  * 
- * @see http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#OK_Packet
+ * @see <a href="http://forge.mysql.com/wiki/MySQL_Internals_ClientServer_Protocol#OK_Packet">OK_Packet</a>
  * </pre>
  * 
  * @author mycat
  */
 public class OkPacket extends MySQLPacket {
 	public static final byte FIELD_COUNT = 0x00;
-	public static final byte[] OK = new byte[] { 7, 0, 0, 1, 0, 0, 0, 2, 0, 0,
-			0 };
+	public static final byte[] OK = new byte[] { 7, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0};
 
 	public byte fieldCount = FIELD_COUNT;
 	public long affectedRows;

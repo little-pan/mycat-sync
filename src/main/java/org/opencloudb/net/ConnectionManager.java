@@ -25,7 +25,6 @@ package org.opencloudb.net;
 
 import org.opencloudb.MycatServer;
 import org.opencloudb.buffer.BufferPool;
-import org.opencloudb.statistic.CommandCount;
 import org.opencloudb.util.TimeUtil;
 import org.slf4j.*;
 
@@ -49,20 +48,12 @@ public class ConnectionManager {
 
     protected final ConcurrentMap<Long, FrontendConnection> frontends;
     protected final ConcurrentMap<Long, BackendConnection> backends;
-    // Connected count of front-ends
-    protected final AtomicInteger frontendsLength = new AtomicInteger();
-    protected final CommandCount commands;
-
-    protected long netInBytes;
-    protected long netOutBytes;
 
     public ConnectionManager(String name, BufferPool bufferPool) {
         this.name = name;
         this.bufferPool = bufferPool;
-
         this.frontends = new ConcurrentHashMap<>();
         this.backends = new ConcurrentHashMap<>();
-        this.commands = new CommandCount();
     }
 
     public String getName() {
@@ -73,54 +64,8 @@ public class ConnectionManager {
         return this.bufferPool;
     }
 
-    public int getWriteQueueSize() {
-        int size = 0;
-
-        for (AbstractConnection front : this.frontends.values()) {
-            size += front.getWriteQueue().size();
-        }
-        for (BackendConnection back : this.backends.values()) {
-            size += back.getWriteQueue().size();
-        }
-
-        return size;
-    }
-
-    public CommandCount getCommands() {
-        return this.commands;
-    }
-
-    public long getNetInBytes() {
-        return this.netInBytes;
-    }
-
-    public void addNetInBytes(long bytes) {
-        this.netInBytes += bytes;
-    }
-
-    public long getNetOutBytes() {
-        return this.netOutBytes;
-    }
-
-    public void addNetOutBytes(long bytes) {
-        this.netOutBytes += bytes;
-    }
-
-    public void addFrontend(FrontendConnection c) {
-        this.frontends.put(c.getId(), c);
-        this.frontendsLength.incrementAndGet();
-    }
-
     public ConcurrentMap<Long, FrontendConnection> getFrontends() {
         return this.frontends;
-    }
-
-    public int getForntedsLength(){
-        return this.frontendsLength.get();
-    }
-
-    public void addBackend(BackendConnection c) {
-        this.backends.put(c.getId(), c);
     }
 
     public ConcurrentMap<Long, BackendConnection> getBackends() {
@@ -147,8 +92,14 @@ public class ConnectionManager {
                 log.warn("Found backend connection SQL timeout, close it {}", c);
                 c.close("sql timeout");
             }
+            final NioProcessor processor = c.getProcessor();
+            if (processor != null && !processor.isOpen()) {
+                c.setProcessor(null);
+                c.close("Processor has been closed");
+            }
 
             if (c.isClosed()) {
+                c.cleanup();
                 it.remove();
             } else {
                 idleCheck(c);
@@ -162,18 +113,26 @@ public class ConnectionManager {
     public void checkFrontCons() {
         Iterator<Map.Entry<Long, FrontendConnection>> it = this.frontends.entrySet().iterator();
         while (it.hasNext()) {
-            FrontendConnection c = it.next().getValue();
+            final FrontendConnection c = it.next().getValue();
 
             if (c == null) {
                 it.remove();
-                this.frontendsLength.decrementAndGet();
                 continue;
+            }
+
+            final NioProcessor processor = c.getProcessor();
+            if (processor != null && !processor.isOpen()) {
+                c.setProcessor(null);
+                c.close("Processor has been closed");
             }
 
             if (c.isClosed()) {
                 c.cleanup();
                 it.remove();
-                this.frontendsLength.decrementAndGet();
+                if (processor != null) {
+                    AtomicInteger count = processor.getFrontendCount();
+                    count.decrementAndGet();
+                }
             } else {
                 idleCheck(c);
             }
@@ -186,20 +145,67 @@ public class ConnectionManager {
 
     public void removeConnection(AbstractConnection con) {
         if (con instanceof BackendConnection) {
+            log.debug("{}: remove backend {}", this.name, con);
             this.backends.remove(con.getId());
-        } else {
+        } else if (con instanceof FrontendConnection) {
+            log.debug("{}: remove front {}", this.name, con);
             this.frontends.remove(con.getId());
-            this.frontendsLength.decrementAndGet();
+            final NioProcessor processor = con.getProcessor();
+            if (processor != null) {
+                AtomicInteger count = processor.getFrontendCount();
+                count.decrementAndGet();
+            }
+        } else {
+            String s = "Passed connection not a frontend or backend connection";
+            throw new IllegalArgumentException(s);
         }
     }
 
-    public void removeConnection(BackendConnection con){
+    public void removeConnection(BackendConnection con) {
         this.backends.remove(con.getId());
+    }
+
+    public int getWriteQueueSize(NioProcessor processor) {
+        int n = 0;
+
+        for (AbstractConnection front : this.frontends.values()) {
+            if (front.getProcessor() == processor) {
+                n += front.getWriteQueueSize();
+            }
+        }
+        for (BackendConnection back : this.backends.values()) {
+            if (back.getProcessor() == processor) {
+                n += back.getWriteQueueSize();
+            }
+        }
+        return n;
+    }
+
+    public int getFrontendSize(NioProcessor processor) {
+        int n = 0;
+
+        for (AbstractConnection front : this.frontends.values()) {
+            if (front.getProcessor() == processor) {
+                ++n;
+            }
+        }
+        return n;
+    }
+
+    public int getBackendSize(NioProcessor processor) {
+        int n = 0;
+
+        for (BackendConnection back : this.backends.values()) {
+            if (back.getProcessor() == processor) {
+                ++n;
+            }
+        }
+        return n;
     }
 
     @Override
     public String toString() {
-        return "ConnectionManager[name="+this.name+",netInBytes="+this.netInBytes+",netOutBytes="+this.netOutBytes+"]";
+        return "ConnectionManager[name="+this.name+"]";
     }
 
 }

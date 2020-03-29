@@ -26,14 +26,15 @@ package org.opencloudb.net.handler;
 import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.Capabilities;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.mysql.SecurityUtil;
-import org.opencloudb.net.ConnectionManager;
 import org.opencloudb.net.FrontendConnection;
 import org.opencloudb.net.Handler;
+import org.opencloudb.net.NioProcessor;
 import org.opencloudb.net.mysql.AuthPacket;
 import org.opencloudb.net.mysql.MySQLPacket;
 import org.opencloudb.net.mysql.QuitPacket;
@@ -98,16 +99,15 @@ public class FrontendAuthenticator implements Handler {
         }
     }
     
-    //TODO: add by zhuam
-    //前端 connection 达到该用户设定的阀值后, 立马降级拒绝连接
+    // add by zhuam
+    // 前端 connection 达到该用户设定的阀值后, 立马降级拒绝连接
     protected boolean isDegrade(String user) {
     	int benchmark = source.getPrivileges().getBenchmark(user);
 
     	if (benchmark > 0 ) {
-            MycatServer server = MycatServer.getContextServer();
-            ConnectionManager manager = server.getConnectionManager();
-            int forntendsLength = manager.getForntedsLength();
-			if (forntendsLength >= benchmark ) {
+            NioProcessor processor = this.source.getProcessor();
+            AtomicInteger frontendCount = processor.getFrontendCount();
+			if (frontendCount.get() >= benchmark ) {
 				return true;
 			}			
     	}

@@ -141,17 +141,15 @@ public final class NioAcceptor extends Thread  implements SocketAcceptor, AutoCl
 	private void accept() {
 		SocketChannel ch = null;
 		try {
-			ConnectionManager manager = this.server.getConnectionManager();
 			ch = this.serverChannel.accept();
 			ch.configureBlocking(false);
 
 			FrontendConnection c = this.factory.make(ch);
 			c.setAccepted(true);
 			c.setId(NioProcessor.nextId());
-			c.setManager(manager);
 			
-			NioProcessor reactor = this.processorPool.getNextProcessor();
-			reactor.postRegister(c);
+			NioProcessor processor = this.processorPool.getNextProcessor();
+			processor.accept(c);
 		} catch (Throwable cause) {
 			IoUtil.close(ch);
 	        log.warn(getName() + ": accept a connection failed", cause);

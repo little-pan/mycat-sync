@@ -24,6 +24,7 @@
 package org.opencloudb.mysql.handler;
 
 import org.opencloudb.net.BackendConnection;
+import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.ServerSession;
@@ -54,26 +55,40 @@ public class RollbackNodeHandler extends MultiNodeHandler {
 		for (; it.hasNext(); ) {
 			Map.Entry<RouteResultsetNode, BackendConnection> target = it.next();
 			BackendConnection conn = target.getValue();
-			log.debug("rollback in backend {}", conn);
-			conn.setResponseHandler(RollbackNodeHandler.this);
+			log.debug("'rollback' in backend {}", conn);
+			conn.setResponseHandler(this);
 			conn.rollback();
 		}
 	}
 
 	@Override
 	public void okResponse(byte[] ok, BackendConnection conn) {
-		log.debug("rollback ok in backend {}", conn);
+		log.debug("'rollback' ok in backend {}", conn);
 
 		if (decrementCountBy(1)) {
-			log.debug("rollback all ok in session {}", this.session);
-			// clear all resources
-			this.session.clearResources();
 			if (isFail() || this.session.closed()) {
 				tryErrorFinished(true);
 			} else {
+				log.debug("'rollback' all ok in session {}", this.session);
+				// Clear all resources
+				this.session.clearResources();
 				ServerConnection source = this.session.getSource();
 				source.write(ok);
 			}
+		}
+	}
+
+	@Override
+	protected void tryErrorFinished(boolean allEnd) {
+		if (allEnd && !this.session.closed() && !this.errorResponsed) {
+			// Note: "rollback" always OK even if error occurs, otherwise can't do anything.
+			// If error happened, it's safe when we close all backend connections.
+			ServerConnection source = this.session.getSource();
+			source.write(OkPacket.OK);
+			// Clear session resources and release all
+			log.debug("Error finished and cleanup resources in session {}", this.session);
+			this.session.closeAndClearResources(this.error);
+			this.errorResponsed = true;
 		}
 	}
 

@@ -68,7 +68,8 @@ public abstract class AbstractConnection implements ClosableConnection {
 	protected ByteBuffer readBuffer;
 	protected ByteBuffer writeBuffer;
 	// Note: it's thread-safe for processor bind mode
-	protected final Queue<ByteBuffer> writeQueue = new LinkedList<>();
+	private final Queue<ByteBuffer> writeQueue = new LinkedList<>();
+	protected int writeQueueSize;
 	protected int readBufferOffset;
 	protected long startupTime;
 	protected long lastReadTime;
@@ -77,12 +78,12 @@ public abstract class AbstractConnection implements ClosableConnection {
 	protected long netOutBytes;
 	protected int writeAttempts;
 	protected boolean isSupportCompress = false;
-    protected final Queue<byte[]> decompressUnfinishedDataQueue = new LinkedList<>();
-    protected final Queue<byte[]> compressUnfinishedDataQueue = new LinkedList<>();
+	protected final Queue<byte[]> decompressUnfinishedDataQueue = new LinkedList<>();
+	protected final Queue<byte[]> compressUnfinishedDataQueue = new LinkedList<>();
 
 	private long idleTimeout;
 	protected ConnectionManager manager;
-	protected NioProcessor processor;
+	protected volatile NioProcessor processor;
 
 	public AbstractConnection(SocketChannel channel) {
 		this.channel = channel;
@@ -223,7 +224,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 		}
 
         this.netInBytes += got;
-		this.manager.addNetInBytes(got);
+		this.processor.addNetInBytes(got);
 		// Handle MySQL protocol packet
 		int offset = this.readBufferOffset, length, position = buffer.position();
 		for (;;) {
@@ -290,6 +291,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 		} else {
 			this.writeQueue.offer(buffer);
 		}
+		this.writeQueueSize++;
 
 		// if async write finish event got lock before me ,then writing
 		// flag is set false but not start a write request
@@ -306,7 +308,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 					int n = this.channel.write(buffer);
 					if (n > 0) {
 						this.netOutBytes += n;
-						this.manager.addNetOutBytes(n);
+						this.processor.addNetOutBytes(n);
 						this.lastWriteTime = TimeUtil.currentTimeMillis();
 					} else {
 						break;
@@ -322,6 +324,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 				}
 			}
 			while ((buffer = this.writeQueue.poll()) != null) {
+				this.writeQueueSize--;
 				if (buffer.limit() == 0) {
 					recycle(buffer);
 					close("quit send");
@@ -334,7 +337,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 					if (n > 0) {
 						this.lastWriteTime = TimeUtil.currentTimeMillis();
 						this.netOutBytes += n;
-						this.manager.addNetOutBytes(n);
+						this.processor.addNetOutBytes(n);
 						this.lastWriteTime = TimeUtil.currentTimeMillis();
 					} else {
 						break;
@@ -401,10 +404,11 @@ public abstract class AbstractConnection implements ClosableConnection {
     private void writeNotSend(ByteBuffer buffer) {
         if(isSupportCompress()) {
             ByteBuffer newBuffer = compressMysqlPacket(buffer,this, compressUnfinishedDataQueue);
-            writeQueue.offer(newBuffer);
+            this.writeQueue.offer(newBuffer);
         } else {
-            writeQueue.offer(buffer);
+            this.writeQueue.offer(buffer);
         }
+		this.writeQueueSize++;
     }
 
 	@Override
@@ -479,7 +483,8 @@ public abstract class AbstractConnection implements ClosableConnection {
 			this.compressUnfinishedDataQueue.clear();
         }
 		ByteBuffer buffer;
-		while ((buffer = writeQueue.poll()) != null) {
+		while ((buffer = this.writeQueue.poll()) != null) {
+			this.writeQueueSize--;
 			recycle(buffer);
 		}
 	}
@@ -501,7 +506,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 
 	@Override
 	public NioProcessor getProcessor() {
-		return processor;
+		return this.processor;
 	}
 
 	@Override
@@ -509,8 +514,8 @@ public abstract class AbstractConnection implements ClosableConnection {
 		this.processor = processor;
 	}
 
-	public Queue<ByteBuffer> getWriteQueue() {
-		return writeQueue;
+	private Queue<ByteBuffer> getWriteQueue() {
+		return this.writeQueue;
 	}
 
 	private void closeSocket() {
@@ -632,6 +637,10 @@ public abstract class AbstractConnection implements ClosableConnection {
 
 	public int getWriteAttempts() {
 		return writeAttempts;
+	}
+
+	public int getWriteQueueSize() {
+		return this.writeQueueSize;
 	}
 
 	public ByteBuffer getReadBuffer() {

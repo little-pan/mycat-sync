@@ -158,7 +158,7 @@ public final class ShowConnection {
 		row.add(LongUtil.toBytes((TimeUtil.currentTimeMillis() - c.getStartupTime()) / 1000L));
 		ByteBuffer bb = c.getReadBuffer();
 		row.add(IntegerUtil.toBytes(bb == null ? 0 : bb.capacity()));
-		row.add(IntegerUtil.toBytes(c.getWriteQueue().size()));
+		row.add(IntegerUtil.toBytes(c.getWriteQueueSize()));
 
 		String txLevel = "";
 		String txAutommit = "";

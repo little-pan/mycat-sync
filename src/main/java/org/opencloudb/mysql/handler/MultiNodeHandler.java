@@ -26,6 +26,7 @@ package org.opencloudb.mysql.handler;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.net.BackendConnection;
 import org.opencloudb.net.mysql.ErrorPacket;
+import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.ServerSession;
 import org.opencloudb.util.StringUtil;
 import org.slf4j.*;
@@ -162,12 +163,10 @@ abstract class MultiNodeHandler extends AbstractResponseHandler implements Termi
 	}
 
 	protected void tryErrorFinished(boolean allEnd) {
-		if (allEnd && !this.session.closed()) {
-			if (!this.errorResponsed) {
-				this.errorResponsed = true;
-				createErrPkg(this.error).write(this.session.getSource());
-			}
-			// clear session resources, release all
+		if (allEnd && !this.session.closed() && !this.errorResponsed) {
+			ServerConnection source = this.session.getSource();
+			createErrPkg(this.error).write(source);
+			// Clear session resources, release all
 			log.debug("all error finished, clear session resources in session {}", this.session);
 			if (this.session.getSource().isAutocommit()) {
 				this.session.closeAndClearResources(this.error);
@@ -176,6 +175,7 @@ abstract class MultiNodeHandler extends AbstractResponseHandler implements Termi
 				// clear resources
 				clearResources();
 			}
+			this.errorResponsed = true;
 		}
 	}
 
@@ -187,13 +187,13 @@ abstract class MultiNodeHandler extends AbstractResponseHandler implements Termi
 			return;
 		}
 
-		setFail("closed connection: " + reason + ",  backend: " + conn);
+		setFail(reason);
 		boolean finished = (this.nodeCount == 0);
 		if (!finished) {
 			finished = decrementCountBy(1);
 		}
 		if (this.error == null) {
-			this.error = "back connection closed ";
+			this.error = "Backend connection closed";
 		}
 		tryErrorFinished(finished);
 	}

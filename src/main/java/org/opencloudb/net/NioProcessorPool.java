@@ -1,6 +1,8 @@
 package org.opencloudb.net;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class NioProcessorPool implements AutoCloseable {
@@ -93,6 +95,10 @@ public class NioProcessorPool implements AutoCloseable {
 		for (NioProcessor p: this.processors) {
 			if (p != null) p.join();
 		}
+    }
+
+    public Collection<NioProcessor> getProcessors() {
+		return Arrays.asList(this.processors);
     }
 
 }

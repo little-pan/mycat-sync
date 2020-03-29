@@ -43,7 +43,9 @@ import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author mycat
@@ -112,7 +114,8 @@ public abstract class FrontendConnection extends AbstractConnection {
 	@Override
 	public void handle(final byte[] data) {
 		if (isSupportCompress()) {
-			List<byte[]> packs = CompressUtil.decompressMysqlPacket(data, decompressUnfinishedDataQueue);
+			Queue<byte[]> queue = super.decompressUnfinishedDataQueue;
+			List<byte[]> packs = CompressUtil.decompressMysqlPacket(data, queue);
 			for (byte[] pack : packs) {
 				if (pack.length != 0)
 					rawHandle(pack);
@@ -132,7 +135,7 @@ public abstract class FrontendConnection extends AbstractConnection {
 		//修改quit的判断,当load data infile 分隔符为\001 时可能会出现误判断的bug.
 		if (data.length>4 && data[0] == 1 && data[1] == 0 && data[2]== 0 && data[3] == 0
 				&& data[4] == MySQLPacket.COM_QUIT) {
-			this.getManager().getCommands().doQuit();
+			this.processor.getCommands().doQuit();
 			this.close("quit cmd");
 			return;
 		}
@@ -367,6 +370,10 @@ public abstract class FrontendConnection extends AbstractConnection {
 	@Override
 	public void setManager(ConnectionManager manager) {
 		manager.frontends.put(this.id, this);
+		NioProcessor processor = NioProcessor.ensureRunInProcessor();
+		AtomicInteger count = processor.getFrontendCount();
+		count.incrementAndGet();
+
 		super.setManager(manager);
 	}
 

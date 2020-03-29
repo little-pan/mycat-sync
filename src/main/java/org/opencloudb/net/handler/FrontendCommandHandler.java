@@ -27,6 +27,7 @@ import org.opencloudb.config.ErrorCode;
 import org.opencloudb.mysql.MySQLMessage;
 import org.opencloudb.net.FrontendConnection;
 import org.opencloudb.net.Handler;
+import org.opencloudb.net.NioProcessor;
 import org.opencloudb.net.mysql.MySQLPacket;
 import org.opencloudb.statistic.CommandCount;
 
@@ -35,22 +36,22 @@ import org.opencloudb.statistic.CommandCount;
  *
  * @author mycat
  */
-public class FrontendCommandHandler implements Handler
-{
+public class FrontendCommandHandler implements Handler {
 
     protected final FrontendConnection source;
     protected final CommandCount commands;
 
-    public FrontendCommandHandler(FrontendConnection source)
-    {
+    public FrontendCommandHandler(FrontendConnection source) {
         this.source = source;
-        this.commands = source.getManager().getCommands();
+        NioProcessor processor = NioProcessor.currentProcessor();
+        this.commands = processor.getCommands();
     }
 
     @Override
     public void handle(byte[] data)
     {
-        if(source.getLoadDataInfileHandler()!=null&&source.getLoadDataInfileHandler().isStartLoadData())
+        if(source.getLoadDataInfileHandler() != null
+                && source.getLoadDataInfileHandler().isStartLoadData())
         {
             MySQLMessage mm = new MySQLMessage(data);
             int  packetLength = mm.readUB3();
