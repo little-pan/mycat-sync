@@ -25,9 +25,6 @@ package org.opencloudb.sequence.handler;
 
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * 递增序列号处理器
  * 
@@ -36,9 +33,6 @@ import org.slf4j.LoggerFactory;
  * @version 1.0
  */
 public abstract class IncrSequenceHandler implements SequenceHandler {
-
-	public static final Logger logger = LoggerFactory
-			.getLogger(IncrSequenceHandler.class);
 
 	public static final String FILE_NAME = "sequence_conf.properties";
 
@@ -59,14 +53,14 @@ public abstract class IncrSequenceHandler implements SequenceHandler {
 		if (null == paraMap) {
 			throw new RuntimeException("fetch Param Values error.");
 		}
-		Long nextId = Long.parseLong(paraMap.get(prefixName + KEY_CUR_NAME)) + 1;
-		Long maxId = Long.parseLong(paraMap.get(prefixName + KEY_MAX_NAME));
+		long nextId = Long.parseLong(paraMap.get(prefixName + KEY_CUR_NAME)) + 1;
+		long maxId = Long.parseLong(paraMap.get(prefixName + KEY_MAX_NAME));
 		if (nextId > maxId) {
 			fetchNextPeriod(prefixName);
 			return nextId(prefixName);
 		}
 		updateCURIDVal(prefixName, nextId);
-		return nextId.longValue();
+		return nextId;
 
 	}
 }

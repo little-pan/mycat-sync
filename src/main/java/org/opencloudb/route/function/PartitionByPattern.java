@@ -29,7 +29,11 @@ import java.io.InputStreamReader;
 import java.util.LinkedList;
 import java.util.regex.Pattern;
 
+import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.rule.RuleAlgorithm;
+import org.opencloudb.util.IoUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * auto partition by Long
@@ -37,6 +41,9 @@ import org.opencloudb.config.model.rule.RuleAlgorithm;
  * @author hexiaobin
  */
 public class PartitionByPattern extends AbstractPartitionAlgorithm implements RuleAlgorithm {
+
+	static final Logger log = LoggerFactory.getLogger(PartitionByPattern.class);
+
 	private static final int PARTITION_LENGTH = 1024;
 	private int patternValue = PARTITION_LENGTH;// 分区长度，取模数值
 	private String mapFile;
@@ -46,7 +53,6 @@ public class PartitionByPattern extends AbstractPartitionAlgorithm implements Ru
 
 	@Override
 	public void init() {
-
 		initialize();
 	}
 
@@ -67,7 +73,7 @@ public class PartitionByPattern extends AbstractPartitionAlgorithm implements Ru
 		if (!isNumeric(columnValue)) {
 			return defaultNode;
 		}
-		long value = Long.valueOf(columnValue);
+		long value = Long.parseLong(columnValue);
 		Integer rst = null;
 		for (LongRange longRang : this.longRongs) {
 			long hash = value % patternValue;
@@ -84,53 +90,39 @@ public class PartitionByPattern extends AbstractPartitionAlgorithm implements Ru
 
 	private void initialize() {
 		BufferedReader in = null;
+		InputStream fin = getConfigFileStream(this.mapFile);
 		try {
-			// FileInputStream fin = new FileInputStream(new File(fileMapPath));
-			InputStream fin = this.getClass().getClassLoader()
-					.getResourceAsStream(mapFile);
-			if (fin == null) {
-				throw new RuntimeException("can't find class resource file "
-						+ mapFile);
-			}
-			in = new BufferedReader(new InputStreamReader(fin));
-			LinkedList<LongRange> longRangeList = new LinkedList<LongRange>();
+			in = new BufferedReader(new InputStreamReader(fin, SystemConfig.CHARSET));
+			LinkedList<LongRange> longRangeList = new LinkedList<>();
 
-			for (String line = null; (line = in.readLine()) != null;) {
+			for (String line; (line = in.readLine()) != null;) {
 				line = line.trim();
 				if (line.startsWith("#") || line.startsWith("//"))
 					continue;
 				int ind = line.indexOf('=');
 				if (ind < 0) {
-					System.out.println(" warn: bad line int " + mapFile + " :"
-							+ line);
+					log.warn("Bad line int '{}': {}", mapFile, line);
 					continue;
 				}
 				try {
 					String pairs[] = line.substring(0, ind).trim().split("-");
 					long longStart = Long.parseLong(pairs[0].trim());
 					long longEnd = Long.parseLong(pairs[1].trim());
-					int nodeId = Integer.parseInt(line.substring(ind + 1)
-							.trim());
-					longRangeList
-							.add(new LongRange(nodeId, longStart, longEnd));
-
+					int nodeId = Integer.parseInt(line.substring(ind + 1).trim());
+					longRangeList.add(new LongRange(nodeId, longStart, longEnd));
 				} catch (Exception e) {
 				}
 			}
-			longRongs = longRangeList.toArray(new LongRange[longRangeList
-					.size()]);
+			longRongs = longRangeList.toArray(new LongRange[longRangeList.size()]);
 		} catch (Exception e) {
 			if (e instanceof RuntimeException) {
 				throw (RuntimeException) e;
 			} else {
 				throw new RuntimeException(e);
 			}
-
 		} finally {
-			try {
-				in.close();
-			} catch (Exception e2) {
-			}
+			IoUtil.close(in);
+			IoUtil.close(fin);
 		}
 	}
 

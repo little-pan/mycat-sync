@@ -61,7 +61,6 @@ public class XMLConfigLoader implements ConfigLoader {
         this.dataHosts = schemaLoader.getDataHosts();
         this.dataNodes = schemaLoader.getDataNodes();
         this.schemas = schemaLoader.getSchemas();
-        schemaLoader = null;
     }
 
     @Override

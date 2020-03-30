@@ -6,6 +6,9 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.data.Stat;
 import org.json.JSONObject;
+import org.opencloudb.config.model.SystemConfig;
+import org.opencloudb.config.util.ConfigException;
+import org.opencloudb.util.IoUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
@@ -19,7 +22,9 @@ import java.util.concurrent.TimeUnit;
  * Created by v1.lion on 2015/10/7.
  */
 public class ZkCreate {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ZkCreate.class);
+
+    private static final Logger log = LoggerFactory.getLogger(ZkCreate.class);
+
     private static final String CONFIG_URL_KEY = "zkURL";
     private static final String MYCAT_CLUSTER_KEY = "mycat-cluster";
     private static final String MYCAT_ZONE_KEY = "mycat-zones";
@@ -29,11 +34,10 @@ public class ZkCreate {
     private static final String MYCAT_MYSQL_GROUP_KEY = "mycat-mysqlgroup";
     private static final String MYCAT_LBS = "mycat-lbs";
 
-    private static String ZK_CONFIG_FILE_NAME = "/zk-create.yaml";
+    private static String ZK_CONFIG_FILE_NAME = "zk-create.yaml";
     private static CuratorFramework framework;
-    //private static Map<String, Object> zkConfig;
-    private static Map<String, Object> zkConfig = new HashMap<String, Object>();
-    //initialized by shenhai.yan for line 40 NullPointerException
+    private static Map<String, Object> zkConfig = new HashMap<>();
+    // initialized by shenhai.yan for line 40 NullPointerException
 
     public static void main(String[] args) {
         String url;
@@ -61,7 +65,7 @@ public class ZkCreate {
     private static void createConfig(String configKey, boolean filterInnerMap,
         String configDirectory, String... restDirectory) {
         String childPath = ZKPaths.makePath("/", configDirectory, restDirectory);
-        LOGGER.trace("child path is {}", childPath);
+        log.info("child path is '{}'", childPath);
 
         try {
             ZKPaths.mkdirs(framework.getZookeeperClient().getZooKeeper(), childPath);
@@ -78,12 +82,11 @@ public class ZkCreate {
                     .forPath(childPath, new JSONObject(mapObject).toString().getBytes());
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("Create zk config failed", e);
         }
     }
 
-    private static void createChildConfig(Object mapObject, boolean filterInnerMap,
-        String childPath) {
+    private static void createChildConfig(Object mapObject, boolean filterInnerMap, String childPath) {
         if (mapObject instanceof Map) {
             Map<Object, Object> innerMap = (Map<Object, Object>) mapObject;
             for (Map.Entry<Object, Object> entry : innerMap.entrySet()) {
@@ -91,7 +94,7 @@ public class ZkCreate {
                     createChildConfig(entry.getValue(), filterInnerMap,
                         ZKPaths.makePath(childPath, String.valueOf(entry.getKey())));
                 } else {
-                    LOGGER.trace("sub child path is {}", childPath);
+                    log.debug("sub child path is {}", childPath);
                     processLeafNode(innerMap, filterInnerMap, childPath);
                 }
             }
@@ -121,17 +124,19 @@ public class ZkCreate {
                     .forPath(childPath, new JSONObject(innerMap).toString().getBytes());
             }
         } catch (Exception e) {
-            LOGGER.error("create node error: {} ", e.getMessage(), e);
-            throw new RuntimeException(e);
+            log.error("Create node error: " + e, e);
+            throw new ConfigException("Create node error: " + e, e);
         }
     }
 
-    @SuppressWarnings("unchecked") private static Map<String, Object> loadZkConfig() {
-        InputStream configIS = ZkCreate.class.getResourceAsStream(ZK_CONFIG_FILE_NAME);
-        if (configIS == null) {
-            throw new RuntimeException("can't find zk properties file : " + ZK_CONFIG_FILE_NAME);
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> loadZkConfig() {
+        InputStream in = SystemConfig.getConfigFileStream(ZK_CONFIG_FILE_NAME);
+        try {
+            return (Map<String, Object>) new Yaml().load(in);
+        } finally {
+            IoUtil.close(in);
         }
-        return (Map<String, Object>) new Yaml().load(configIS);
     }
 
     private static CuratorFramework createConnection(String url) {
@@ -152,6 +157,7 @@ public class ZkCreate {
 
         //fail situation
         curatorFramework.close();
-        throw new RuntimeException("failed to connect to zookeeper service : " + url);
+        throw new RuntimeException("Failed to connect to zookeeper service : " + url);
     }
+
 }

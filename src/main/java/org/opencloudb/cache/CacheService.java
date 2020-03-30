@@ -23,11 +23,14 @@
  */
 package org.opencloudb.cache;
 
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
+import org.opencloudb.config.model.SystemConfig;
+import org.opencloudb.util.IoUtil;
 import org.slf4j.*;
 
 /**
@@ -63,15 +66,19 @@ public class CacheService {
 
 	private void init() throws Exception {
 		Properties props = new Properties();
-		props.load(CacheService.class
-				.getResourceAsStream("/cacheservice.properties"));
+		InputStream in = SystemConfig.getConfigFileStream("cacheservice.properties");
+		try {
+			props.load(in);
+		} finally {
+			IoUtil.close(in);
+		}
+
 		final String poolFactoryPref = "factory.";
 		final String poolKeyPref = "pool.";
 		final String layedPoolKeyPref = "layedpool.";
 		String[] keys = props.keySet().toArray(new String[0]);
 		Arrays.sort(keys);
 		for (String key : keys) {
-
 			if (key.startsWith(poolFactoryPref)) {
 				createPoolFactory(key.substring(poolFactoryPref.length()),
 						(String) props.get(key));
@@ -80,9 +87,8 @@ public class CacheService {
 				String value = (String) props.get(key);
 				String[] valueItems = value.split(",");
 				if (valueItems.length < 3) {
-					throw new java.lang.IllegalArgumentException(
-							"invalid cache config ,key:" + key + " value:"
-									+ value);
+					String s = "Invalid cache config, key:" + key + " value:" + value;
+					throw new IllegalArgumentException(s);
 				}
 				String type = valueItems[0];
 				int size = Integer.parseInt(valueItems[1]);

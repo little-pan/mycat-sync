@@ -1,7 +1,6 @@
 package org.opencloudb.route.function;
 
 import com.google.common.hash.Hashing;
-import org.apache.log4j.Logger;
 import org.opencloudb.config.model.rule.RuleAlgorithm;
 
 import java.text.ParseException;
@@ -14,10 +13,7 @@ import java.text.SimpleDateFormat;
  *
  *
  */
-public class PartitionByRangeDateHash extends AbstractPartitionAlgorithm implements RuleAlgorithm
-{
-    private static final Logger LOGGER = Logger
-            .getLogger(PartitionByRangeDateHash.class);
+public class PartitionByRangeDateHash extends AbstractPartitionAlgorithm implements RuleAlgorithm {
 
     private String sBeginDate;
     private String sPartionDay;
@@ -36,8 +32,7 @@ public class PartitionByRangeDateHash extends AbstractPartitionAlgorithm impleme
     {
         try
         {
-            beginDate = new SimpleDateFormat(dateFormat).parse(sBeginDate)
-                    .getTime();
+            beginDate = new SimpleDateFormat(dateFormat).parse(sBeginDate).getTime();
             intGroupPartionSize = Integer.parseInt(groupPartionSize);
             if (intGroupPartionSize <= 0)
             {

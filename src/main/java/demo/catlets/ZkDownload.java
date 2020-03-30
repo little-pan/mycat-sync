@@ -1,12 +1,6 @@
 package demo.catlets;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStreamWriter;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,6 +22,8 @@ import org.dom4j.QName;
 import org.dom4j.io.OutputFormat;
 import org.dom4j.io.XMLWriter;
 import org.opencloudb.config.model.SystemConfig;
+import org.opencloudb.config.util.ConfigException;
+import org.opencloudb.util.IoUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
@@ -39,8 +35,9 @@ import com.alibaba.fastjson.JSONObject;
  * aStoneGod 2015.11
  */
 public class ZkDownload {
-    private static final String ZK_CONFIG_FILE_NAME = "/zk-create.yaml";
-    private static final Logger LOGGER = LoggerFactory.getLogger(ZkDownload.class);
+
+    private static final String ZK_CONFIG_FILE_NAME = "zk-create.yaml";
+    private static final Logger log = LoggerFactory.getLogger(ZkDownload.class);
 
     private static final String SERVER_CONFIG_DIRECTORY = "server-config";
     private static final String DATANODE_CONFIG_DIRECTORY = "datanode-config";
@@ -64,8 +61,6 @@ public class ZkDownload {
     private static final String CONFIG_DATAHOST_KEY = "datahost";
     private static final String CONFIG_MYSQLREP_KEY = "mysqlrep";
 
-
-
     private static String CLU_PARENT_PATH;
     private static String ZONE_PARENT_PATH;
     private static String SERVER_PARENT_PATH;
@@ -74,20 +69,31 @@ public class ZkDownload {
     private static CuratorFramework framework;
     private static Map<String, Object> zkConfig;
 
+    private static File downloadDir;
 
+    public static void main(String[] args) {
+        if (args.length == 0) {
+            System.err.println("Usage: java demo.catlets.ZkDownload <download dir>");
+            System.exit(1);
+        }
+        File dir = new File(args[0]);
+        if (!dir.isDirectory()) {
+            System.err.println("'"+dir+"' not existing");
+            System.exit(1);
+        }
+        downloadDir = dir;
 
-    public static void main(String[] args) throws Exception {
         init();
     }
 
     public static boolean init()  {
-        LOGGER.info("start zkdownload to local xml");
+        log.info("start zkdownload to local xml");
         zkConfig = loadZkConfig();
         
         ZONE_PARENT_PATH = ZKPaths.makePath("/", String.valueOf(zkConfig.get(CONFIG_ZONE_KEY)));
         CLU_PARENT_PATH = ZKPaths.makePath(ZONE_PARENT_PATH + "/", String.valueOf(zkConfig.get(CONFIG_CLUSTER_KEY)));
         SERVER_PARENT_PATH = ZKPaths.makePath(ZONE_PARENT_PATH + "/", String.valueOf(zkConfig.get(CONFIG_CLUSTER_KEY)+"/"+String.valueOf(zkConfig.get(CONFIG_MYCAT_ID))));
-        LOGGER.trace("parent path is {}", CLU_PARENT_PATH);
+        log.trace("parent path is {}", CLU_PARENT_PATH);
         framework = createConnection((String) zkConfig.get(CONFIG_URL_KEY));
         try {
         	boolean exitsZk = isHavingConfig();
@@ -96,7 +102,6 @@ public class ZkDownload {
                 List<Map<String, JSONObject>> listDataHost = getDataHostNodeConfig(CLU_PARENT_PATH,DATAHOST_CONFIG_DIRECTORY);
                 List<Map<String, JSONObject>> listServer = getServerNodeConfig(SERVER_CONFIG_DIRECTORY);
                 List<Map<String, JSONObject>> listSchema = getSchemaConfig(SCHEMA_CONFIG_DIRECTORY);
-                //List<Map<String,JSONObject>> listSequence  = getSequenceNodeConfig(SEQUENCE_CONFIG_DIRECTORY);
                 List<Map<String, JSONObject>> listRule = getServerNodeConfig(RULE_CONFIG_DIRECTORY);
 
                 //生成SERVER XML
@@ -111,18 +116,20 @@ public class ZkDownload {
         		return false;
         	}
         }catch (Exception e) {
-        	LOGGER.warn("start zkdownload to local error,",e);
+            log.warn("start zkdownload to local error,",e);
         }
         
         return true;
     }
 
-    public static Set<Map<String,JSONObject>> getMysqlRep(List<Map<String, JSONObject>> listMysqlRep,String trepid) throws Exception {
+    public static Set<Map<String,JSONObject>> getMysqlRep(List<Map<String, JSONObject>> listMysqlRep,
+                                                          String trepid) {
         Set<Map<String, JSONObject>> set = new HashSet<>();
         String[] repids = trepid.split(",");
         for (String repid : repids){
             for (int i=0; i<listMysqlRep.size();i++){
-                String datahostName = listMysqlRep.get(i).keySet().toString().replace("[", "").replace("]", "").trim();
+                String datahostName = listMysqlRep.get(i).keySet().toString()
+                        .replace("[", "").replace("]", "").trim();
                 if (datahostName.contains(repid))
                     set.add(listMysqlRep.get(i));
             }
@@ -130,14 +137,15 @@ public class ZkDownload {
         return set;
     }
 
-    public static void processMysqlRepDocument(Element serverElement,List<Map<String,JSONObject>> mapList) throws Exception {
+    public static void processMysqlRepDocument(Element serverElement,List<Map<String,JSONObject>> mapList)
+            throws Exception {
 
-        for (int i=0;i<mapList.size();i++){
+        for (int i = 0;i < mapList.size(); i++) {
             int subLength = CLU_PARENT_PATH.length()+DATAHOST_CONFIG_DIRECTORY.length()+2;
             int repLength = ZONE_PARENT_PATH.length()+MYSQLREP_CONFIG_DIRECTORY.length()+2;
             String datahostName = mapList.get(i).keySet().toString().replace("[", "").replace("]", "").trim();
-            if (!datahostName.substring(subLength,datahostName.length()).contains("/")){
-                String key =datahostName.substring(subLength,datahostName.length());
+            if (!datahostName.substring(subLength).contains("/")) {
+                String key =datahostName.substring(subLength);
                 JSONObject jsonObject = mapList.get(i).get(datahostName);
                 Element dataHost = serverElement.addElement("dataHost");
                 if (!key.isEmpty()){
@@ -191,8 +199,6 @@ public class ZkDownload {
                                     continue;
                                 String tempread = readhost.substring(host.length()-childHost.length(), readhost.length());
                                 if (tempread.contains("/") && tempread.contains(childHost)) {
-                                    String readHost = tempread.substring(childHost.length() + 1, tempread.length());
-                                    //System.out.println("readHost:" + readHost);
                                     JSONObject readJsonObject = rdh.get(readhost);
                                     Element readHostEl = writeHost.addElement("readHost");
                                     if (readJsonObject.containsKey("host"))
@@ -210,19 +216,21 @@ public class ZkDownload {
                 }
             }
         }
-       // json2XmlFile(document,"mysqlrep.xml");
     }
     
-    //config txt file
-    public static void conf2File(String fileName,String config) {
+    // config txt file
+    public static void conf2File(String fileName, String config) {
+        OutputStream out = null;
         BufferedWriter fw = null;
+        File file = new File(downloadDir, fileName);
+        if (file.isFile()) {
+            throw new ConfigException("'"+fileName+"' is existing in directory '"+downloadDir+"'");
+        }
+
         try {
-            String filePath = SystemConfig.getHomePath()+"/src/main/resources/";
-            File file = new File(filePath+fileName);
-            //System.out.println(filePath);
-            file.delete();
-            file.createNewFile();
-            fw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file, true), "UTF-8")); // 指定编码格式，以免读取时中文字符异常
+            out = new FileOutputStream(file, true);
+            // 指定编码格式，以免读取时中文字符异常
+            fw = new BufferedWriter(new OutputStreamWriter(out, SystemConfig.CHARSET));
             String[] configs = config.split(",");
             for (String con:configs){
                 fw.write(con);
@@ -230,27 +238,22 @@ public class ZkDownload {
             }
             fw.flush(); // 全部写入缓存中的内容
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new ConfigException("Fatal: write config file '"+file+"'", e);
         } finally {
-            if (fw != null) {
-                try {
-                    fw.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
+            IoUtil.close(fw);
+            IoUtil.close(out);
         }
     }
 
     //zk Config
     public static boolean isHavingConfig()throws Exception {
         String nodePath = CLU_PARENT_PATH ;
-        LOGGER.trace("child path is {}", nodePath);
+        log.trace("child path is {}", nodePath);
         List list = null;
         try {
             list  = framework.getChildren().forPath(nodePath);
 		} catch(NoNodeException e){
-        	LOGGER.warn("remote zk center not exists node :" + nodePath  );
+            log.warn("remote zk center not exists node :" + nodePath  );
         	return false;
         }
         if(list!=null && list.size()>0){
@@ -263,17 +266,16 @@ public class ZkDownload {
     //Datanode Config
     public static List<Map<String,JSONObject>> getDatanodeConfig(String configKey)throws Exception {
         String nodePath = CLU_PARENT_PATH + "/" + configKey;
-        LOGGER.trace("child path is {}", nodePath);
+        log.trace("child path is {}", nodePath);
         List<Map<String,JSONObject>> listServer = new ArrayList<>();
         listServer = getDatanodeConfig(listServer, nodePath);
         return listServer;
     }
 
     //Datanode Child Config
-    private static List<Map<String,JSONObject>> getDatanodeConfig(List<Map<String,JSONObject>> listServer,String childPath) throws Exception {
-
-        List list = new ArrayList<>();
-        list = framework.getChildren().forPath(childPath);
+    private static List<Map<String,JSONObject>> getDatanodeConfig(List<Map<String,JSONObject>> listServer,
+                                                                  String childPath) throws Exception {
+        List list = framework.getChildren().forPath(childPath);
         Iterator<String> iterator = list.iterator();
         int nodeSize = list.size();
         if (nodeSize==0 ){
@@ -296,14 +298,15 @@ public class ZkDownload {
     //Schema Config
     public static List<Map<String,JSONObject>> getSchemaConfig(String configKey)throws Exception {
         String nodePath = CLU_PARENT_PATH + "/" + configKey;
-        LOGGER.trace("child path is {}", nodePath);
+        log.trace("child path is {}", nodePath);
         List<Map<String,JSONObject>> listServer = new ArrayList<>();
         listServer = getSchemaChildConfig(listServer, nodePath);
         return listServer;
     }
 
     //Schema Child Config
-    private static List<Map<String,JSONObject>> getSchemaChildConfig(List<Map<String,JSONObject>> listServer,String childPath) throws Exception {
+    private static List<Map<String,JSONObject>> getSchemaChildConfig(List<Map<String,JSONObject>> listServer,
+                                                                     String childPath) throws Exception {
         List list = new ArrayList<>();
         list = framework.getChildren().forPath(childPath);
         Iterator<String> iterator = list.iterator();
@@ -320,7 +323,7 @@ public class ZkDownload {
     //sequence Config
     public static List<Map<String,JSONObject>> getSequenceNodeConfig(String configKey)throws Exception {
         String nodePath = CLU_PARENT_PATH + "/" + configKey;
-        LOGGER.trace("child path is {}", nodePath);
+        log.trace("child path is {}", nodePath);
         List<Map<String,JSONObject>> listServer = new ArrayList<>();
         listServer = getSequenceChildConfig(listServer, nodePath);
         return listServer;
@@ -329,8 +332,7 @@ public class ZkDownload {
     //Sequence Child Config
     private static List<Map<String,JSONObject>> getSequenceChildConfig(List<Map<String,JSONObject>> listServer,String childPath) throws Exception {
 
-        List list = new ArrayList<>();
-        list = framework.getChildren().forPath(childPath);
+        List list = framework.getChildren().forPath(childPath);
         Iterator<String> iterator = list.iterator();
         int nodeSize = list.size();
         if (nodeSize==0 ){
@@ -360,17 +362,17 @@ public class ZkDownload {
     //Server Config
     public static List<Map<String,JSONObject>> getServerNodeConfig(String configKey)throws Exception {
         String nodePath = CLU_PARENT_PATH + "/" + configKey;
-        LOGGER.trace("child path is {}", nodePath);
+        log.trace("child path is {}", nodePath);
         List<Map<String,JSONObject>> listServer = new ArrayList<>();
         listServer = getServerChildConfig(listServer, nodePath);
         return listServer;
     }
 
     //Server Child Config
-    private static List<Map<String,JSONObject>> getServerChildConfig(List<Map<String,JSONObject>> listServer,String childPath) throws Exception {
+    private static List<Map<String,JSONObject>> getServerChildConfig(List<Map<String,JSONObject>> listServer,
+                                                                     String childPath) throws Exception {
 
-        List list = new ArrayList<>();
-        list = framework.getChildren().forPath(childPath);
+        List list = framework.getChildren().forPath(childPath);
         Iterator<String> iterator = list.iterator();
         int nodeSize = list.size();
         if (nodeSize==0 ){
@@ -391,18 +393,19 @@ public class ZkDownload {
     }
 
     //DataHost Config
-    public static List<Map<String,JSONObject>> getDataHostNodeConfig(String parent_path,String configKey)throws Exception {
+    public static List<Map<String,JSONObject>> getDataHostNodeConfig(String parent_path,
+                                                                     String configKey)throws Exception {
         String nodePath = parent_path + "/" + configKey;
-        LOGGER.trace("child path is {}", nodePath);
+        log.trace("child path is {}", nodePath);
         List<Map<String,JSONObject>> listServer = new ArrayList<>();
         listServer = getDataHostChildConfig(listServer, nodePath);
         return listServer;
     }
 
     //DataHost Child Config
-    private static List<Map<String,JSONObject>> getDataHostChildConfig(List<Map<String,JSONObject>> listServer,String childPath) throws Exception {
-        List list = new ArrayList<>();
-        list = framework.getChildren().forPath(childPath);
+    private static List<Map<String,JSONObject>> getDataHostChildConfig(List<Map<String,JSONObject>> listServer,
+                                                                       String childPath) throws Exception {
+        List list = framework.getChildren().forPath(childPath);
         Iterator<String> iterator = list.iterator();
         int nodeSize = list.size();
         for (int i = 0; i < nodeSize; i++) {
@@ -414,41 +417,28 @@ public class ZkDownload {
         return listServer;
     }
 
-
-
-
-    private static List<Map<String,JSONObject>> getConfigData(List<Map<String,JSONObject>> list,String childPath) throws IOException {
-
-
-        String data= null;
+    private static List<Map<String,JSONObject>> getConfigData(List<Map<String,JSONObject>> list,
+                                                              String childPath) throws IOException {
+        String data;
         try {
-            data = new String(framework.getData().forPath(childPath),"utf8");
+            data = new String(framework.getData().forPath(childPath), SystemConfig.CHARSET);
             if (data.startsWith("[")&&data.endsWith("]")){ //JsonArray
                 JSONArray jsonArray = JSONArray.parseArray(data);
-//                System.out.println("----------------------JSONARRAY------------------------");
-//                System.out.println("---------------------"+childPath+"-------------------------");
-//                System.out.println(jsonArray);
                 for (int i=0;i<jsonArray.size();i++){
                     Map<String,JSONObject> map = new HashMap<>();
                     map.put(childPath,(JSONObject)jsonArray.get(i));
                     list.add(map);
                 }
                 return list;
-            }else {  //JsonObject
-
+            }else {
                 JSONObject jsonObject = JSONObject.parseObject(data);
-//                System.out.println("----------------------jsonObject------------------------");
-//                System.out.println("---------------------" + childPath + "-------------------------");
-//                System.out.println(jsonObject);
                 Map<String,JSONObject> map = new HashMap<>();
                 map.put(childPath,jsonObject);
                 list.add(map);
                 return list;
-                //write json to xml
             }
-
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("get config data error", e);
         }
         return null;
     }
@@ -848,7 +838,6 @@ public class ZkDownload {
             }
         }
         }
-       //json2XmlFile(document,"D:/dataHost.xml");
     }
 
     //Datanode xml
@@ -864,40 +853,42 @@ public class ZkDownload {
             if (jsonObject.containsKey("database"))
                 dataNodeEl.addAttribute("database", jsonObject.get("database").toString());
             }
-        //json2XmlFile(document,"D:/dataNode.xml");
     }
 
-
-
-    public static boolean json2XmlFile(Document document,String filename) {
+    public static boolean json2XmlFile(Document document, String filename) {
         boolean flag = true;
-        try
-        {
+        File file = new File(downloadDir, filename);
+        if (file.isFile()) {
+            log.warn("'{}' is existing in directory '{}'", filename, downloadDir);
+            return false;
+        }
+
+        OutputStream out = null;
+        try {
             /* 将document中的内容写入文件中 */
-            String filePath = SystemConfig.getHomePath()+"/src/main/resources/";
-            filename = filePath+filename;
             OutputFormat format = OutputFormat.createPrettyPrint();
-            format.setEncoding("UTF8");
-            XMLWriter writer = new XMLWriter(new FileWriter(new File(filename)),format);
+            format.setEncoding(SystemConfig.CHARSET);
+            out = new FileOutputStream(file);
+            XMLWriter writer = new XMLWriter(out, format);
             writer.write(document);
             writer.close();
-        }catch(Exception ex)
-        {
+        } catch(Exception ex) {
+            log.warn("Write xml file error: "+ file, ex);
             flag = false;
-            ex.printStackTrace();
+        } finally {
+            IoUtil.close(out);
         }
         return flag;
     }
 
-
-
     @SuppressWarnings("unchecked")
 	private static Map<String, Object> loadZkConfig() {
-        InputStream configIS = ZkDownload.class.getResourceAsStream(ZK_CONFIG_FILE_NAME);
-        if (configIS == null) {
-            throw new RuntimeException("can't find zk properties file : " + ZK_CONFIG_FILE_NAME);
+        InputStream configIS = SystemConfig.getConfigFileStream(ZK_CONFIG_FILE_NAME);
+        try {
+            return (Map<String, Object>) new Yaml().load(configIS);
+        } finally {
+            IoUtil.close(configIS);
         }
-        return (Map<String, Object>) new Yaml().load(configIS);
     }
 
     private static CuratorFramework createConnection(String url) {
@@ -917,8 +908,7 @@ public class ZkDownload {
 
         //fail situation
         curatorFramework.close();
-        throw new RuntimeException("failed to connect to zookeeper service : " + url);
+        throw new RuntimeException("failed to connect to zookeeper service: " + url);
     }
-
 
 }

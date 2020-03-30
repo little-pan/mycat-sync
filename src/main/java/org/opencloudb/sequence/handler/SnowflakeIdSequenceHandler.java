@@ -36,8 +36,7 @@ import org.slf4j.LoggerFactory;
  */
 public class SnowflakeIdSequenceHandler implements SequenceHandler {
 
-	private final static Logger logger = LoggerFactory
-			.getLogger(SequenceHandler.class);
+	private final static Logger log = LoggerFactory.getLogger(SequenceHandler.class);
 
 	private final long workerId;
 	private final long datacenterId;
@@ -59,9 +58,8 @@ public class SnowflakeIdSequenceHandler implements SequenceHandler {
 	private long lastTimestamp = -1L;
 
 	public SnowflakeIdSequenceHandler(long workerId, long datacenterId) {
-		super();
-		System.out.println("maxWorkerId = " + maxWorkerId);
-		System.out.println("maxDatacenterId = " + maxDatacenterId);
+		log.info("maxWorkerId = {}, maxDatacenterId =  {}", this.maxWorkerId, this.maxDatacenterId);
+
 		if (workerId > this.maxWorkerId || workerId < 0) {
 			throw new IllegalArgumentException(String.format(
 					"worker Id can't be greater than %d or less than 0",
@@ -76,11 +74,9 @@ public class SnowflakeIdSequenceHandler implements SequenceHandler {
 
 		}
 		this.datacenterId = datacenterId;
-		logger.info(String
-				.format("worker starting. timestamp left shift %d, datacenter id bits %d, worker id bits %d, sequence bits %d, workerid %d",
-						timestampLeftShift, datacenterIdBits, workerIdBits,
-						sequenceBits, workerId));
-
+		log.info("worker starting: timestamp left shift {}, datacenter id bits {}, " +
+						"worker id bits {}, sequence bits {}, workerid {}",
+				timestampLeftShift, datacenterIdBits, workerIdBits, sequenceBits, workerId);
 	}
 
 	public SnowflakeIdSequenceHandler(long workerId) {
@@ -96,13 +92,10 @@ public class SnowflakeIdSequenceHandler implements SequenceHandler {
 	public synchronized long nextId(String prefixName) {
 		long timestamp = this.timeGen();
 		if (timestamp < this.lastTimestamp) {
-			logger.error(
-					"clock is moving backwards.  Rejecting requests until %d.",
-					lastTimestamp);
-			throw new RuntimeException(
-					String.format(
-							"Clock moved backwards.  Refusing to generate id for %d milliseconds",
-							(this.lastTimestamp - timestamp)));
+			log.error("clock is moving backwards.  Rejecting requests until {}.", lastTimestamp);
+			String s = String.format("Clock moved backwards.  Refusing to generate id for %d milliseconds",
+					(this.lastTimestamp - timestamp));
+			throw new RuntimeException(s);
 		}
 		if (this.lastTimestamp == timestamp) {
 			this.sequence = this.sequence + 1 & this.sequenceMask;
@@ -136,4 +129,5 @@ public class SnowflakeIdSequenceHandler implements SequenceHandler {
 		System.out.println("nextId = " + gen.nextId(null));
 
 	}
+
 }

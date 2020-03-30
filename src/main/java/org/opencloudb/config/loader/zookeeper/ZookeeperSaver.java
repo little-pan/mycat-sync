@@ -6,7 +6,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.opencloudb.config.loader.zookeeper.entitiy.*;
 import org.opencloudb.config.model.SystemConfig;
-import org.opencloudb.config.util.ConfigException;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.Marshaller;
@@ -30,7 +29,6 @@ public class ZookeeperSaver {
     private JAXBContext jaxbContext;
 
     public ZookeeperSaver() throws Exception {
-        super();
         this.jaxbContext = JAXBContext
             .newInstance(org.opencloudb.config.loader.zookeeper.entitiy.Server.class,
                 org.opencloudb.config.loader.zookeeper.entitiy.Rules.class,
@@ -59,7 +57,7 @@ public class ZookeeperSaver {
         return schemas;
     }
 
-    private List<Schemas.Schema> createSchema(JSONObject cluster) throws IOException {
+    private List<Schemas.Schema> createSchema(JSONObject cluster) {
         JSONObject schemasJson = cluster.getJSONObject("schema");
         Preconditions.checkNotNull(schemasJson);
 
@@ -83,8 +81,7 @@ public class ZookeeperSaver {
         return schemas;
     }
 
-    private List<Schemas.Schema.Table> createSchemaTables(JSONObject tablesJson)
-        throws IOException {
+    private List<Schemas.Schema.Table> createSchemaTables(JSONObject tablesJson) {
         List<Schemas.Schema.Table> tables = new ArrayList<>();
 
         for (String tableKey : tablesJson.keySet()) {
@@ -381,14 +378,7 @@ public class ZookeeperSaver {
     }
 
     private String getConfigPath() {
-        String homePath = SystemConfig.getHomePath();
-        String confPath = File.separator + "conf" + File.separator;
-
-        try {
-            return homePath != null ? homePath + confPath : Paths.get(".").toRealPath() + confPath;
-        } catch (IOException e) {
-            throw new ConfigException("set home path error");
-        }
+        return SystemConfig.getDirectory("conf")+File.separator;
     }
 
     private void marshaller(Object object, String filePathAndName, String dtdName)
@@ -428,4 +418,5 @@ public class ZookeeperSaver {
     private Property createProperty(String key, String value) {
         return new Property().setName(key).setValue(value);
     }
+
 }

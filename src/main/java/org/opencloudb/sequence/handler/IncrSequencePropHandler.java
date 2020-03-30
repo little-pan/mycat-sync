@@ -23,6 +23,11 @@
  */
 package org.opencloudb.sequence.handler;
 
+import org.opencloudb.config.model.SystemConfig;
+import org.opencloudb.config.util.ConfigException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
@@ -38,6 +43,9 @@ import java.util.Properties;
  * @version 1.0
  */
 public class IncrSequencePropHandler extends IncrSequenceHandler {
+
+	static final Logger log = LoggerFactory.getLogger(IncrSequencePropHandler.class);
+
 	private String filePath;
 
 	private static class IncrSequencePropHandlerHolder {
@@ -49,19 +57,16 @@ public class IncrSequencePropHandler extends IncrSequenceHandler {
 	}
 
 	private IncrSequencePropHandler() {
-		filePath = Thread.currentThread().getContextClassLoader()
-				.getResource("").getPath().replaceAll("%20", " ")
-				+ FILE_NAME;
-		// filePath = SystemConfig.getHomePath() + "/conf/seq_gloal.properties";
+		this.filePath = SystemConfig.getConfigFile(FILE_NAME).getAbsolutePath();
 	}
 
 	@Override
 	public Map<String, String> getParaValMap(String prefixName) {
-
-		Map<String, String> valMap = new HashMap<String, String>();
-		Properties prop = new Properties();
 		try {
-			prop.load(new FileInputStream(filePath));
+			Map<String, String> valMap = new HashMap<>();
+			Properties prop = new Properties();
+
+			prop.load(new FileInputStream(this.filePath));
 			valMap.put(prefixName + KEY_HIS_NAME,
 					prop.getProperty(prefixName + KEY_HIS_NAME));
 			valMap.put(prefixName + KEY_MIN_NAME,
@@ -70,12 +75,11 @@ public class IncrSequencePropHandler extends IncrSequenceHandler {
 					prop.getProperty(prefixName + KEY_MAX_NAME));
 			valMap.put(prefixName + KEY_CUR_NAME,
 					prop.getProperty(prefixName + KEY_CUR_NAME));
-		} catch (Exception e) {
-			logger.error(e.getMessage());
-			return null;
-		}
 
-		return valMap;
+			return valMap;
+		} catch (Exception e) {
+			throw new ConfigException("Load '"+this.filePath+"' error", e);
+		}
 	}
 
 	@Override
@@ -98,7 +102,7 @@ public class IncrSequencePropHandler extends IncrSequenceHandler {
 			OutputStream fos = new FileOutputStream(filePath);
 			props.store(fos, "");
 		} catch (Exception e) {
-			logger.error(e.getLocalizedMessage());
+			log.error("Fetch next ID period failed", e);
 			return false;
 		}
 		return true;
@@ -109,11 +113,11 @@ public class IncrSequencePropHandler extends IncrSequenceHandler {
 		Properties props = new Properties();
 		try {
 			props.load(new FileInputStream(filePath));
-			props.setProperty(prefixName + KEY_CUR_NAME, val.longValue() + "");
+			props.setProperty(prefixName + KEY_CUR_NAME, val + "");
 			OutputStream fos = new FileOutputStream(filePath);
 			props.store(fos, "");
 		} catch (Exception e) {
-			logger.error(e.getLocalizedMessage());
+			log.error("Update ID value failed", e);
 			return false;
 		}
 		return true;

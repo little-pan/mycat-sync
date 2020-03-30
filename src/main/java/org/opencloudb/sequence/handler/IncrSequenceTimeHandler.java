@@ -1,6 +1,8 @@
 package org.opencloudb.sequence.handler;
 
+import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.util.ConfigException;
+import org.opencloudb.util.IoUtil;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,15 +35,17 @@ public class IncrSequenceTimeHandler implements SequenceHandler {
 
 	private Properties loadProps(String propsFile){
 		Properties props = new Properties();
-		InputStream inp = Thread.currentThread().getContextClassLoader().getResourceAsStream(propsFile);
+		InputStream in = SystemConfig.getConfigFileStream(propsFile);
 
-		if (inp == null) {
+		if (in == null) {
 			throw new ConfigException("Time sequence properties file not found: " + propsFile);
 		}
 		try {
-			props.load(inp);
+			props.load(in);
 		} catch (IOException e) {
 			throw new ConfigException("Fatal: load file '" + propsFile + "'", e);
+		} finally {
+			IoUtil.close(in);
 		}
 
 		return props;

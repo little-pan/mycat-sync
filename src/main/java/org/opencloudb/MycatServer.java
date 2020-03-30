@@ -266,14 +266,11 @@ public class MycatServer {
 	}
 
 	public static String getDirectory (String name) {
-	    String home = SystemConfig.getHomePath();
-	    return String.format("%s%s%s", home,  File.separator, name);
+	    return SystemConfig.getDirectory(name);
     }
 
     public static File getConfigFile(String name) {
-        String path = String.format("conf%s%s",  File.separator, name);
-        String home = SystemConfig.getHomePath();
-        return new File(home, path);
+        return SystemConfig.getConfigFile(name);
     }
 
 	/**

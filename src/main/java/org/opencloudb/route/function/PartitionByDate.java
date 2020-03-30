@@ -3,7 +3,6 @@ package org.opencloudb.route.function;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.config.model.rule.RuleAlgorithm;
 
 /**
@@ -13,7 +12,6 @@ import org.opencloudb.config.model.rule.RuleAlgorithm;
  * 
  */
 public class PartitionByDate extends AbstractPartitionAlgorithm implements RuleAlgorithm {
-	private static final Logger LOGGER = Logger.getLogger(PartitionByDate.class);
 
 	private String sBeginDate;
 	private String sEndDate;
@@ -25,7 +23,6 @@ public class PartitionByDate extends AbstractPartitionAlgorithm implements RuleA
 	private long endDate;
 	private int nCount;
 
-	
 	private static final long oneDay = 86400000;
 
 	@Override
@@ -40,7 +37,7 @@ public class PartitionByDate extends AbstractPartitionAlgorithm implements RuleA
 			    nCount = (int) ((endDate - beginDate) / partionTime) + 1;
 			}
 		} catch (ParseException e) {
-			throw new java.lang.IllegalArgumentException(e);
+			throw new IllegalArgumentException(e);
 		}
 	}
 
@@ -56,7 +53,7 @@ public class PartitionByDate extends AbstractPartitionAlgorithm implements RuleA
 			return targetPartition;
 
 		} catch (ParseException e) {
-			throw new java.lang.IllegalArgumentException(e);
+			throw new IllegalArgumentException(e);
 			
 		}
 	}
@@ -77,9 +74,11 @@ public class PartitionByDate extends AbstractPartitionAlgorithm implements RuleA
 	public void setDateFormat(String dateFormat) {
 		this.dateFormat = dateFormat;
 	}
+
 	public String getsEndDate() {
 		return this.sEndDate;
 	}
+
 	public void setsEndDate(String sEndDate) {
 		this.sEndDate = sEndDate;
 	}

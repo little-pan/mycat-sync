@@ -28,7 +28,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.LinkedList;
 
+import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.rule.RuleAlgorithm;
+import org.opencloudb.util.IoUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * partition by Prefix length ,can be used in String partition
@@ -36,6 +40,9 @@ import org.opencloudb.config.model.rule.RuleAlgorithm;
  * @author hexiaobin
  */
 public class PartitionByPrefixPattern extends AbstractPartitionAlgorithm implements RuleAlgorithm {
+
+	static final Logger log = LoggerFactory.getLogger(PartitionByPrefixPattern.class);
+
 	private static final int PARTITION_LENGTH = 1024;
 	private int patternValue = PARTITION_LENGTH;// 分区长度，取模数值(默认为1024)
 	private int prefixLength;// 字符前几位进行ASCII码取和
@@ -44,7 +51,6 @@ public class PartitionByPrefixPattern extends AbstractPartitionAlgorithm impleme
 
 	@Override
 	public void init() {
-
 		initialize();
 	}
 
@@ -62,12 +68,11 @@ public class PartitionByPrefixPattern extends AbstractPartitionAlgorithm impleme
 
 	@Override
 	public Integer calculate(String columnValue) {
-		int pattern = Integer.valueOf(patternValue);
-		int Length = Integer.valueOf(prefixLength);
+		int length = prefixLength;
 
-		Length = columnValue.length() < Length ? columnValue.length() : Length;
+		length = Math.min(columnValue.length(), length);
 		int sum = 0;
-		for (int i = 0; i < Length; i++) {
+		for (int i = 0; i < length; i++) {
 			sum = sum + columnValue.charAt(i);
 		}
 		Integer rst = null;
@@ -82,41 +87,30 @@ public class PartitionByPrefixPattern extends AbstractPartitionAlgorithm impleme
 
 	private void initialize() {
 		BufferedReader in = null;
+		InputStream fin = getConfigFileStream(mapFile);
 		try {
-			// FileInputStream fin = new FileInputStream(new File(fileMapPath));
-			InputStream fin = this.getClass().getClassLoader()
-					.getResourceAsStream(mapFile);
-			if (fin == null) {
-				throw new RuntimeException("can't find class resource file "
-						+ mapFile);
-			}
-			in = new BufferedReader(new InputStreamReader(fin));
+			in = new BufferedReader(new InputStreamReader(fin, SystemConfig.CHARSET));
 			LinkedList<LongRange> longRangeList = new LinkedList<LongRange>();
 
-			for (String line = null; (line = in.readLine()) != null;) {
+			for (String line; (line = in.readLine()) != null;) {
 				line = line.trim();
 				if (line.startsWith("#") || line.startsWith("//"))
 					continue;
 				int ind = line.indexOf('=');
 				if (ind < 0) {
-					System.out.println(" warn: bad line int " + mapFile + " :"
-							+ line);
+					log.warn("Bad line in '{}': {}", mapFile, line);
 					continue;
 				}
 				try {
 					String pairs[] = line.substring(0, ind).trim().split("-");
 					long longStart = NumberParseUtil.parseLong(pairs[0].trim());
 					long longEnd = NumberParseUtil.parseLong(pairs[1].trim());
-					int nodeId = Integer.parseInt(line.substring(ind + 1)
-							.trim());
-					longRangeList
-							.add(new LongRange(nodeId, longStart, longEnd));
-
+					int nodeId = Integer.parseInt(line.substring(ind + 1).trim());
+					longRangeList.add(new LongRange(nodeId, longStart, longEnd));
 				} catch (Exception e) {
 				}
 			}
-			longRongs = longRangeList.toArray(new LongRange[longRangeList
-					.size()]);
+			longRongs = longRangeList.toArray(new LongRange[longRangeList.size()]);
 		} catch (Exception e) {
 			if (e instanceof RuntimeException) {
 				throw (RuntimeException) e;
@@ -125,10 +119,8 @@ public class PartitionByPrefixPattern extends AbstractPartitionAlgorithm impleme
 			}
 
 		} finally {
-			try {
-				in.close();
-			} catch (Exception e2) {
-			}
+			IoUtil.close(in);
+			IoUtil.close(fin);
 		}
 	}
 

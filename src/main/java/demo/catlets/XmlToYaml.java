@@ -6,6 +6,7 @@ import org.opencloudb.config.loader.zookeeper.entitiy.Property;
 import org.opencloudb.config.loader.zookeeper.entitiy.Rules;
 import org.opencloudb.config.loader.zookeeper.entitiy.Schemas;
 import org.opencloudb.config.loader.zookeeper.entitiy.Server;
+import org.opencloudb.config.model.SystemConfig;
 import org.yaml.snakeyaml.Yaml;
 
 import javax.xml.bind.JAXBContext;
@@ -18,11 +19,11 @@ import javax.xml.transform.stream.StreamSource;
 import java.io.*;
 import java.util.*;
 
-
 /**
  * Created by lion on 12/25/15.
  */
 public class XmlToYaml {
+
     private static JAXBContext jaxbContext;
     private static Unmarshaller unmarshaller;
 
@@ -30,7 +31,7 @@ public class XmlToYaml {
 
     private static Map<Object, Object> serializeMap;
 
-    public static void main(String[] args) throws JAXBException, IOException, XMLStreamException {
+    public static void main(String[] args) throws Exception {
         jaxbContext = JAXBContext
             .newInstance(org.opencloudb.config.loader.zookeeper.entitiy.Server.class,
                 org.opencloudb.config.loader.zookeeper.entitiy.Rules.class,
@@ -41,14 +42,11 @@ public class XmlToYaml {
             MYCLUSTER_ID = args[0];
         }
 
-        try (
-            InputStream schemaStream = XmlToYaml.class.getResourceAsStream("/schema.xml");
-            InputStream serverStream = XmlToYaml.class.getResourceAsStream("/server.xml");
-            InputStream ruleStream = XmlToYaml.class.getResourceAsStream("/rule.xml");
-            InputStream myidStream = XmlToYaml.class.getResourceAsStream("/myid.properties");
-            FileWriter fileWriter = new FileWriter(
-                XmlToYaml.class.getResource("/zk-create.yaml").getFile())
-
+        try (InputStream schemaStream = SystemConfig.getConfigFileStream("schema.xml");
+             InputStream serverStream = SystemConfig.getConfigFileStream("server.xml");
+             InputStream ruleStream = SystemConfig.getConfigFileStream("rule.xml");
+             InputStream myidStream = SystemConfig.getConfigFileStream("myid.properties");
+             FileWriter fileWriter = new FileWriter(SystemConfig.getConfigFile("zk-create.yaml"))
         ) {
             Preconditions.checkNotNull(myidStream, "have not myid file");
             Properties properties = new Properties();
@@ -59,7 +57,7 @@ public class XmlToYaml {
 
             Server server = loadServer(serverStream);
             serializeMap.put("mycat-cluster",
-                process(loadSchema(schemaStream), loadRule(ruleStream), server));
+                    process(loadSchema(schemaStream), loadRule(ruleStream), server));
             serializeMap.put("mycat-nodes", processServer(server, properties.getProperty("myid")));
 
             fileWriter.write(new Yaml().dumpAsMap(serializeMap));
@@ -421,4 +419,5 @@ public class XmlToYaml {
     public static abstract class Process<I> {
         public abstract void processort(I i);
     }
+
 }

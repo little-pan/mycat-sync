@@ -23,7 +23,11 @@
  */
 package org.opencloudb.route.function;
 
+import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.rule.RuleAlgorithm;
+import org.opencloudb.util.IoUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -37,7 +41,9 @@ import java.util.LinkedList;
  * 
  * @author wuzhi
  */
-public class PartitionByRangeMod extends AbstractPartitionAlgorithm implements RuleAlgorithm{
+public class PartitionByRangeMod extends AbstractPartitionAlgorithm implements RuleAlgorithm {
+
+	static final Logger log = LoggerFactory.getLogger(PartitionByRangeMod.class);
 
 	private String mapFile;
 	private LongRange[] longRanges;
@@ -45,7 +51,6 @@ public class PartitionByRangeMod extends AbstractPartitionAlgorithm implements R
 	private int defaultNode = -1;
 	@Override
 	public void init() {
-
 		initialize();
 	}
 
@@ -55,7 +60,7 @@ public class PartitionByRangeMod extends AbstractPartitionAlgorithm implements R
 
 	@Override
 	public Integer calculate(String columnValue) {
-		long value = Long.valueOf(columnValue);
+		long value = Long.parseLong(columnValue);
 		Integer rst = null;
         int nodeIndex=0;
 		for (LongRange longRang : this.longRanges) {
@@ -69,14 +74,14 @@ public class PartitionByRangeMod extends AbstractPartitionAlgorithm implements R
             }
 		}
 		//数据超过范围，暂时使用配置的默认节点
-		if(rst ==null && defaultNode>=0){
+		if(defaultNode >= 0){
 			return defaultNode ;
 		}
 		return rst;
 	}
 
     public Integer calculateStart(String columnValue) {
-        long value = Long.valueOf(columnValue);
+        long value = Long.parseLong(columnValue);
         Integer rst = null;
         int nodeIndex=0;
         for (LongRange longRang : this.longRanges) {
@@ -89,13 +94,14 @@ public class PartitionByRangeMod extends AbstractPartitionAlgorithm implements R
             }
         }
         // 数据超过范围，暂时使用配置的默认节点
-        if(rst ==null && defaultNode>=0){
+        if(defaultNode >= 0){
             return defaultNode ;
         }
         return rst;
     }
+
     public Integer calculateEnd(String columnValue) {
-        long value = Long.valueOf(columnValue);
+        long value = Long.parseLong(columnValue);
         Integer rst = null;
         int nodeIndex=0;
         for (LongRange longRang : this.longRanges) {
@@ -108,7 +114,7 @@ public class PartitionByRangeMod extends AbstractPartitionAlgorithm implements R
             }
         }
         // 数据超过范围，暂时使用配置的默认节点
-        if(rst ==null && defaultNode>=0){
+        if(defaultNode >= 0){
             return defaultNode ;
         }
         return rst;
@@ -142,35 +148,26 @@ public class PartitionByRangeMod extends AbstractPartitionAlgorithm implements R
 
 	private void initialize() {
 		BufferedReader in = null;
+		InputStream fin = getConfigFileStream(this.mapFile);
 		try {
-			InputStream fin = this.getClass().getClassLoader()
-					.getResourceAsStream(mapFile);
-			if (fin == null) {
-				throw new RuntimeException("can't find class resource file "
-						+ mapFile);
-			}
-			in = new BufferedReader(new InputStreamReader(fin));
-			LinkedList<LongRange> longRangeList = new LinkedList<LongRange>();
+			in = new BufferedReader(new InputStreamReader(fin, SystemConfig.CHARSET));
+			LinkedList<LongRange> longRangeList = new LinkedList<>();
 
-			for (String line = null; (line = in.readLine()) != null;) {
+			for (String line; (line = in.readLine()) != null;) {
 				line = line.trim();
 				if (line.startsWith("#") || line.startsWith("//"))
 					continue;
 				int ind = line.indexOf('=');
 				if (ind < 0) {
-					System.out.println(" warn: bad line int " + mapFile + " :"
-							+ line);
+					log.warn("Bad line in '{}': {}", mapFile, line);
 					continue;
 				}
 				try {
 					String pairs[] = line.substring(0, ind).trim().split("-");
 					long longStart = NumberParseUtil.parseLong(pairs[0].trim());
 					long longEnd = NumberParseUtil.parseLong(pairs[1].trim());
-					int nodeId = Integer.parseInt(line.substring(ind + 1)
-							.trim());
-					longRangeList
-							.add(new LongRange(nodeId, longStart, longEnd));
-
+					int nodeId = Integer.parseInt(line.substring(ind + 1).trim());
+					longRangeList.add(new LongRange(nodeId, longStart, longEnd));
 				} catch (Exception e) {
 				}
 			}
@@ -181,12 +178,9 @@ public class PartitionByRangeMod extends AbstractPartitionAlgorithm implements R
 			} else {
 				throw new RuntimeException(e);
 			}
-
 		} finally {
-			try {
-				in.close();
-			} catch (Exception e2) {
-			}
+			IoUtil.close(in);
+			IoUtil.close(fin);
 		}
 	}
 	

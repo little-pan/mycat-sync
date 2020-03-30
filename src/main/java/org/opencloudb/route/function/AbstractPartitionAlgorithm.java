@@ -1,6 +1,9 @@
 package org.opencloudb.route.function;
 
+import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.rule.RuleAlgorithm;
+
+import java.io.InputStream;
 
 /**
  * 路由分片函数抽象类
@@ -13,6 +16,11 @@ public abstract class AbstractPartitionAlgorithm implements RuleAlgorithm {
 
 	@Override
 	public void init() {
+
+	}
+
+	protected static InputStream getConfigFileStream(String file) {
+		return SystemConfig.getConfigFileStream(file);
 	}
 
 	/**

@@ -23,22 +23,25 @@
  */
 package org.opencloudb.mysql;
 
+import org.opencloudb.config.model.SystemConfig;
+import org.opencloudb.config.util.ConfigException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.*;
 
 /**
  * @author mycat
  */
 public class CharsetUtil {
-    public static final Logger logger = LoggerFactory
-            .getLogger(CharsetUtil.class);
+
+    public static final Logger log = LoggerFactory.getLogger(CharsetUtil.class);
+
     private static final Map<Integer,String> INDEX_TO_CHARSET = new HashMap<>();
     private static final Map<String, Integer> CHARSET_TO_INDEX = new HashMap<>();
     static {
-
         // index_to_charset.properties
         INDEX_TO_CHARSET.put(1,"big5");
         INDEX_TO_CHARSET.put(8,"latin1");
@@ -49,20 +52,15 @@ public class CharsetUtil {
         INDEX_TO_CHARSET.put(33,"utf8");
         INDEX_TO_CHARSET.put(45,"utf8mb4");
 
-       String filePath = Thread.currentThread().getContextClassLoader()
-                .getResource("").getPath().replaceAll("%20", " ")
-                + "index_to_charset.properties";
+        String filePath = SystemConfig.getConfigFile("index_to_charset.properties").getAbsolutePath();
         Properties prop = new Properties();
         try {
             prop.load(new FileInputStream(filePath));
-            for (Object index : prop.keySet())
-            {
-
-               INDEX_TO_CHARSET.put(Integer.parseInt((String) index), prop.getProperty((String) index));
+            for (Object index : prop.keySet()) {
+                INDEX_TO_CHARSET.put(Integer.parseInt((String) index), prop.getProperty((String) index));
             }
-
-        } catch (Exception e) {
-            logger.error(e.getMessage());
+        } catch (IOException e) {
+            throw new ConfigException("Load '"+filePath+"' error", e);
         }
         // charset --> index
         for (int i = 0; i < INDEX_TO_CHARSET.size(); i++) {
@@ -89,7 +87,5 @@ public class CharsetUtil {
             return (i == null) ? 0 : i;
         }
     }
-
-
 
 }

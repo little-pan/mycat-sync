@@ -12,8 +12,8 @@ import org.opencloudb.config.model.rule.RuleAlgorithm;
  * @author wzh
  * 
  */
-public class PartitionByMonth extends AbstractPartitionAlgorithm implements
-		RuleAlgorithm {
+public class PartitionByMonth extends AbstractPartitionAlgorithm implements RuleAlgorithm {
+
 	private String sBeginDate;
 	private String dateFormat;
 	private Calendar beginDate;
@@ -25,7 +25,7 @@ public class PartitionByMonth extends AbstractPartitionAlgorithm implements
 			beginDate.setTime(new SimpleDateFormat(dateFormat)
 					.parse(sBeginDate));
 		} catch (ParseException e) {
-			throw new java.lang.IllegalArgumentException(e);
+			throw new IllegalArgumentException(e);
 		}
 	}
 
@@ -39,7 +39,7 @@ public class PartitionByMonth extends AbstractPartitionAlgorithm implements
 					- beginDate.get(Calendar.MONTH);
 
 		} catch (ParseException e) {
-			throw new java.lang.IllegalArgumentException(e);
+			throw new IllegalArgumentException(e);
 		}
 	}
 

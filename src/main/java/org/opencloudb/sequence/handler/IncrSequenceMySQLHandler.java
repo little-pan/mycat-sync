@@ -9,7 +9,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
 import org.opencloudb.mysql.handler.AbstractResponseHandler;
@@ -20,10 +19,11 @@ import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.parser.ServerParse;
+import org.slf4j.*;
 
 public class IncrSequenceMySQLHandler implements SequenceHandler {
 
-	protected static final Logger LOGGER = Logger.getLogger(IncrSequenceMySQLHandler.class);
+	protected static final Logger log = LoggerFactory.getLogger(IncrSequenceMySQLHandler.class);
 
 	private static final String SEQUENCE_DB_PROPS = "sequence_db_conf.properties";
 	protected static final String errSeqResult = "-999999999,null";
@@ -124,10 +124,9 @@ public class IncrSequenceMySQLHandler implements SequenceHandler {
 	}
 
 	private long getSeqValueFromDB(SequenceVal seqVal) {
-		if (LOGGER.isDebugEnabled()) {
-			LOGGER.debug("get next segement of sequence from db for sequnce:"
-					+ seqVal.seqName + " curVal " + seqVal.curVal);
-		}
+		log.debug("get next segment of sequence from db " +
+				"for sequence '{}' , curVal {}", seqVal.seqName, seqVal.curVal);
+
 		if (seqVal.fetching.compareAndSet(false, true)) {
 			seqVal.dbretVal = null;
 			seqVal.dbfinished = false;
@@ -136,8 +135,7 @@ public class IncrSequenceMySQLHandler implements SequenceHandler {
 		}
 		Long[] values = seqVal.waitFinish();
 		if (values == null) {
-
-			throw new RuntimeException("can't fetch sequnce in db,sequnce :"
+			throw new RuntimeException("can't fetch sequnce in db, sequence:"
 					+ seqVal.seqName + " detail:"
 					+ mysqlSeqFetcher.getLastestError(seqVal.seqName));
 		} else {
@@ -156,25 +154,21 @@ public class IncrSequenceMySQLHandler implements SequenceHandler {
 
 class FetchMySQLSequenceHandler extends AbstractResponseHandler {
 
-	private static final Logger LOGGER = Logger.getLogger(FetchMySQLSequenceHandler.class);
+	private static final Logger log = LoggerFactory.getLogger(FetchMySQLSequenceHandler.class);
 
 	public void execute(SequenceVal seqVal) {
 		MycatServer server = MycatServer.getContextServer();
 		MycatConfig conf = server.getConfig();
 		PhysicalDBNode mysqlDN = conf.getDataNodes().get(seqVal.dataNode);
 		try {
-			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug("execute in datanode " + seqVal.dataNode
-						+ " for fetch sequnce sql " + seqVal.sql);
-			}
+			log.debug("execute in datanode '{}' for fetch sequence sql '{}'", seqVal.dataNode, seqVal.sql);
 			// 修正获取seq的逻辑，在读写分离的情况下只能走写节点。修改Select模式为Update模式。
 			mysqlDN.getConnection(mysqlDN.getDatabase(), true,
 					new RouteResultsetNode(seqVal.dataNode, ServerParse.UPDATE,
 							seqVal.sql), this, seqVal);
 		} catch (Exception e) {
-			LOGGER.warn("get connection err " + e);
+			log.warn("get connection error", e);
 		}
-
 	}
 
 	public String getLastestError(String seqName) {
@@ -194,7 +188,7 @@ class FetchMySQLSequenceHandler extends AbstractResponseHandler {
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
 		((SequenceVal) conn.getAttachment()).dbfinished = true;
-		LOGGER.warn("connectionError " + e);
+		log.warn("connectionError", e);
 	}
 
 	@Override
@@ -205,7 +199,7 @@ class FetchMySQLSequenceHandler extends AbstractResponseHandler {
 			ErrorPacket err = new ErrorPacket();
 			err.read(data);
 			String errMsg = new String(err.message);
-			LOGGER.warn("errorResponse " + err.errno + " " + errMsg);
+			log.warn("errorResponse: errno {}, errmsg '{}'", err.errno, errMsg);
 			IncrSequenceMySQLHandler.latestErrors.put(seqVal.seqName, errMsg);
 		} finally {
 			conn.release();
@@ -230,8 +224,8 @@ class FetchMySQLSequenceHandler extends AbstractResponseHandler {
 		SequenceVal seqVal = (SequenceVal) conn.getAttachment();
 		if (IncrSequenceMySQLHandler.errSeqResult.equals(columnVal)) {
 			seqVal.dbretVal = IncrSequenceMySQLHandler.errSeqResult;
-			LOGGER.warn(" sequnce sql returned err value ,sequence:"
-					+ seqVal.seqName + " " + columnVal + " sql:" + seqVal.sql);
+			log.warn("sequence sql returned error value: sequence '{}', columnVal {}, sql '{}'" ,
+					seqVal.seqName, columnVal, seqVal.sql);
 		} else {
 			seqVal.dbretVal = columnVal;
 		}
@@ -248,13 +242,16 @@ class FetchMySQLSequenceHandler extends AbstractResponseHandler {
 		seqVal.dbfinished = true;
 		String errMgs=e.toString();
 		IncrSequenceMySQLHandler.latestErrors.put(seqVal.seqName, errMgs);
-		LOGGER.warn("executeException   " + errMgs);
+		log.warn("executeException: {}", errMgs);
 		c.close("exception:" +errMgs);
 	}
 
 }
 
 class SequenceVal {
+
+	static final Logger log = LoggerFactory.getLogger(SequenceVal.class);
+
 	public AtomicBoolean newValueSetted = new AtomicBoolean(false);
 	public AtomicLong curVal = new AtomicLong(0);
 	public volatile String dbretVal = null;
@@ -300,8 +297,7 @@ class SequenceVal {
 				try {
 					Thread.sleep(100);
 				} catch (InterruptedException e) {
-					IncrSequenceMySQLHandler.LOGGER
-							.warn("wait db fetch sequnce err " + e);
+					log.warn("wait db fetch sequence error", e);
 				}
 			}
 		}

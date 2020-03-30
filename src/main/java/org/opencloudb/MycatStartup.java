@@ -52,7 +52,8 @@ public final class MycatStartup {
             server.beforeStart();
             // startup
             server.startup();
-            System.out.println(format("%s startup success. See logs in '%s/logs/mycat.log'", MycatServer.NAME, home));
+            System.out.println(format("%s startup success. See logs in '%s/logs/mycat.log'",
+                    MycatServer.NAME, home));
         } catch (Throwable e) {
             printError(e);
             System.exit(-1);

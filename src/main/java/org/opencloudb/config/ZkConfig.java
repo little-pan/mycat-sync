@@ -4,6 +4,7 @@ import com.google.common.base.Strings;
 import org.json.JSONObject;
 import org.opencloudb.config.loader.zookeeper.ZookeeperLoader;
 import org.opencloudb.config.loader.zookeeper.ZookeeperSaver;
+import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.util.ConfigException;
 import org.slf4j.*;
 
@@ -15,7 +16,7 @@ public class ZkConfig {
 
     private static final Logger log = LoggerFactory.getLogger(ZkConfig.class);
 
-    private static final String ZK_CONFIG_FILE_NAME = "/myid.properties";
+    private static final String ZK_CONFIG_FILE_NAME = "myid.properties";
 
     private ZkConfig() {
     }
@@ -48,15 +49,10 @@ public class ZkConfig {
     public Properties loadMyid() {
         Properties pros = new Properties();
 
-        try (InputStream configIS = ZookeeperLoader.class.getResourceAsStream(ZK_CONFIG_FILE_NAME)) {
-            if (configIS == null) {
-                //file is not exist, so ues local file.
-                return null;
-            }
-
+        try (InputStream configIS = SystemConfig.getConfigFileStream(ZK_CONFIG_FILE_NAME)) {
             pros.load(configIS);
         } catch (IOException e) {
-            throw new ConfigException("Can't find myid properties file: " + ZK_CONFIG_FILE_NAME, e);
+            throw new ConfigException("Load myid properties file: " + ZK_CONFIG_FILE_NAME, e);
         }
 
         if (Boolean.parseBoolean(pros.getProperty("loadZk"))) {

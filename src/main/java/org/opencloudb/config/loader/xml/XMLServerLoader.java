@@ -31,12 +31,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import org.opencloudb.MycatConfig;
-import org.opencloudb.MycatServer;
 import org.opencloudb.config.model.ClusterConfig;
 import org.opencloudb.config.model.QuarantineConfig;
 import org.opencloudb.config.model.SystemConfig;
@@ -45,6 +42,7 @@ import org.opencloudb.config.util.ConfigException;
 import org.opencloudb.config.util.ConfigUtil;
 import org.opencloudb.config.util.ParameterMapping;
 import org.opencloudb.util.DecryptUtil;
+import org.opencloudb.util.IoUtil;
 import org.opencloudb.util.SplitUtil;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -57,6 +55,7 @@ import com.alibaba.druid.wall.WallConfig;
  */
 @SuppressWarnings("unchecked")
 public class XMLServerLoader {
+
     private final SystemConfig system;
     private final Map<String, UserConfig> users;
     private final QuarantineConfig quarantine;
@@ -64,7 +63,7 @@ public class XMLServerLoader {
 
     public XMLServerLoader() {
         this.system = new SystemConfig();
-        this.users = new HashMap<String, UserConfig>();
+        this.users = new HashMap<>();
         this.quarantine = new QuarantineConfig();
         this.load();
     }
@@ -74,7 +73,8 @@ public class XMLServerLoader {
     }
 
     public Map<String, UserConfig> getUsers() {
-        return (Map<String, UserConfig>) (users.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(users));
+        return (Map<String, UserConfig>) (users.isEmpty() ?
+                Collections.emptyMap() : Collections.unmodifiableMap(users));
     }
 
     public QuarantineConfig getQuarantine() {
@@ -89,8 +89,8 @@ public class XMLServerLoader {
         InputStream dtd = null;
         InputStream xml = null;
         try {
-            dtd = XMLServerLoader.class.getResourceAsStream("/server.dtd");
-            xml = XMLServerLoader.class.getResourceAsStream("/server.xml");
+            dtd = SystemConfig.getConfigFileStream("server.dtd");
+            xml = SystemConfig.getConfigFileStream("server.xml");
             Element root = ConfigUtil.getDocument(dtd, xml).getDocumentElement();
             loadSystem(root);
             loadUsers(root);
@@ -101,18 +101,8 @@ public class XMLServerLoader {
         } catch (Exception e) {
             throw new ConfigException(e);
         } finally {
-            if (dtd != null) {
-                try {
-                    dtd.close();
-                } catch (IOException e) {
-                }
-            }
-            if (xml != null) {
-                try {
-                    xml.close();
-                } catch (IOException e) {
-                }
-            }
+            IoUtil.close(dtd);
+            IoUtil.close(xml);
         }
     }
 
@@ -153,7 +143,7 @@ public class XMLServerLoader {
             	Element e = (Element) node;
              	String check = e.getAttribute("check");
              	if (null != check) {
-             		quarantine.setCheck(Boolean.valueOf(check));
+             		quarantine.setCheck(Boolean.parseBoolean(check));
 				}
 
                 Map<String, Object> props = ConfigUtil.loadElements((Element) node);
@@ -193,7 +183,7 @@ public class XMLServerLoader {
 				
 				String readOnly = (String) props.get("readOnly");
 				if (null != readOnly) {
-					user.setReadOnly(Boolean.valueOf(readOnly));
+					user.setReadOnly(Boolean.parseBoolean(readOnly));
 				}
 				
 				String schemas = (String) props.get("schemas");

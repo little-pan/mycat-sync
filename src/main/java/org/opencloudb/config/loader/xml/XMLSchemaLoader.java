@@ -23,7 +23,6 @@
  */
 package org.opencloudb.config.loader.xml;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.text.SimpleDateFormat;
@@ -31,16 +30,12 @@ import java.util.*;
 
 import org.opencloudb.backend.PhysicalDBPool;
 import org.opencloudb.config.loader.SchemaLoader;
-import org.opencloudb.config.model.DBHostConfig;
-import org.opencloudb.config.model.DataHostConfig;
-import org.opencloudb.config.model.DataNodeConfig;
-import org.opencloudb.config.model.SchemaConfig;
-import org.opencloudb.config.model.TableConfig;
-import org.opencloudb.config.model.TableConfigMap;
+import org.opencloudb.config.model.*;
 import org.opencloudb.config.model.rule.TableRuleConfig;
 import org.opencloudb.config.util.ConfigException;
 import org.opencloudb.config.util.ConfigUtil;
 import org.opencloudb.util.DecryptUtil;
+import org.opencloudb.util.IoUtil;
 import org.opencloudb.util.SplitUtil;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -52,8 +47,8 @@ import org.w3c.dom.NodeList;
 @SuppressWarnings("unchecked")
 public class XMLSchemaLoader implements SchemaLoader {
 	
-	private final static String DEFAULT_DTD = "/schema.dtd";
-	private final static String DEFAULT_XML = "/schema.xml";
+	private final static String DEFAULT_DTD = "schema.dtd";
+	private final static String DEFAULT_XML = "schema.xml";
 
 	private final Map<String, TableRuleConfig> tableRules;
 	private final Map<String, DataHostConfig> dataHosts;
@@ -63,10 +58,9 @@ public class XMLSchemaLoader implements SchemaLoader {
 	public XMLSchemaLoader(String schemaFile, String ruleFile) {
 		XMLRuleLoader ruleLoader = new XMLRuleLoader(ruleFile);
 		this.tableRules = ruleLoader.getTableRules();
-		ruleLoader = null;
-		this.dataHosts = new HashMap<String, DataHostConfig>();
-		this.dataNodes = new HashMap<String, DataNodeConfig>();
-		this.schemas = new HashMap<String, SchemaConfig>();
+		this.dataHosts = new HashMap<>();
+		this.dataNodes = new HashMap<>();
+		this.schemas = new HashMap<>();
 		this.load(DEFAULT_DTD, schemaFile == null ? DEFAULT_XML : schemaFile);
 	}
 
@@ -98,8 +92,8 @@ public class XMLSchemaLoader implements SchemaLoader {
 		InputStream dtd = null;
 		InputStream xml = null;
 		try {
-			dtd = XMLSchemaLoader.class.getResourceAsStream(dtdFile);
-			xml = XMLSchemaLoader.class.getResourceAsStream(xmlFile);
+			dtd = SystemConfig.getConfigFileStream(dtdFile);
+			xml = SystemConfig.getConfigFileStream(xmlFile);
 			Element root = ConfigUtil.getDocument(dtd, xml).getDocumentElement();
 			loadDataHosts(root);
 			loadDataNodes(root);
@@ -109,19 +103,8 @@ public class XMLSchemaLoader implements SchemaLoader {
 		} catch (Exception e) {
 			throw new ConfigException(e);
 		} finally {
-			if (dtd != null) {
-				try {
-					dtd.close();
-				} catch (IOException e) {
-				}
-			}
-			
-			if (xml != null) {
-				try {
-					xml.close();
-				} catch (IOException e) {
-				}
-			}
+			IoUtil.close(dtd);
+			IoUtil.close(xml);
 		}
 	}
 

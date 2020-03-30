@@ -29,7 +29,9 @@ import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.rule.RuleAlgorithm;
+import org.opencloudb.util.IoUtil;
 
 /**
  * 
@@ -61,7 +63,6 @@ public class PartitionByFileMap extends AbstractPartitionAlgorithm implements Ru
 
 	@Override
 	public void init() {
-
 		initialize();
 	}
 
@@ -95,17 +96,10 @@ public class PartitionByFileMap extends AbstractPartitionAlgorithm implements Ru
 
 	private void initialize() {
 		BufferedReader in = null;
+		InputStream fin = getConfigFileStream(this.mapFile);
 		try {
-			// FileInputStream fin = new FileInputStream(new File(fileMapPath));
-			InputStream fin = this.getClass().getClassLoader()
-					.getResourceAsStream(mapFile);
-			if (fin == null) {
-				throw new RuntimeException("can't find class resource file "
-						+ mapFile);
-			}
-			in = new BufferedReader(new InputStreamReader(fin));
-			
-			app2Partition = new HashMap<Object, Integer>();
+			in = new BufferedReader(new InputStreamReader(fin, SystemConfig.CHARSET));
+			app2Partition = new HashMap<>();
 			
 			for (String line = null; (line = in.readLine()) != null;) {
 				line = line.trim();
@@ -135,12 +129,9 @@ public class PartitionByFileMap extends AbstractPartitionAlgorithm implements Ru
 			} else {
 				throw new RuntimeException(e);
 			}
-
 		} finally {
-			try {
-				in.close();
-			} catch (Exception e2) {
-			}
+			IoUtil.close(in);
+			IoUtil.close(fin);
 		}
 	}
 }

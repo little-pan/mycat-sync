@@ -24,14 +24,17 @@
 package org.opencloudb.config.model;
 
 import java.io.File;
-import java.io.IOException;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
 
 import org.opencloudb.config.Isolations;
+import org.opencloudb.config.util.ConfigException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 系统基础配置项
+ * System base configuration.
  *
  * @author mycat
  */
@@ -40,6 +43,31 @@ public final class SystemConfig {
 	static final Logger log = LoggerFactory.getLogger(SystemConfig.class);
 
 	public static final String SYS_HOME = "MYCAT_HOME";
+	private static final String HOME_PATH;
+	public static final String CHARSET = "UTF-8";
+	static {
+		String home = System.getProperty(SystemConfig.SYS_HOME);
+		if (home != null) {
+			if (home.endsWith(File.pathSeparator)) {
+				home = home.substring(0, home.length() - 1);
+				System.setProperty(SystemConfig.SYS_HOME, home);
+			}
+		}
+
+		// Check home directory.
+		// Note: the home directory must be specified by user, otherwise load an irrelevant or
+		// outdated configuration!
+		if (home == null) {
+			throw new ConfigException(SystemConfig.SYS_HOME + " unset");
+		}
+		if (!new File(home).isDirectory()) {
+			throw new ConfigException(SystemConfig.SYS_HOME + " '"+home+"' not existing");
+		}
+
+		HOME_PATH = home;
+		log.info("{}={}", SystemConfig.SYS_HOME, SystemConfig.HOME_PATH);
+	}
+
 	private static final int DEFAULT_PORT = 8066;
 	private static final int DEFAULT_MANAGER_PORT = 9066;
 	private static final String DEFAULT_CHARSET = "utf8";
@@ -104,7 +132,8 @@ public final class SystemConfig {
 	private int sequnceHandlerType = SEQUENCEHANDLER_LOCALFILE;
 	private String sqlInterceptor = "org.opencloudb.interceptor.impl.DefaultSqlInterceptor";
 	private String sqlInterceptorType = "select";
-	private String sqlInterceptorFile = System.getProperty("user.dir")+"/logs/sql.txt";
+	private String sqlInterceptorFile = System.getProperty("user.dir")
+							+File.separator+"logs"+File.separator+"sql.txt";
 	public static final int MUTINODELIMIT_SMALL_DATA = 0;
 	public static final int MUTINODELIMIT_LAR_DATA = 1;
 	private int mutiNodeLimitType = MUTINODELIMIT_SMALL_DATA;
@@ -220,38 +249,27 @@ public final class SystemConfig {
 	}
 
 	public static String getHomePath() {
-		String home = System.getProperty(SystemConfig.SYS_HOME);
-		if (home != null) {
-			if (home.endsWith(File.pathSeparator)) {
-				home = home.substring(0, home.length() - 1);
-				System.setProperty(SystemConfig.SYS_HOME, home);
-			}
+		return HOME_PATH;
+	}
+
+	public static String getDirectory (String name) {
+		String home = getHomePath();
+		return String.format("%s%s%s", home,  File.separator, name);
+	}
+
+	public static File getConfigFile(String name) {
+		String path = String.format("conf%s%s",  File.separator, name);
+		String home = getHomePath();
+		return new File(home, path);
+	}
+
+	public static InputStream getConfigFileStream(String name) {
+		File configFile = getConfigFile(name);
+		try {
+			return new FileInputStream(configFile);
+		} catch (FileNotFoundException e) {
+			throw new ConfigException("Config file not found: " + configFile, e);
 		}
-
-		// MYCAT_HOME为空，默认尝试设置为当前目录或上级目录。BEN
-		if(home == null) {
-			try {
-				String path = new File("..").getCanonicalPath().replaceAll("\\\\", "/");
-				File conf = new File(path+"/conf");
-				if(conf.exists() && conf.isDirectory()) {
-					home = path;
-				} else {
-					path = new File(".").getCanonicalPath().replaceAll("\\\\", "/");
-					conf = new File(path+"/conf");
-					if(conf.exists() && conf.isDirectory()) {
-						home = path;
-					}
-				}
-
-				if (home != null) {
-					System.setProperty(SystemConfig.SYS_HOME, home);
-				}
-			} catch (IOException e) {
-				// 如出错，则忽略。
-			}
-		}
-
-		return home;
 	}
 
 	public int getUseCompression()
@@ -614,7 +632,5 @@ public final class SystemConfig {
 				+ ", maxPacketSize=" + maxPacketSize
 				+ ", mycatNodeId=" + mycatNodeId + "]";
 	}
-
-
 
 }

@@ -10,6 +10,7 @@ package org.opencloudb.route.function;
  * 
  */
 public class LatestMonthPartion extends AbstractPartitionAlgorithm {
+
 	private int splitOneDay = 24;
 	private int hourSpan;
 	private String[] dataNodes;
@@ -19,7 +20,7 @@ public class LatestMonthPartion extends AbstractPartitionAlgorithm {
 	}
 
 	/**
-	 * @param dataNodeExpression
+	 * @param split
 	 */
 	public void setSplitOneDay(int split) {
 		splitOneDay = split;
@@ -35,11 +36,10 @@ public class LatestMonthPartion extends AbstractPartitionAlgorithm {
 	@Override
 	public Integer calculate(String columnValue) {
 		int valueLen = columnValue.length();
-		int day = Integer.valueOf(columnValue.substring(valueLen - 4,
+		int day = Integer.parseInt(columnValue.substring(valueLen - 4,
 				valueLen - 2));
-		int hour = Integer.valueOf(columnValue.substring(valueLen - 2));
-		int dnIndex = (day - 1) * splitOneDay + hour / hourSpan;
-		return dnIndex;
+		int hour = Integer.parseInt(columnValue.substring(valueLen - 2));
+		return (day - 1) * splitOneDay + hour / hourSpan;
 
 	}
 

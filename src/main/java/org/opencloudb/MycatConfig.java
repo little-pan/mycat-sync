@@ -43,6 +43,7 @@ import org.opencloudb.util.TimeUtil;
  * @author mycat
  */
 public class MycatConfig {
+
 	private static final int RELOAD = 1;
 	private static final int ROLLBACK = 2;
     private static final int RELOAD_ALL = 3;

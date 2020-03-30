@@ -28,14 +28,20 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.LinkedList;
 
+import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.rule.RuleAlgorithm;
+import org.opencloudb.util.IoUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * auto partition by Long ,can be used in auto increment primary key partition
  * 
  * @author wuzhi
  */
-public class AutoPartitionByLong extends AbstractPartitionAlgorithm implements RuleAlgorithm{
+public class AutoPartitionByLong extends AbstractPartitionAlgorithm implements RuleAlgorithm {
+
+	static final Logger log = LoggerFactory.getLogger(AutoPartitionByLong.class);
 
 	private String mapFile;
 	private LongRange[] longRongs;
@@ -43,7 +49,6 @@ public class AutoPartitionByLong extends AbstractPartitionAlgorithm implements R
 	private int defaultNode = -1;
 	@Override
 	public void init() {
-
 		initialize();
 	}
 
@@ -53,7 +58,7 @@ public class AutoPartitionByLong extends AbstractPartitionAlgorithm implements R
 
 	@Override
 	public Integer calculate(String columnValue) {
-		long value = Long.valueOf(columnValue);
+		long value = Long.parseLong(columnValue);
 		Integer rst = null;
 		for (LongRange longRang : this.longRongs) {
 			if (value <= longRang.valueEnd && value >= longRang.valueStart) {
@@ -61,7 +66,7 @@ public class AutoPartitionByLong extends AbstractPartitionAlgorithm implements R
 			}
 		}
 		//数据超过范围，暂时使用配置的默认节点
-		if(rst ==null && defaultNode>=0){
+		if(defaultNode >= 0){
 			return defaultNode ;
 		}
 		return rst;
@@ -74,16 +79,10 @@ public class AutoPartitionByLong extends AbstractPartitionAlgorithm implements R
 
 	private void initialize() {
 		BufferedReader in = null;
+		InputStream fin = getConfigFileStream(mapFile);
 		try {
-			// FileInputStream fin = new FileInputStream(new File(fileMapPath));
-			InputStream fin = this.getClass().getClassLoader()
-					.getResourceAsStream(mapFile);
-			if (fin == null) {
-				throw new RuntimeException("can't find class resource file "
-						+ mapFile);
-			}
-			in = new BufferedReader(new InputStreamReader(fin));
-			LinkedList<LongRange> longRangeList = new LinkedList<LongRange>();
+			in = new BufferedReader(new InputStreamReader(fin, SystemConfig.CHARSET));
+			LinkedList<LongRange> longRangeList = new LinkedList<>();
 
 			for (String line = null; (line = in.readLine()) != null;) {
 				line = line.trim();
@@ -91,36 +90,28 @@ public class AutoPartitionByLong extends AbstractPartitionAlgorithm implements R
 					continue;
 				int ind = line.indexOf('=');
 				if (ind < 0) {
-					System.out.println(" warn: bad line int " + mapFile + " :"
-							+ line);
+					log.warn("Bad line in '{}': {}", mapFile, line);
 					continue;
 				}
 				try {
 					String pairs[] = line.substring(0, ind).trim().split("-");
 					long longStart = NumberParseUtil.parseLong(pairs[0].trim());
 					long longEnd = NumberParseUtil.parseLong(pairs[1].trim());
-					int nodeId = Integer.parseInt(line.substring(ind + 1)
-							.trim());
-					longRangeList
-							.add(new LongRange(nodeId, longStart, longEnd));
-
+					int nodeId = Integer.parseInt(line.substring(ind + 1).trim());
+					longRangeList.add(new LongRange(nodeId, longStart, longEnd));
 				} catch (Exception e) {
 				}
 			}
-			longRongs = longRangeList.toArray(new LongRange[longRangeList
-					.size()]);
+			longRongs = longRangeList.toArray(new LongRange[longRangeList.size()]);
 		} catch (Exception e) {
 			if (e instanceof RuntimeException) {
 				throw (RuntimeException) e;
 			} else {
 				throw new RuntimeException(e);
 			}
-
 		} finally {
-			try {
-				in.close();
-			} catch (Exception e2) {
-			}
+			IoUtil.close(in);
+			IoUtil.close(fin);
 		}
 	}
 	

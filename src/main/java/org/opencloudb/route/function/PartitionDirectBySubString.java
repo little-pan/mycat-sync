@@ -12,6 +12,7 @@ import org.opencloudb.config.model.rule.RuleAlgorithm;
  * </function>
  */
 public class PartitionDirectBySubString extends AbstractPartitionAlgorithm implements RuleAlgorithm {
+
     // 字符子串起始索引（zero-based)
     private int startIndex;
     // 字串长度
@@ -49,4 +50,5 @@ public class PartitionDirectBySubString extends AbstractPartitionAlgorithm imple
         return partitionCount > 0 && partition >= partitionCount
                 ? defaultPartition : partition;
     }
+
 }

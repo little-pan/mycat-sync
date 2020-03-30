@@ -23,7 +23,6 @@
  */
 package org.opencloudb.config.loader.xml;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.sql.SQLSyntaxErrorException;
@@ -31,12 +30,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.rule.RuleConfig;
 import org.opencloudb.config.model.rule.TableRuleConfig;
 import org.opencloudb.config.util.ConfigException;
 import org.opencloudb.config.util.ConfigUtil;
 import org.opencloudb.config.util.ParameterMapping;
 import org.opencloudb.route.function.AbstractPartitionAlgorithm;
+import org.opencloudb.util.IoUtil;
 import org.opencloudb.util.SplitUtil;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -47,17 +48,16 @@ import org.w3c.dom.NodeList;
  */
 @SuppressWarnings("unchecked")
 public class XMLRuleLoader {
-	private final static String DEFAULT_DTD = "/rule.dtd";
-	private final static String DEFAULT_XML = "/rule.xml";
+
+	private final static String DEFAULT_DTD = "rule.dtd";
+	private final static String DEFAULT_XML = "rule.xml";
 
 	private final Map<String, TableRuleConfig> tableRules;
-	// private final Set<RuleConfig> rules;
 	private final Map<String, AbstractPartitionAlgorithm> functions;
 
 	public XMLRuleLoader(String ruleFile) {
-		// this.rules = new HashSet<RuleConfig>();
-		this.tableRules = new HashMap<String, TableRuleConfig>();
-		this.functions = new HashMap<String, AbstractPartitionAlgorithm>();
+		this.tableRules = new HashMap<>();
+		this.functions = new HashMap<>();
 		load(DEFAULT_DTD, ruleFile == null ? DEFAULT_XML : ruleFile);
 	}
 
@@ -66,21 +66,17 @@ public class XMLRuleLoader {
 	}
 
 	public Map<String, TableRuleConfig> getTableRules() {
-		return (Map<String, TableRuleConfig>) (tableRules.isEmpty() ? Collections
-				.emptyMap() : tableRules);
+		return (Map<String, TableRuleConfig>) (tableRules.isEmpty() ?
+									Collections.emptyMap() : tableRules);
 	}
 
-	
-
-	
 	private void load(String dtdFile, String xmlFile) {
 		InputStream dtd = null;
 		InputStream xml = null;
 		try {
-			dtd = XMLRuleLoader.class.getResourceAsStream(dtdFile);
-			xml = XMLRuleLoader.class.getResourceAsStream(xmlFile);
-			Element root = ConfigUtil.getDocument(dtd, xml)
-					.getDocumentElement();
+			dtd = SystemConfig.getConfigFileStream(dtdFile);
+			xml = SystemConfig.getConfigFileStream(xmlFile);
+			Element root = ConfigUtil.getDocument(dtd, xml).getDocumentElement();
 			loadFunctions(root);
 			loadTableRules(root);
 		} catch (ConfigException e) {
@@ -88,18 +84,8 @@ public class XMLRuleLoader {
 		} catch (Exception e) {
 			throw new ConfigException(e);
 		} finally {
-			if (dtd != null) {
-				try {
-					dtd.close();
-				} catch (IOException e) {
-				}
-			}
-			if (xml != null) {
-				try {
-					xml.close();
-				} catch (IOException e) {
-				}
-			}
+			IoUtil.close(dtd);
+			IoUtil.close(xml);
 		}
 	}
 
