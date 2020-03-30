@@ -35,8 +35,12 @@ import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlSelectQueryBlock;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlSelectQueryBlock.Limit;
 import com.alibaba.druid.util.JdbcConstants;
 import com.alibaba.druid.wall.spi.WallVisitorUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DruidSelectParser extends DefaultDruidParser {
+
+	static final Logger log = LoggerFactory.getLogger(DruidSelectParser.class);
 
     protected boolean isNeedParseOrderAgg = true;
 
@@ -55,6 +59,7 @@ public class DruidSelectParser extends DefaultDruidParser {
 
 		}
 	}
+
 	protected void parseOrderAggGroupMysql(SchemaConfig schema, SQLStatement stmt,
 										   RouteResultset rrs, MySqlSelectQueryBlock mysqlSelectQuery) {
         if(!isNeedParseOrderAgg) {
@@ -375,7 +380,7 @@ public class DruidSelectParser extends DefaultDruidParser {
                 }
             }
 			String msg = " find no Route:" + ctx.getSql();
-			LOGGER.warn(msg);
+			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 		

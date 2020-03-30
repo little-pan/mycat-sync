@@ -26,8 +26,8 @@ package org.opencloudb.statistic;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.util.TimeUtil;
+import org.slf4j.*;
 
 /**
  * 记录最近3个时段的平均响应时间，默认1，10，30分钟。
@@ -35,6 +35,8 @@ import org.opencloudb.util.TimeUtil;
  * @author mycat
  */
 public class HeartbeatRecorder {
+
+    private static final Logger log = LoggerFactory.getLogger("DataSourceSyncRecorder");
 
     private static final int MAX_RECORD_SIZE = 256;
     private static final long AVG1_TIME = 60 * 1000L;
@@ -47,12 +49,10 @@ public class HeartbeatRecorder {
     private long avg3;
     private final List<Record> records;
     private final List<Record> recordsAll;
-    
-	private static final Logger LOGGER = Logger.getLogger("DataSourceSyncRecorder");
 
     public HeartbeatRecorder() {
-        this.records = new LinkedList<Record>();
-        this.recordsAll = new LinkedList<Record>();
+        this.records = new LinkedList<>();
+        this.recordsAll = new LinkedList<>();
     }
 
     public String get() {
@@ -79,8 +79,8 @@ public class HeartbeatRecorder {
             records.add(new Record(value, time));
             recordsAll.add(new Record(value, time));
             calculate(time);
-    	}catch(Exception e){ 
-    		LOGGER.error("record HeartbeatRecorder error " + e.getMessage());
+    	}catch(Exception e){
+    		log.error("record HeartbeatRecorder error", e);
     	}
     }
 

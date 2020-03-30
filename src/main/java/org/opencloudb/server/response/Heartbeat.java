@@ -23,7 +23,6 @@
  */
 package org.opencloudb.server.response;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.net.mysql.ErrorPacket;
@@ -31,13 +30,14 @@ import org.opencloudb.net.mysql.HeartbeatPacket;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.util.TimeUtil;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public class Heartbeat {
 
-    private static final Logger HEARTBEAT = Logger.getLogger("heartbeat");
+    private static final Logger HEARTBEAT = LoggerFactory.getLogger("heartbeat");
 
     public static void response(ServerConnection c, byte[] data) {
         HeartbeatPacket hp = new HeartbeatPacket();

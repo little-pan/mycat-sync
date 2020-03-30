@@ -25,8 +25,12 @@ import com.alibaba.druid.sql.ast.expr.SQLCharExpr;
 import com.alibaba.druid.sql.ast.expr.SQLIntegerExpr;
 import com.alibaba.druid.sql.ast.statement.SQLInsertStatement.ValuesClause;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlInsertStatement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DruidInsertParser extends DefaultDruidParser {
+
+	static final Logger log = LoggerFactory.getLogger(DruidInsertParser.class);
 
 	@Override
 	public void visitorParse(RouteResultset rrs, SQLStatement stmt, MycatSchemaStatVisitor visitor)
@@ -54,7 +58,7 @@ public class DruidInsertParser extends DefaultDruidParser {
 		if(tc == null) {
 			String msg = "can't find table define in schema "
 					+ tableName + " schema:" + schema.getName();
-			LOGGER.warn(msg);
+			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		} else {
 			// childTable的insert直接在解析过程中完成路由
@@ -115,12 +119,12 @@ public class DruidInsertParser extends DefaultDruidParser {
 		int joinKeyIndex = getJoinKeyIndex(insertStmt.getColumns(), joinKey);
 		if(joinKeyIndex == -1) {
 			String inf = "joinKey not provided :" + tc.getJoinKey()+ "," + insertStmt;
-			LOGGER.warn(inf);
+			log.warn(inf);
 			throw new SQLNonTransientException(inf);
 		}
 		if(isMultiInsert(insertStmt)) {
 			String msg = "ChildTable multi insert not provided" ;
-			LOGGER.warn(msg);
+			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 		
@@ -137,9 +141,7 @@ public class DruidInsertParser extends DefaultDruidParser {
 
 		// route by sql query root parent's datanode
 		String findRootTBSql = tc.getLocateRTableKeySql().toLowerCase() + joinKeyVal;
-		if (LOGGER.isDebugEnabled()) {
-			LOGGER.debug("find root parent's node sql "+ findRootTBSql);
-		}
+		log.debug("find root parent's node sql '{}'", findRootTBSql);
 		throw new SQLNonTransientException("'childTable' above level 2 isn't supported");
 		/*
 		FetchStoreNodeOfChildTableHandler fetchHandler = new FetchStoreNodeOfChildTableHandler();
@@ -182,7 +184,7 @@ public class DruidInsertParser extends DefaultDruidParser {
 		}
 		if(!isFound) {//分片表的
 			String msg = "bad insert sql (sharding column:"+ partitionColumn + " not provided," + insertStmt;
-			LOGGER.warn(msg);
+			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 		// insert into .... on duplicateKey 
@@ -195,7 +197,7 @@ public class DruidInsertParser extends DefaultDruidParser {
 				String column = StringUtil.removeBackquote(opExpr.getLeft().toString().toUpperCase());
 				if(column.equals(partitionColumn)) {
 					String msg = "partion key can't be updated: " + tableName + " -> " + partitionColumn;
-					LOGGER.warn(msg);
+					log.warn(msg);
 					throw new SQLNonTransientException(msg);
 				}
 			}
@@ -218,7 +220,7 @@ public class DruidInsertParser extends DefaultDruidParser {
 			int shardingColIndex = getSharingColIndex(insertStmt, partitionColumn);
 			if(shardingColIndex == -1) {
 				String msg = "bad insert sql (sharding column:"+ partitionColumn + " not provided," + insertStmt;
-				LOGGER.warn(msg);
+				log.warn(msg);
 				throw new SQLNonTransientException(msg);
 			} else {
 				List<ValuesClause> valueClauseList = insertStmt.getValuesList();
@@ -231,7 +233,7 @@ public class DruidInsertParser extends DefaultDruidParser {
 						String msg = "bad insert sql columnSize != valueSize:"
 					             + columnNum + " != " + valueClause.getValues().size() 
 					             + "values:" + valueClause;
-						LOGGER.warn(msg);
+						log.warn(msg);
 						throw new SQLNonTransientException(msg);
 					}
 					SQLExpr expr = valueClause.getValues().get(shardingColIndex);
@@ -249,7 +251,7 @@ public class DruidInsertParser extends DefaultDruidParser {
 					if(nodeIndex == null) {
 						String msg = "can't find any valid datanode :" + tableName 
 								+ " -> " + partitionColumn + " -> " + shardingValue;
-						LOGGER.warn(msg);
+						log.warn(msg);
 						throw new SQLNonTransientException(msg);
 					}
 					if(nodeValuesMap.get(nodeIndex) == null) {
@@ -272,7 +274,7 @@ public class DruidInsertParser extends DefaultDruidParser {
 			}
 		} else if(insertStmt.getQuery() != null) { // insert into .... select ....
 			String msg = "TODO:insert into .... select .... not supported!";
-			LOGGER.warn(msg);
+			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 	}

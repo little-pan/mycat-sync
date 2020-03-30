@@ -24,7 +24,6 @@
 package org.opencloudb.server.response;
 
 import com.google.common.base.Splitter;
-import org.apache.log4j.Logger;
 import org.opencloudb.config.Fields;
 import org.opencloudb.mysql.PacketUtil;
 import org.opencloudb.net.mysql.EOFPacket;
@@ -43,8 +42,6 @@ import java.util.Map;
  * @author mycat
  */
 public final class SelectVariables {
-    private static final Logger LOGGER = Logger.getLogger(SelectVariables.class);
-
 
     public static void execute(ServerConnection c, String sql) {
 

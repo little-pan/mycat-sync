@@ -23,27 +23,25 @@
  */
 package org.opencloudb.response;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.net.mysql.OkPacket;
+import org.slf4j.*;
 
 /**
  * @author mycat
  */
 public final class ReloadUser {
 
-    private static final Logger logger = Logger.getLogger(ReloadUser.class);
+    private static final Logger log = LoggerFactory.getLogger(ReloadUser.class);
 
     public static void execute(ManagerConnection c) {
         boolean status = false;
         if (status) {
-            StringBuilder s = new StringBuilder();
-            s.append(c).append("Reload userConfig success by manager");
-            logger.warn(s.toString());
+            log.warn("Reload userConfig success by manager in frontend {}", c);
             OkPacket ok = new OkPacket();
             ok.packetId = 1;
-            ok.affectedRows = 1;
+            ok.affectedRows = 0;
             ok.serverStatus = 2;
             ok.message = "Reload userConfig success".getBytes();
             ok.write(c);

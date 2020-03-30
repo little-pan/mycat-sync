@@ -26,7 +26,6 @@ package org.opencloudb.mysql.nio;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.mysql.ByteUtil;
 import org.opencloudb.mysql.handler.LoadDataResponseHandler;
 import org.opencloudb.mysql.handler.ResponseHandler;
@@ -35,6 +34,7 @@ import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.net.mysql.RequestFilePacket;
+import org.slf4j.*;
 
 /**
  * life cycle: from connection establish to close <br/>
@@ -43,7 +43,7 @@ import org.opencloudb.net.mysql.RequestFilePacket;
  */
 public class MySQLConnectionHandler extends BackendAsyncHandler {
 
-	private static final Logger logger = Logger.getLogger(MySQLConnectionHandler.class);
+	private static final Logger log = LoggerFactory.getLogger(MySQLConnectionHandler.class);
 
 	private static final int RESULT_STATUS_INIT = 0;
 	private static final int RESULT_STATUS_HEADER = 1;
@@ -206,8 +206,7 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 	private void closeNoHandler() {
 		if (!this.source.isClosedOrQuit()) {
 			this.source.close("no handler");
-			logger.warn("no handler bind in this con " + this + " client:"
-					+ this.source);
+			log.warn("no handler bind in this con {},  client {}", this, this.source);
 		}
 	}
 

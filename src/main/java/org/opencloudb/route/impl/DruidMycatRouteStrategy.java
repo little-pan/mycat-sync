@@ -6,7 +6,6 @@ import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlReplaceStatement;
 import com.alibaba.druid.sql.dialect.mysql.parser.MySqlStatementParser;
 import com.alibaba.druid.sql.parser.SQLStatementParser;
 import com.google.common.base.Strings;
-import org.apache.log4j.Logger;
 import org.opencloudb.cache.LayerCachePool;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.parser.druid.*;
@@ -14,6 +13,7 @@ import org.opencloudb.route.RouteResultset;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.route.util.RouterUtil;
 import org.opencloudb.server.parser.ServerParse;
+import org.slf4j.*;
 
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
@@ -24,7 +24,7 @@ import java.util.TreeSet;
 
 public class DruidMycatRouteStrategy extends AbstractRouteStrategy {
 	
-	public static final Logger LOGGER = Logger.getLogger(DruidMycatRouteStrategy.class);
+	public static final Logger log = LoggerFactory.getLogger(DruidMycatRouteStrategy.class);
 	
 	@Override
 	public RouteResultset routeNormalSqlWithAST(SchemaConfig schema,
@@ -50,7 +50,7 @@ public class DruidMycatRouteStrategy extends AbstractRouteStrategy {
 			statement = parser.parseStatement();
             visitor = new MycatSchemaStatVisitor();
 		} catch (Exception t) {
-	        LOGGER.error("DruidMycatRouteStrategy error", t);
+	        log.error("DruidMycatRouteStrategy error", t);
 			throw new SQLSyntaxErrorException(t);
 		}
 

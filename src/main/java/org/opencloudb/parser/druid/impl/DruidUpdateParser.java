@@ -12,13 +12,18 @@ import org.opencloudb.util.StringUtil;
 import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.ast.statement.SQLUpdateSetItem;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlUpdateStatement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DruidUpdateParser extends DefaultDruidParser {
+
+	static final Logger log = LoggerFactory.getLogger(DruidUpdateParser.class);
+
 	@Override
 	public void statementParse(SchemaConfig schema, RouteResultset rrs, SQLStatement stmt) throws SQLNonTransientException {
 		if(ctx.getTables() != null && ctx.getTables().size() > 1 && !schema.isNoSharding()) {
 			String msg = "multi table related update not supported,tables:" + ctx.getTables();
-			LOGGER.warn(msg);
+			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 		MySqlUpdateStatement update = (MySqlUpdateStatement)stmt;
@@ -48,32 +53,19 @@ public class DruidUpdateParser extends DefaultDruidParser {
 				String column = StringUtil.removeBackquote(item.getColumn().toString().toUpperCase());
 				if(partitionColumn != null && partitionColumn.equals(column)) {
 					String msg = "partion key can't be updated " + tableName + "->" + partitionColumn;
-					LOGGER.warn(msg);
+					log.warn(msg);
 					throw new SQLNonTransientException(msg);
 				}
 				if(hasParent) {
 					if(column.equals(joinKey)) {
 						String msg = "parent relation column can't be updated " + tableName + "->" + joinKey;
-						LOGGER.warn(msg);
+						log.warn(msg);
 						throw new SQLNonTransientException(msg);
 					}
 					rrs.setCacheAble(true);
 				}
 			}
 		}
-		
-//		if(ctx.getTablesAndConditions().size() > 0) {
-//			Map<String, Set<ColumnRoutePair>> map = ctx.getTablesAndConditions().get(tableName);
-//			if(map != null) {
-//				for(Map.Entry<String, Set<ColumnRoutePair>> entry : map.entrySet()) {
-//					String column = entry.getKey();
-//					Set<ColumnRoutePair> value = entry.getValue();
-//					if(column.toUpperCase().equals(anObject))
-//				}
-//			}
-//			
-//		}
-//		System.out.println();
 		
 		if(schema.getTables().get(tableName).isGlobalTable() && ctx.getRouteCalculateUnit().getTablesAndConditions().size() > 1) {
 			throw new SQLNonTransientException("global table not supported multi table related update "+ tableName);

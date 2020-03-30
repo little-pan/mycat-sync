@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.cache.LayerCachePool;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.mpp.RangeValue;
@@ -30,7 +29,7 @@ import com.alibaba.druid.stat.TableStat.Condition;
  *
  */
 public class DefaultDruidParser implements DruidParser {
-	protected static final Logger LOGGER = Logger.getLogger(DefaultDruidParser.class);
+
 	/**
 	 * 解析得到的结果
 	 */

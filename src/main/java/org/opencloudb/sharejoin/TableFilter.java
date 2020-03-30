@@ -4,18 +4,16 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import org.apache.log4j.Logger;
+
 /**  
  * 功能详细描述:分片join,单独的语句
  * @author sohudo[http://blog.csdn.net/wind520]
  * @create 2015年02月01日 
  * @version 0.0.1
  */
-
 public class TableFilter {
-	protected static final Logger LOGGER = Logger.getLogger(TableFilter.class);
 	
-	private LinkedHashMap<String,String> fieldAliasMap = new LinkedHashMap<String,String>();
+	private LinkedHashMap<String,String> fieldAliasMap = new LinkedHashMap<>();
 	private String tName;
 	private String tAlia;
 	private String where="";

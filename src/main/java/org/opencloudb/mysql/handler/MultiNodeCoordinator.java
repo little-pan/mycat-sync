@@ -1,23 +1,22 @@
 package org.opencloudb.mysql.handler;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.log4j.Logger;
 import org.opencloudb.net.BackendConnection;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.ServerSession;
 import org.opencloudb.sqlcmd.SQLCtrlCommand;
+import org.slf4j.*;
 
 public class MultiNodeCoordinator extends AbstractResponseHandler {
-	private static final Logger LOGGER = Logger.getLogger(MultiNodeCoordinator.class);
 
-	private final AtomicInteger runningCount = new AtomicInteger(0);
-	private final AtomicInteger failedCount = new AtomicInteger(0);
+	static final Logger log = LoggerFactory.getLogger(MultiNodeCoordinator.class);
+
+	// It's thread-safe for single NioProcessor thread execution.
+	private int runningCount = 0;
+	private int failedCount = 0;
 	private volatile int nodeCount;
 	private final ServerSession session;
 	private SQLCtrlCommand cmdHandler;
-	private final AtomicBoolean failed = new AtomicBoolean(false);
+	private boolean failed = false;
 
 	public MultiNodeCoordinator(ServerSession session) {
 		this.session = session;
@@ -26,16 +25,15 @@ public class MultiNodeCoordinator extends AbstractResponseHandler {
 	public void executeBatchNodeCmd(SQLCtrlCommand cmdHandler) {
 		this.cmdHandler = cmdHandler;
 		final int initCount = session.getTargetCount();
-		runningCount.set(initCount);
-		nodeCount = initCount;
-		failed.set(false);
-		failedCount.set(0);
+		this.runningCount = initCount;
+		this.nodeCount = initCount;
+		this.failed = false;
+		this.failedCount = 0;
 		// 执行
 		int started = 0;
 		for (RouteResultsetNode rrn : session.getTargetKeys()) {
 			if (rrn == null) {
-				LOGGER.error("null is contained in RoutResultsetNodes, source = "
-						+ session.getSource());
+				log.error("null is contained in RoutResultsetNodes, source {}", session.getSource());
 				continue;
 			}
 			final BackendConnection conn = session.getTarget(rrn);
@@ -47,25 +45,24 @@ public class MultiNodeCoordinator extends AbstractResponseHandler {
 		}
 
 		if (started < nodeCount) {
-			runningCount.set(started);
-			LOGGER.warn("some connection failed to execut "
-					+ (nodeCount - started));
+			this.runningCount = started;
+			log.warn("Some connection failed to execute {}", (nodeCount - started));
 			/**
 			 * assumption: only caused by front-end connection close. <br/>
 			 * Otherwise, packet must be returned to front-end
 			 */
-			failed.set(true);
+			this.failed = true;
 		}
 	}
 
 	private boolean finished() {
-		int val = runningCount.decrementAndGet();
+		int val = --this.runningCount;
 		return (val == 0);
 	}
 
 	@Override
 	public void errorResponse(byte[] err, BackendConnection conn) {
-		this.failedCount.incrementAndGet();
+		++this.failedCount;
 
 		if (this.cmdHandler.releaseConOnErr()) {
 			this.session.releaseConnection(conn);
@@ -73,7 +70,7 @@ public class MultiNodeCoordinator extends AbstractResponseHandler {
 			this.session.releaseConnectionIfSafe(conn);
 		}
 		if (finished()) {
-			this.cmdHandler.errorResponse(session, err, this.nodeCount, this.failedCount.get());
+			this.cmdHandler.errorResponse(session, err, this.nodeCount, this.failedCount);
 		}
 	}
 

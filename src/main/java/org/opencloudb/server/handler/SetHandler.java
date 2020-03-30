@@ -36,7 +36,6 @@ import static org.opencloudb.server.parser.ServerParseSet.TX_SERIALIZABLE;
 import static org.opencloudb.server.parser.ServerParseSet.XA_FLAG_ON;
 
 import static org.opencloudb.server.parser.ServerParseSet.XA_FLAG_OFF;
-import org.apache.log4j.Logger;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.Isolations;
 import org.opencloudb.net.mysql.OkPacket;
@@ -44,6 +43,7 @@ import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.parser.ServerParseSet;
 import org.opencloudb.server.response.CharacterSet;
 import org.opencloudb.util.SetIgnoreUtil;
+import org.slf4j.*;
 
 /**
  * SET 语句处理
@@ -53,7 +53,7 @@ import org.opencloudb.util.SetIgnoreUtil;
  */
 public final class SetHandler {
 	
-	private static final Logger logger = Logger.getLogger(SetHandler.class);
+	private static final Logger log = LoggerFactory.getLogger(SetHandler.class);
 	
 	private static final byte[] AC_OFF = new byte[] { 7, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0 };
 		
@@ -129,7 +129,7 @@ public final class SetHandler {
 			 boolean ignore = SetIgnoreUtil.isIgnoreStmt(stmt);
              if ( !ignore ) {        	 
      			StringBuilder s = new StringBuilder();
-    			logger.warn(s.append(c).append(stmt).append(" is not recoginized and ignored").toString());
+    			log.warn(s.append(c).append(stmt).append(" is not recognized and ignored").toString());
              }
 			c.write(c.writeToBuffer(OkPacket.OK, c.allocate()));
 		}

@@ -2,7 +2,6 @@ package org.opencloudb.route.handler;
 
 import java.sql.SQLNonTransientException;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.cache.LayerCachePool;
@@ -11,6 +10,7 @@ import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.route.RouteResultset;
 import org.opencloudb.route.util.RouterUtil;
 import org.opencloudb.server.ServerConnection;
+import org.slf4j.*;
 
 /**
  * 处理注释中类型为datanode 的情况
@@ -19,7 +19,7 @@ import org.opencloudb.server.ServerConnection;
  */
 public class HintDataNodeHandler implements HintHandler {
 	
-	private static final Logger LOGGER = Logger.getLogger(HintSchemaHandler.class);
+	private static final Logger log = LoggerFactory.getLogger(HintSchemaHandler.class);
 
 	@Override
 	public RouteResultset route(SystemConfig sysConfig, SchemaConfig schema, int sqlType, String realSQL,
@@ -27,9 +27,7 @@ public class HintDataNodeHandler implements HintHandler {
 					throws SQLNonTransientException {
 		
 		String stmt = realSQL;
-		if (LOGGER.isDebugEnabled()) {
-			LOGGER.debug("route datanode sql hint from " + stmt);
-		}
+		log.debug("route datanode sql hint from '{}'", stmt);
 		
 		RouteResultset rrs = new RouteResultset(stmt, sqlType);
 		MycatServer server = MycatServer.getContextServer();
@@ -38,7 +36,7 @@ public class HintDataNodeHandler implements HintHandler {
 			rrs = RouterUtil.routeToSingleNode(rrs, dataNode.getName(), stmt);
 		} else {
 			String msg = "can't find hint datanode:" + hintSQLValue;
-			LOGGER.warn(msg);
+			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 		

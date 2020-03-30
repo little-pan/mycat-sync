@@ -27,13 +27,13 @@ import static org.opencloudb.server.parser.ServerParseSet.CHARACTER_SET_CLIENT;
 import static org.opencloudb.server.parser.ServerParseSet.CHARACTER_SET_CONNECTION;
 import static org.opencloudb.server.parser.ServerParseSet.CHARACTER_SET_RESULTS;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.parser.ServerParseSet;
 import org.opencloudb.util.SetIgnoreUtil;
 import org.opencloudb.util.SplitUtil;
+import org.slf4j.*;
 
 /**
  * 字符集属性设置
@@ -43,7 +43,7 @@ import org.opencloudb.util.SplitUtil;
  */
 public class CharacterSet {
 
-    private static final Logger logger = Logger.getLogger(CharacterSet.class);
+    private static final Logger log = LoggerFactory.getLogger(CharacterSet.class);
 
     public static void response(String stmt, ServerConnection c, int rs) {
         if (-1 == stmt.indexOf(',')) {
@@ -112,7 +112,7 @@ public class CharacterSet {
             	boolean ignore = SetIgnoreUtil.isIgnoreStmt( sql );
             	if ( !ignore ) {
 	                StringBuilder s = new StringBuilder();
-	                logger.warn(s.append(c).append(sql).append(" is not executed").toString());
+	                log.warn(s.append(c).append(sql).append(" is not executed").toString());
             	}
             }
         }

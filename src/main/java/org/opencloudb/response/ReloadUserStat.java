@@ -2,15 +2,15 @@ package org.opencloudb.response;
 
 import java.util.Map;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.stat.UserStat;
 import org.opencloudb.stat.UserStatAnalyzer;
+import org.slf4j.*;
 
 public final class ReloadUserStat {
 	
-	private static final Logger logger = Logger.getLogger(ReloadUserStat.class);
+	private static final Logger log = LoggerFactory.getLogger(ReloadUserStat.class);
 
     public static void execute(ManagerConnection c) {
     	
@@ -21,8 +21,7 @@ public final class ReloadUserStat {
     	
         StringBuilder s = new StringBuilder();
         s.append(c).append("Reset show @@sql  @@sql.sum  @@sql.slow success by manager");
-        
-        logger.warn(s.toString());
+        log.warn(s.toString());
         
         OkPacket ok = new OkPacket();
         ok.packetId = 1;

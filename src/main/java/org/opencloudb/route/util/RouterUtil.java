@@ -6,7 +6,6 @@ import com.alibaba.druid.sql.dialect.mysql.parser.MySqlStatementParser;
 import com.alibaba.druid.wall.spi.WallVisitorUtils;
 import com.google.common.base.Strings;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.cache.LayerCachePool;
 import org.opencloudb.config.ErrorCode;
@@ -26,6 +25,7 @@ import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.parser.ServerParse;
 import org.opencloudb.util.Callback;
 import org.opencloudb.util.StringUtil;
+import org.slf4j.*;
 
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
@@ -38,9 +38,8 @@ import java.util.*;
  */
 public class RouterUtil {
 	
-	private static final Logger LOGGER = Logger.getLogger(RouterUtil.class);
-	
-	
+	private static final Logger log = LoggerFactory.getLogger(RouterUtil.class);
+
 	/**
 	 * 移除执行语句中的数据库名
 	 *
@@ -157,9 +156,9 @@ public class RouterUtil {
 			rrs.setNodes(nodes);
 			return rrs;
 		}
-		//both tablename and defaultnode null
-		LOGGER.error("table not in schema----"+tablename);
-		throw new SQLSyntaxErrorException("op table not in schema----"+tablename);
+		// both tablename and defaultnode null
+		log.error("table not in schema '{}'", tablename);
+		throw new SQLSyntaxErrorException("op table not in schema '"+tablename+"'");
 	}
 
 	/**
@@ -496,13 +495,13 @@ public class RouterUtil {
 		int fromIndex = upperSql.indexOf("FROM");
 		if(firstLeftBracketIndex < 0) {//insert into table1 select * from table2
 			String msg = "invalid sql:" + origSQL;
-			LOGGER.warn(msg);
+			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 
 		if(selectIndex > 0 &&fromIndex>0&&selectIndex>firstRightBracketIndex&&valuesIndex<0) {
 			String msg = "multi insert not provided" ;
-			LOGGER.warn(msg);
+			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 
@@ -642,8 +641,8 @@ public class RouterUtil {
 								+ dataNodeSet.size());
 			}
 			String dn = dataNodeSet.iterator().next();
-			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug("found partion node (using parent partion rule directly) for child table to insert  "
+			if (log.isDebugEnabled()) {
+				log.debug("found partion node (using parent partition rule directly) for child table to insert "
 						+ dn + " sql :" + stmt);
 			}
 
@@ -659,19 +658,16 @@ public class RouterUtil {
 	public static Set<String> ruleByJoinValueCalculate(RouteResultset rrs, TableConfig tc,
 			Set<ColumnRoutePair> colRoutePairSet) throws SQLNonTransientException {
 
-		String joinValue = "";
-
 		if(colRoutePairSet.size() > 1) {
-			LOGGER.warn("joinKey can't have multi Value");
+			log.warn("joinKey can't have multi Value");
 		} else {
 			Iterator<ColumnRoutePair> it = colRoutePairSet.iterator();
 			ColumnRoutePair joinCol = it.next();
-			joinValue = joinCol.colValue;
 		}
 
-		Set<String> retNodeSet = new LinkedHashSet<String>();
+		Set<String> retNodeSet = new LinkedHashSet<>();
 
-		Set<String> nodeSet = new LinkedHashSet<String>();
+		Set<String> nodeSet;
 		if (tc.isSecondLevel()
 				&& tc.getParentTC().getPartitionColumn()
 						.equals(tc.getParentKey())) { // using
@@ -686,26 +682,11 @@ public class RouterUtil {
 						"parent key can't find  valid datanode ,expect 1 but found: "
 								+ nodeSet.size());
 			}
-			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug("found partion node (using parent partion rule directly) for child table to insert  "
+			if (log.isDebugEnabled()) {
+				log.debug("found partition node (using parent partition rule directly) for child table to insert  "
 						+ nodeSet + " sql :" + rrs.getStatement());
 			}
 			retNodeSet.addAll(nodeSet);
-
-//			for(ColumnRoutePair pair : colRoutePairSet) {
-//				nodeSet = ruleCalculate(tc.getParentTC(),colRoutePairSet);
-//				if (nodeSet.isEmpty() || nodeSet.size() > 1) {//an exception would be thrown, if sql was executed on more than on sharding
-//					throw new SQLNonTransientException(
-//							"parent key can't find  valid datanode ,expect 1 but found: "
-//									+ nodeSet.size());
-//				}
-//				String dn = nodeSet.iterator().next();
-//				if (LOGGER.isDebugEnabled()) {
-//					LOGGER.debug("found partion node (using parent partion rule directly) for child table to insert  "
-//							+ dn + " sql :" + rrs.getStatement());
-//				}
-//				retNodeSet.addAll(nodeSet);
-//			}
 			return retNodeSet;
 		} else {
 			retNodeSet.addAll(tc.getParentTC().getDataNodes());
@@ -720,7 +701,7 @@ public class RouterUtil {
 	 */
 	public static Set<String> ruleCalculate(TableConfig tc,
 			Set<ColumnRoutePair> colRoutePairSet) {
-		Set<String> routeNodeSet = new LinkedHashSet<String>();
+		Set<String> routeNodeSet = new LinkedHashSet<>();
 		String col = tc.getRule().getColumn();
 		RuleConfig rule = tc.getRule();
 		AbstractPartitionAlgorithm algorithm = rule.getRuleAlgorithm();
@@ -797,7 +778,7 @@ public class RouterUtil {
 			TableConfig tableConfig = schema.getTables().get(tableName.toUpperCase());
 			if(tableConfig == null) {
 				String msg = "can't find table define in schema "+ tableName + " schema:" + schema.getName();
-				LOGGER.warn(msg);
+				log.warn(msg);
 				throw new SQLNonTransientException(msg);
 			}
 			if(tableConfig.isGlobalTable()) {//全局表
@@ -824,14 +805,14 @@ public class RouterUtil {
 					if(retNodesSet.size() == 0) {//两个表的路由无交集
 						String errMsg = "invalid route in sql, multi tables found but datanode has no intersection "
 								+ " sql:" + ctx.getSql();
-						LOGGER.warn(errMsg);
+						log.warn(errMsg);
 						throw new SQLNonTransientException(errMsg);
 					}
 				}
 			}
 		}
 
-		if(retNodesSet != null && retNodesSet.size() > 0) {
+		if(retNodesSet.size() > 0) {
 			if(retNodesSet.size() > 1 && isAllGlobalTable(ctx, schema)) {
 				// mulit routes ,not cache route result
 				if (isSelect) {
@@ -866,7 +847,7 @@ public class RouterUtil {
 		TableConfig tc = schema.getTables().get(tableName);
 		if(tc == null) {
 			String msg = "can't find table define in schema " + tableName + " schema:" + schema.getName();
-			LOGGER.warn(msg);
+			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 		
@@ -921,7 +902,7 @@ public class RouterUtil {
 			if(tableConfig == null) {
 				String msg = "can't find table define in schema "
 						+ tableName + " schema:" + schema.getName();
-				LOGGER.warn(msg);
+				log.warn(msg);
 				throw new SQLNonTransientException(msg);
 			}
 			//全局表或者不分库的表略过（全局表后面再计算）
@@ -934,7 +915,7 @@ public class RouterUtil {
 				String primaryKey = tableConfig.getPrimaryKey();
 				boolean isFoundPartitionValue = partionCol != null && entry.getValue().get(partionCol) != null;
                 boolean isLoadData=false;
-                if (LOGGER.isDebugEnabled()) {
+                if (log.isDebugEnabled()) {
                     if(sql.startsWith(LoadData.loadDataHint)||rrs.isLoadData())
                     { //由于load data一次会计算很多路由数据，如果输出此日志会极大降低load data的性能
                          isLoadData=true;
@@ -945,9 +926,7 @@ public class RouterUtil {
 					// try by primary key if found in cache
 					Set<ColumnRoutePair> primaryKeyPairs = entry.getValue().get(primaryKey);
 					if (primaryKeyPairs != null) {
-						if (LOGGER.isDebugEnabled()) {
-                                 LOGGER.debug("try to find cache by primary key ");
-						}
+						log.debug("try to find cache by primary key");
 						String tableKey = schema.getName() + '_' + tableName;
 						boolean allFound = true;
 						for (ColumnRoutePair pair : primaryKeyPairs) {//可能id in(1,2,3)多主键
@@ -988,7 +967,7 @@ public class RouterUtil {
 								if(nodeIndex == null) {
 									String msg = "can't find any valid datanode :" + tableConfig.getName()
 											+ " -> " + tableConfig.getPartitionColumn() + " -> " + pair.colValue;
-									LOGGER.warn(msg);
+									log.warn(msg);
 									throw new SQLNonTransientException(msg);
 								}
 								String node = tableConfig.getDataNodes().get(nodeIndex);
@@ -1024,8 +1003,8 @@ public class RouterUtil {
 						throw new SQLNonTransientException(
 								"parent key can't find any valid datanode ");
 					}
-					if (LOGGER.isDebugEnabled()) {
-						LOGGER.debug("found partion nodes (using parent partion rule directly) for child table to update  "
+					if (log.isDebugEnabled()) {
+						log.debug("found partion nodes (using parent partion rule directly) for child table to update  "
 								+ Arrays.toString(dataNodeSet.toArray()) + " sql :" + sql);
 					}
 					if (dataNodeSet.size() > 1) {
@@ -1163,12 +1142,12 @@ public class RouterUtil {
 
 			if (joinKeyIndex == -1) {
 				String inf = "joinKey not provided :" + tc.getJoinKey() + "," + insertStmt;
-				LOGGER.warn(inf);
+				log.warn(inf);
 				throw new SQLNonTransientException(inf);
 			}
 			if (isMultiInsert(insertStmt)) {
 				String msg = "ChildTable multi insert not provided";
-				LOGGER.warn(msg);
+				log.warn(msg);
 				throw new SQLNonTransientException(msg);
 			}
 
@@ -1195,9 +1174,7 @@ public class RouterUtil {
 
 			// route by sql query root parent's datanode
 			final String findRootTBSql = tc.getLocateRTableKeySql().toLowerCase() + joinKeyVal;
-			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug("find root parent's node sql " + findRootTBSql);
-			}
+			log.debug("find root parent's node sql '{}'", findRootTBSql);
 
 			Callback<String> callback = new Callback<String>() {
 				@Override
@@ -1205,15 +1182,15 @@ public class RouterUtil {
 					if (result != null) {
 						if (Strings.isNullOrEmpty(result)) {
 							StringBuilder s = new StringBuilder();
-							LOGGER.warn(s.append(sc.getSession()).append(originSQL).toString() +
-									" err:" + "can't find (root) parent sharding node for sql:" + originSQL);
+							log.warn(s.append(sc.getSession()).append(originSQL).toString() +
+									" error:" + "can't find (root) parent sharding node for sql:" + originSQL);
 							sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR,
 									"can't find (root) parent sharding node for sql:" + originSQL);
 							return;
 						}
 
-						if (LOGGER.isDebugEnabled()) {
-							LOGGER.debug("found partion node for child table to insert " + result + " sql :" + originSQL);
+						if (log.isDebugEnabled()) {
+							log.debug("found partion node for child table to insert " + result + " sql :" + originSQL);
 						}
 
 						boolean processedInsert = false;
@@ -1222,7 +1199,7 @@ public class RouterUtil {
 								String primaryKey = tc.getPrimaryKey();
 								processedInsert=processInsert(sc,schema,ServerParse.INSERT, originSQL,tc.getName(),primaryKey);
 							} catch (SQLNonTransientException e) {
-								LOGGER.warn("sequence processInsert error,",e);
+								log.warn("sequence processInsert error", e);
 								sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR ,
 										"sequence processInsert error," + e.getMessage());
 							}
@@ -1233,9 +1210,8 @@ public class RouterUtil {
 						}
 					} else {
 						StringBuilder s = new StringBuilder();
-						LOGGER.warn(s.append(sc.getSession()).append(originSQL).toString() +
-								" error:" + cause.getMessage());
-						sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR, cause.getMessage() + " " + s.toString());
+						log.warn(s.append(sc.getSession()).append(originSQL).toString() + " error", cause);
+						sc.writeErrMessage(ErrorCode.ER_PARSE_ERROR, cause + " " + s.toString());
 					}
 				}
 			};

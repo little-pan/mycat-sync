@@ -31,6 +31,7 @@ import java.util.List;
  * @author mycat
  */
 public class SplitUtil {
+
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
 
     /**
@@ -53,7 +54,7 @@ public class SplitUtil {
             int min = Integer.parseInt(scope[0]);
             int max = Integer.parseInt(scope[scope.length - 1]);
             for (int x = min; x <= max; x++) {
-                list.add(new StringBuilder(p[0]).append('[').append(x).append(']').toString());
+                list.add(p[0] + '[' + x + ']');
             }
         } else {
             list.add(p[0]);
@@ -73,7 +74,7 @@ public class SplitUtil {
         if (length == 0) {
             return EMPTY_STRING_ARRAY;
         }
-        List<String> list = new LinkedList<String>();
+        List<String> list = new LinkedList<>();
         int i = 0;
         int start = 0;
         boolean match = false;
@@ -103,7 +104,7 @@ public class SplitUtil {
         if (length == 0) {
             return EMPTY_STRING_ARRAY;
         }
-        List<String> list = new LinkedList<String>();
+        List<String> list = new LinkedList<>();
         int i = 0;
         int start = 0;
         boolean match = false;
@@ -223,7 +224,7 @@ public class SplitUtil {
         if (length == 0) {
             return EMPTY_STRING_ARRAY;
         }
-        List<String> list = new LinkedList<String>();
+        List<String> list = new LinkedList<>();
         if (src.indexOf(c1) == -1) {
             list.add(src.trim());
         } else {
@@ -233,15 +234,15 @@ public class SplitUtil {
             int max = Integer.parseInt(scope[scope.length - 1]);
             if (c3 == '0') {
                 for (int x = min; x <= max; x++) {
-                    list.add(new StringBuilder(s[0]).append(x).toString());
+                    list.add(s[0] + x);
                 }
             } else if (c4 == '0') {
                 for (int x = min; x <= max; x++) {
-                    list.add(new StringBuilder(s[0]).append(c3).append(x).toString());
+                    list.add(s[0] + c3 + x);
                 }
             } else {
                 for (int x = min; x <= max; x++) {
-                    list.add(new StringBuilder(s[0]).append(c3).append(x).append(c4).toString());
+                    list.add(s[0] + c3 + x + c4);
                 }
             }
         }
@@ -253,7 +254,7 @@ public class SplitUtil {
     }
 
     public static String[] split(String src, char fi, char se, char th, char left, char right) {
-        List<String> list = new LinkedList<String>();
+        List<String> list = new LinkedList<>();
         String[] pools = split(src, fi, true);
         for (int i = 0; i < pools.length; i++) {
             if (pools[i].indexOf(se) == -1) {
@@ -277,7 +278,7 @@ public class SplitUtil {
         if (bytes.length <= size)
             return new String[] { string };
         // 分成的条数不确定(整除的情况下也许会多出一条),所以先用list再转化为array
-        List list = new ArrayList();
+        List<String> list = new ArrayList<>();
         int offset = 0;// 偏移量,也就是截取的字符串的首字节的位置
         int length = 0;// 截取的字符串的长度,可能是size,可能是size-1
         int position = 0;// 可能的截取点,根据具体情况判断是不是在此截取

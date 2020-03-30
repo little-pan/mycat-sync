@@ -1,10 +1,7 @@
 package org.opencloudb.sharejoin;
 
-
-import java.util.LinkedHashMap;
 import java.util.List;
 
-import org.apache.log4j.Logger;
 import com.alibaba.druid.sql.ast.SQLExpr;
 import com.alibaba.druid.sql.ast.SQLOrderBy;
 import com.alibaba.druid.sql.ast.SQLOrderingSpecification;
@@ -24,6 +21,7 @@ import com.alibaba.druid.sql.ast.statement.SQLSelectItem;
 import com.alibaba.druid.sql.ast.statement.SQLSelectOrderByItem;
 import com.alibaba.druid.sql.ast.statement.SQLTableSource;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlSelectQueryBlock;
+import org.slf4j.*;
 
 /**  
  * 功能详细描述:分片join,解析join语句
@@ -35,15 +33,13 @@ import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlSelectQueryBlock;
 
 public class JoinParser {
 	
-	protected static final Logger LOGGER = Logger.getLogger(JoinParser.class);
+	protected static final Logger log = LoggerFactory.getLogger(JoinParser.class);
 	
     private MySqlSelectQueryBlock mysqlQuery;
     private String stmt="";
     private String joinType;
     private String masterTable;    
     private TableFilter tableFilter;
-    
-    //private LinkedHashMap<String,String> fieldAliasMap = new LinkedHashMap<String,String>();
     
 	public JoinParser(MySqlSelectQueryBlock selectQuery,String stmt) {
 		this.mysqlQuery=selectQuery;
@@ -59,15 +55,11 @@ public class JoinParser {
 	   parserFields(mysqlQuery.getSelectList()); 
 	   parserMaserTable();	   
 	   
-	   parserWhere(mysqlQuery.getWhere(),"");	   
-	 // getJoinField();
+	   parserWhere(mysqlQuery.getWhere(),"");
 	   parserOrderBy(mysqlQuery.getOrderBy());
 	   parserLimit();
-	  // LOGGER.info("field "+fieldAliasMap);	  	   
-	  // LOGGER.info("master "+masterTable);
-	 //  LOGGER.info("join Lkey "+getJoinLkey()); 
-	 //  LOGGER.info("join Rkey "+getJoinRkey()); 	   
-	   LOGGER.info("SQL: "+this.stmt);
+
+	   log.debug("SQL '{}'", this.stmt);
 	}
 	
 	private void parserTable(SQLTableSource table,TableFilter tFilter,boolean isOutJoin){

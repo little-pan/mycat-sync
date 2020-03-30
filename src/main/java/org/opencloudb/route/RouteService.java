@@ -27,7 +27,6 @@ import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 import java.util.Locale;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.cache.CachePool;
 import org.opencloudb.cache.CacheService;
 import org.opencloudb.cache.LayerCachePool;
@@ -39,10 +38,12 @@ import org.opencloudb.route.handler.HintHandlerFactory;
 import org.opencloudb.route.handler.HintSQLHandler;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.parser.ServerParse;
+import org.slf4j.*;
 
 public class RouteService {
-    private static final Logger LOGGER = Logger
-            .getLogger(RouteService.class);
+
+    private static final Logger log = LoggerFactory.getLogger(RouteService.class);
+
 	private final CachePool sqlRouteCache;
 	private final LayerCachePool tableId2DataNodeCache;	
 
@@ -95,7 +96,7 @@ public class RouteService {
                 	String hintType = hint.substring(0,firstSplitPos).trim().toLowerCase(Locale.US);
                     String hintSql = hint.substring(firstSplitPos + HINT_SPLIT.length()).trim();
                     if( hintSql.length() == 0 ) {
-                    	LOGGER.warn("comment int sql must meet :/*!mycat:type=value*/ or /*#mycat:type=value*/: "+stmt);
+						log.warn("comment in sql must meet :/*!mycat:type=value*/ or /*#mycat:type=value*/: {}", stmt);
                     	throw new SQLSyntaxErrorException("comment int sql must meet :/*!mycat:type=value*/ or /*#mycat:type=value*/: "+stmt);
                     }
                     String realSQL = stmt.substring(endPos + "*/".length()).trim();
@@ -112,15 +113,14 @@ public class RouteService {
                     		rrs = hintHandler.route(sysconf, schema, hintSqlType, realSQL, charset, sc, tableId2DataNodeCache, hintSql);
                     		
                     	} else {                    		
-                    		rrs = hintHandler.route(sysconf, schema, sqlType, realSQL, charset, sc, tableId2DataNodeCache, hintSql);
+                    		rrs = hintHandler.route(sysconf, schema, sqlType, realSQL, charset,
+									sc, tableId2DataNodeCache, hintSql);
                     	}
- 
                     }else{
-                        LOGGER.warn("TODO , support hint sql type : " + hintType);
+                        log.warn("TODO: support hint sql type: {}", hintType);
                     }
-                    
                 }else{//fixed by runfriends@126.com
-                	LOGGER.warn("comment in sql must meet :/*!mycat:type=value*/ or /*#mycat:type=value*/: "+stmt);
+					log.warn("comment in sql must meet :/*!mycat:type=value*/ or /*#mycat:type=value*/: {}", stmt);
                 	throw new SQLSyntaxErrorException("comment in sql must meet :/*!mcat:type=value*/ or /*#mycat:type=value*/: "+stmt);
                 }
 			}

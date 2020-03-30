@@ -25,7 +25,6 @@ package org.opencloudb.response;
 
 import java.util.Map;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.backend.PhysicalDBPool;
 import org.opencloudb.manager.ManagerConnection;
@@ -34,6 +33,7 @@ import org.opencloudb.parser.ManagerParseStop;
 import org.opencloudb.parser.util.Pair;
 import org.opencloudb.util.FormatUtil;
 import org.opencloudb.util.TimeUtil;
+import org.slf4j.*;
 
 /**
  * 暂停数据节点心跳检测
@@ -42,13 +42,13 @@ import org.opencloudb.util.TimeUtil;
  */
 public final class StopHeartbeat {
 
-    private static final Logger logger = Logger.getLogger(StopHeartbeat.class);
+    private static final Logger log = LoggerFactory.getLogger(StopHeartbeat.class);
 
     public static void execute(String stmt, ManagerConnection c) {
         int count = 0;
         Pair<String[], Integer> keys = ManagerParseStop.getPair(stmt);
         if (keys.getKey() != null && keys.getValue() != null) {
-            long time = keys.getValue().intValue() * 1000L;
+            long time = keys.getValue() * 1000L;
             MycatServer server = MycatServer.getContextServer();
             Map<String, PhysicalDBPool> dns = server.getConfig().getDataHosts();
             for (String key : keys.getKey()) {
@@ -58,7 +58,7 @@ public final class StopHeartbeat {
                     ++count;
                     StringBuilder s = new StringBuilder();
                     s.append(dn.getHostName()).append(" stop heartbeat '");
-                    logger.warn(s.append(FormatUtil.formatTime(time, 3)).append("' by manager."));
+                    log.warn(s.append(FormatUtil.formatTime(time, 3)).append("' by manager.")+"");
                 }
             }
         }
