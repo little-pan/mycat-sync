@@ -4,8 +4,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.opencloudb.MycatServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class BatchSQLJob {
+
+	static final Logger log = LoggerFactory.getLogger(BatchSQLJob.class);
 
 	private ConcurrentHashMap<Integer, SQLJob> runningJobs = new ConcurrentHashMap<>();
 	private ConcurrentLinkedQueue<SQLJob> waitingJobs = new ConcurrentLinkedQueue<>();
@@ -36,9 +40,8 @@ public class BatchSQLJob {
 	}
 
 	public boolean jobFinished(SQLJob sqlJob) {
-		if (EngineCtx.LOGGER.isDebugEnabled()) {
-			EngineCtx.LOGGER.info("job finished " + sqlJob);
-		}
+		log.debug("{}: job finished ", sqlJob);
+
 		runningJobs.remove(sqlJob.getId());
 		SQLJob job = waitingJobs.poll();
 		if (job != null) {

@@ -17,7 +17,7 @@ public class NioProcessorPool implements AutoCloseable {
 		boolean failed = true;
 		try {
 			for (int i = 0; i < poolSize; i++) {
-				NioProcessor processor = new NioProcessor(name + "-" + i);
+				NioProcessor processor = new NioProcessor(name + "-p" + i);
 				this.processors[i] = processor;
 				processor.startup();
 			}

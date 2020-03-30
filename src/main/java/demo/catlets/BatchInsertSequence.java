@@ -82,7 +82,7 @@ public class BatchInsertSequence implements Catlet {
 			MySqlStatementParser parser = new MySqlStatementParser(realSQL);	 
 			SQLStatement statement = parser.parseStatement();
 			MySqlInsertStatement insert = (MySqlInsertStatement)statement;
-			if(insert.getValuesList()!=null){
+			if(insert.getValuesList() != null){
 				String tableName = StringUtil.getTableName(realSQL).toUpperCase();
 				TableConfig tableConfig = schema.getTables().get(tableName);
 				String primaryKey = tableConfig.getPrimaryKey();//获得表的主键字段
@@ -105,7 +105,7 @@ public class BatchInsertSequence implements Catlet {
 							sequenceHandler = IncrSequenceTimeHandler.getInstance();
 							break;
 						default:
-							throw new java.lang.IllegalArgumentException("Invalid sequence handler type "+seqHandlerType);
+							throw new IllegalArgumentException("Invalid sequence handler type "+seqHandlerType);
 					}
 				}
 				

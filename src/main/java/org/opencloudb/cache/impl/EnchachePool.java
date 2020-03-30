@@ -26,9 +26,9 @@ package org.opencloudb.cache.impl;
 import net.sf.ehcache.Cache;
 import net.sf.ehcache.Element;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.cache.CachePool;
 import org.opencloudb.cache.CacheStatic;
+import org.slf4j.*;
 
 /**
  * encache based cache pool
@@ -37,11 +37,14 @@ import org.opencloudb.cache.CacheStatic;
  * 
  */
 public class EnchachePool implements CachePool {
-	private static final Logger LOGGER = Logger.getLogger(EnchachePool.class);
+
+	private static final Logger log = LoggerFactory.getLogger(EnchachePool.class);
+
 	private final Cache enCache;
 	private final CacheStatic cacheStati = new CacheStatic();
     private final String name;
     private final long maxSize;
+
 	public EnchachePool(String name,Cache enCache,long maxSize) {
 		this.enCache = enCache;
 		this.name=name;
@@ -55,9 +58,7 @@ public class EnchachePool implements CachePool {
 		Element el = new Element(key, value);
 		if (enCache.putIfAbsent(el) == null) {
 			cacheStati.incPutTimes();
-			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug(name+" add cache ,key:" + key + " value:" + value);
-			}
+			log.debug("'{}' add cache, key: {}, value: {}", this.name, key, value);
 		}
 
 	}
@@ -66,15 +67,11 @@ public class EnchachePool implements CachePool {
 	public Object get(Object key) {
 		Element cacheEl = enCache.get(key);
 		if (cacheEl != null) {
-			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug(name+" hit cache ,key:" + key);
-			}
+			log.debug("'{}' hit cache, key: {}", this.name, key);
 			cacheStati.incHitTimes();
 			return cacheEl.getObjectValue();
 		} else {
-			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug(name+"  miss cache ,key:" + key);
-			}
+			log.debug("'{}' miss cache, key: {}", this.name, key);
 			cacheStati.incAccessTimes();
 			return null;
 		}
@@ -82,17 +79,15 @@ public class EnchachePool implements CachePool {
 
 	@Override
 	public void clearCache() {
-		LOGGER.info("clear cache "+name);
+		log.info("clear cache '{}'", this.name);
 		enCache.removeAll();
 		enCache.clearStatistics();
 		cacheStati.reset();
 		cacheStati.setMemorySize(enCache.getMemoryStoreSize());
-
 	}
 
 	@Override
 	public CacheStatic getCacheStatic() {
-		
 		cacheStati.setItemSize(enCache.getSize());
 		return cacheStati;
 	}

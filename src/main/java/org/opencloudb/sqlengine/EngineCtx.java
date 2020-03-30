@@ -6,24 +6,25 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.log4j.Logger;
-import org.opencloudb.handler.ConfFileHandler;
 import org.opencloudb.net.mysql.EOFPacket;
 import org.opencloudb.net.mysql.ResultSetHeaderPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.server.ServerSession;
 import org.opencloudb.server.ServerConnection;
+import org.slf4j.*;
 
 public class EngineCtx {
-	public static final Logger LOGGER = Logger.getLogger(ConfFileHandler.class);
+
+	public static final Logger log = LoggerFactory.getLogger(EngineCtx.class);
+
 	private final BatchSQLJob bachJob;
-	private AtomicInteger jobId = new AtomicInteger(0);
-	AtomicInteger packetId = new AtomicInteger(0);
 	private final ServerSession session;
 	private AtomicBoolean finished = new AtomicBoolean(false);
 	private AllJobFinishedListener allJobFinishedListener;
-	private AtomicBoolean headerWrited = new AtomicBoolean();
+	private AtomicBoolean headerWritten = new AtomicBoolean();
 	private final ReentrantLock writeLock = new ReentrantLock();
+	private AtomicInteger jobId = new AtomicInteger(0);
+	private AtomicInteger packetId = new AtomicInteger(0);
 
 	public EngineCtx(ServerSession session) {
 		this.bachJob = new BatchSQLJob();
@@ -34,7 +35,7 @@ public class EngineCtx {
 		return (byte) packetId.incrementAndGet();
 	}
 
-	public void executeNativeSQLSequnceJob(String[] dataNodes, String sql,
+	public void executeNativeSQLSequenceJob(String[] dataNodes, String sql,
 			SQLJobHandler jobHandler) {
 		for (String dataNode : dataNodes) {
 			SQLJob job = new SQLJob(jobId.incrementAndGet(), sql, dataNode,
@@ -44,20 +45,14 @@ public class EngineCtx {
 		}
 	}
 
-	public ReentrantLock getWriteLock() {
-		return writeLock;
-	}
-
 	public void setAllJobFinishedListener(
 			AllJobFinishedListener allJobFinishedListener) {
 		this.allJobFinishedListener = allJobFinishedListener;
 	}
 
-	public void executeNativeSQLParallJob(String[] dataNodes, String sql,
-			SQLJobHandler jobHandler) {
+	public void executeNativeSQLParallJob(String[] dataNodes, String sql, SQLJobHandler jobHandler) {
 		for (String dataNode : dataNodes) {
-			SQLJob job = new SQLJob(jobId.incrementAndGet(), sql, dataNode,
-					jobHandler, this);
+			SQLJob job = new SQLJob(jobId.incrementAndGet(), sql, dataNode, jobHandler, this);
 			bachJob.addJob(job, true);
 
 		}
@@ -71,17 +66,17 @@ public class EngineCtx {
 	}
 
 	public void writeHeader(List<byte[]> afields, List<byte[]> bfields) {
-		if (headerWrited.compareAndSet(false, true)) {
+		if (this.headerWritten.compareAndSet(false, true)) {
 			try {
 				writeLock.lock();
 				// write new header
 				ResultSetHeaderPacket headerPkg = new ResultSetHeaderPacket();
 				headerPkg.fieldCount = afields.size() +bfields.size()-1;
 				headerPkg.packetId = incPackageId();
-				LOGGER.debug("packge id " + headerPkg.packetId);
+				log.debug("package id {}", headerPkg.packetId);
 				ServerConnection sc = session.getSource();
 				ByteBuffer buf = headerPkg.write(sc.allocate(), sc, true);
-				// wirte a fields
+				// write a fields
 				for (byte[] field : afields) {
 					field[3] = incPackageId();
 					buf = sc.writeToBuffer(field, buf);
@@ -106,17 +101,17 @@ public class EngineCtx {
 	}
 	
 	public void writeHeader(List<byte[]> afields) {
-		if (headerWrited.compareAndSet(false, true)) {
+		if (this.headerWritten.compareAndSet(false, true)) {
 			try {
 				writeLock.lock();
 				// write new header
 				ResultSetHeaderPacket headerPkg = new ResultSetHeaderPacket();
 				headerPkg.fieldCount = afields.size();// -1;
 				headerPkg.packetId = incPackageId();
-				LOGGER.debug("packge id " + headerPkg.packetId);
+				log.debug("package id {}", headerPkg.packetId);
 				ServerConnection sc = session.getSource();
 				ByteBuffer buf = headerPkg.write(sc.allocate(), sc, true);
-				// wirte a fields
+				// write a fields
 				for (byte[] field : afields) {
 					field[3] = incPackageId();
 					buf = sc.writeToBuffer(field, buf);
@@ -155,7 +150,7 @@ public class EngineCtx {
 		eofPckg.packetId = incPackageId();
 		ByteBuffer buf = eofPckg.write(sc.allocate(), sc, false);
 		sc.write(buf);
-		LOGGER.info("write  eof ,packgId:" + eofPckg.packetId);
+		log.info("write  eof, packageId: {}", eofPckg.packetId);
 	}
 
 	public ServerSession getSession() {
@@ -163,13 +158,11 @@ public class EngineCtx {
 	}
 
 	public void onJobFinished(SQLJob sqlJob) {
-
 		boolean allFinished = bachJob.jobFinished(sqlJob);
 		if (allFinished && finished.compareAndSet(false, true)) {
-			LOGGER.info("all job finished  for front connection: "
-					+ session.getSource());
+			log.debug("all job finished for frontend {}", session.getSource());
 			allJobFinishedListener.onAllJobFinished(this);
 		}
-
 	}
+
 }

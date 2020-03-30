@@ -181,6 +181,12 @@ public final class ShowHelp {
         helps.put("clear @@slow where schema = ?", "Clear slow sql by schema");
         helps.put("clear @@slow where datanode = ?", "Clear slow sql by datanode");
 
+        // file
+        helps.put("file @@list", "List all config file");
+        helps.put("file @@show filename", "Show content of the config file");
+        helps.put("file @@upload filename content", "Upload content into the config file");
+        helps.put("file @@delete filename", "Delete the config file");
+
         // list sort
         keys.addAll(helps.keySet());
     }

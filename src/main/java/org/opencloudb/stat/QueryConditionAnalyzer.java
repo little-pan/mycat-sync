@@ -6,13 +6,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.server.parser.ServerParse;
 
 import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.dialect.mysql.parser.MySqlStatementParser;
 import com.alibaba.druid.sql.dialect.mysql.visitor.MySqlSchemaStatVisitor;
 import com.alibaba.druid.stat.TableStat.Condition;
+import org.slf4j.*;
 
 /**
  * 特定 SQL 查询条件的统计分析
@@ -27,7 +27,7 @@ import com.alibaba.druid.stat.TableStat.Condition;
  * SELECT * FROM v1user Where userName = "李四" 
  * SELECT * FROM v1user Where userName = "张三" AND age > 20
  * 
- * 现在我们希望知道DB 中 业务比较关注的 userName 有哪些，次数是多少, 怎么处理哩，如下
+ * 现在我们希望知道DB中业务比较关注的userName有哪些，次数是多少, 怎么处理哩，如下
  * 
  * 设置： 表名&条件列  ( v1user&userName ) 即可，取消请设置 NULL
  * 
@@ -36,19 +36,19 @@ import com.alibaba.druid.stat.TableStat.Condition;
  */
 public class QueryConditionAnalyzer implements QueryResultListener {
 	
-	private static final Logger LOGGER = Logger.getLogger(QueryConditionAnalyzer.class);
+	private static final Logger log = LoggerFactory.getLogger(QueryConditionAnalyzer.class);
+
+	private final static QueryConditionAnalyzer instance = new QueryConditionAnalyzer();
 	
 	private String tableName = null;
 	private String columnName = null;
 	
 	// column value -> count
-	private final HashMap<Object, Long> map = new HashMap<Object, Long>();  
+	private final HashMap<Object, Long> map = new HashMap<>();
 	
 	private ReentrantLock lock = new ReentrantLock();
 	
 	private SQLParser sqlParser = new SQLParser();
-    
-    private final static QueryConditionAnalyzer instance  = new QueryConditionAnalyzer();
     
     private QueryConditionAnalyzer() {}
     
@@ -59,10 +59,8 @@ public class QueryConditionAnalyzer implements QueryResultListener {
 	
 	@Override
 	public void onQueryResult(QueryResult queryResult) {
-		
 		this.lock.lock();  
-		try { 
-			
+		try {
 			int sqlType = queryResult.getSqlType();
 			String sql = queryResult.getSql();
 	
@@ -70,9 +68,7 @@ public class QueryConditionAnalyzer implements QueryResultListener {
 	    	case ServerParse.SELECT:		
     			List<Object> values = sqlParser.parseConditionValues(sql, this.tableName, this.columnName);
 	    		if ( values != null ) {
-	    			
 	    			if ( this.map.size() < 100000 ) {
-	    				
 		    			for(Object value : values) {
 		    				Long count = this.map.get(value);
 		    				if (count == null) {
@@ -84,7 +80,7 @@ public class QueryConditionAnalyzer implements QueryResultListener {
 		    			}
 		    			
 	    			} else {
-	    				LOGGER.debug(" this map is too large size ");
+						log.debug("This map is too large size");
 	    			}
 	    		}
 			}	
@@ -95,16 +91,13 @@ public class QueryConditionAnalyzer implements QueryResultListener {
 	}
 	
 	public boolean setCf(String cf) {
-		
 		boolean isOk = false;
 		
 		this.lock.lock();  
-		try {  
-			
+		try {
 			if ( !"NULL".equalsIgnoreCase(cf) ) {
-				
 				String[] table_column = cf.split("&");
-				if ( table_column != null && table_column.length == 2 ) {					
+				if (table_column.length == 2) {
 					this.tableName = table_column[0];
 					this.columnName = table_column[1];
 					this.map.clear();
@@ -112,8 +105,7 @@ public class QueryConditionAnalyzer implements QueryResultListener {
 					isOk = true;
 				}	
 				
-			} else {	
-				
+			} else {
 				this.tableName = null;
 				this.columnName = null;				
 				this.map.clear();				
@@ -133,7 +125,7 @@ public class QueryConditionAnalyzer implements QueryResultListener {
 	}
 	
 	public List<Map.Entry<Object, Long>> getValues() {		
-		List<Map.Entry<Object, Long>> list = new ArrayList<Map.Entry<Object, Long>>(map.entrySet());
+		List<Map.Entry<Object, Long>> list = new ArrayList<>(map.entrySet());
 		return list;
 	}
 	

@@ -125,7 +125,7 @@ public class ShowDatasourceSynDetail {
 		c.write(buffer);
 	}
 	 
-	private static List<RowDataPacket> getRows(String name,String charset) {
+	private static List<RowDataPacket> getRows(String name, String charset) {
 		List<RowDataPacket> list = new LinkedList<>();
 		MycatServer server = MycatServer.getContextServer();
 		MycatConfig conf = server.getConfig();
@@ -134,10 +134,10 @@ public class ShowDatasourceSynDetail {
 		for (PhysicalDBPool pool : dataHosts.values()) {
 			for (PhysicalDataSource ds : pool.getAllDataSources()) {
 				DBHeartbeat hb = ds.getHeartbeat();
-				DataSourceSyncRecorder record = hb.getAsynRecorder();
+				DataSourceSyncRecorder record = hb.getAsyncRecorder();
 				Map<String, String> states = record.getRecords();
 				if(name.equals(ds.getName())){
-					List<Record> data = record.getAsynRecords();
+					List<Record> data = record.getAsyncRecords();
 					for(Record r : data){
 						RowDataPacket row = new RowDataPacket(FIELD_COUNT);
 
@@ -145,7 +145,7 @@ public class ShowDatasourceSynDetail {
 						row.add(StringUtil.encode(ds.getConfig().getIp(),charset));
 						row.add(LongUtil.toBytes(ds.getConfig().getPort()));
 						row.add(StringUtil.encode(states.get("Master_Host"),charset));
-						row.add(LongUtil.toBytes(Long.valueOf(states.get("Master_Port"))));
+						row.add(LongUtil.toBytes(Long.parseLong(states.get("Master_Port"))));
 						row.add(StringUtil.encode(states.get("Master_Use"),charset));
 						String time = sdf.format(new Date(r.getTime()));
 						row.add(StringUtil.encode(time,charset));
@@ -160,4 +160,5 @@ public class ShowDatasourceSynDetail {
 		}
 		return list;
 	}
+
 }

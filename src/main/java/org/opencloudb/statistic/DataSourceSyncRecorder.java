@@ -23,15 +23,14 @@
  */
 package org.opencloudb.statistic;
 
-import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.config.model.DataHostConfig;
 import org.opencloudb.util.TimeUtil;
+import org.slf4j.*;
 
 /**
  * 记录最近3个时段的平均响应时间，默认1，10，30分钟。
@@ -40,20 +39,19 @@ import org.opencloudb.util.TimeUtil;
  */
 public class DataSourceSyncRecorder {
 
-    private Map<String, String> records;
-    private final List<Record> asynRecords;//value,time
-	private static final Logger LOGGER = Logger.getLogger("DataSourceSyncRecorder");
+	private static final Logger log = LoggerFactory.getLogger(DataSourceSyncRecorder.class);
 
-    
-    private static final long SWAP_TIME = 24 * 60 * 60 * 1000L;
-    
-    //日期处理
-    private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+	private static final long SWAP_TIME = 24 * 60 * 60 * 1000L;
+	// 日期处理
+	private static final String TIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
+
+    private Map<String, String> records;
+    private final List<Record> asyncRecords; // value,time
     private int switchType = 2;
 
     public DataSourceSyncRecorder() {
-        this.records = new HashMap<String, String>()  ;
-        this.asynRecords = new LinkedList<Record>();
+        this.records = new HashMap<>()  ;
+        this.asyncRecords = new LinkedList<>();
     }
 
     public String get() {
@@ -61,7 +59,7 @@ public class DataSourceSyncRecorder {
     }
 
     public void set(Map<String, String> resultResult,int switchType) {
-    	try{
+    	try {
     		long time = TimeUtil.currentTimeMillis();
             this.switchType = switchType;
 
@@ -72,29 +70,29 @@ public class DataSourceSyncRecorder {
             	if(switchType==DataHostConfig.SYN_STATUS_SWITCH_DS){  //slave
             		String sencords = resultResult.get("Seconds_Behind_Master");
             		long Seconds_Behind_Master = -1;
-            		if(sencords!=null){
-                		Seconds_Behind_Master = Long.valueOf(sencords);
+            		if(sencords != null){
+                		Seconds_Behind_Master = Long.parseLong(sencords);
             		} 
-            		this.asynRecords.add(new Record(TimeUtil.currentTimeMillis(),Seconds_Behind_Master));
+            		this.asyncRecords.add(new Record(TimeUtil.currentTimeMillis(), Seconds_Behind_Master));
             	}
-                if(switchType==DataHostConfig.CLUSTER_STATUS_SWITCH_DS){//cluster
-                	double wsrep_local_recv_queue_avg = Double.valueOf(resultResult.get("wsrep_local_recv_queue_avg"));
-            		this.asynRecords.add(new Record(TimeUtil.currentTimeMillis(),wsrep_local_recv_queue_avg));
+                if(switchType == DataHostConfig.CLUSTER_STATUS_SWITCH_DS){ //cluster
+                	String s = resultResult.get("wsrep_local_recv_queue_avg");
+                	double wsrep_local_recv_queue_avg = Double.parseDouble(s);
+            		this.asyncRecords.add(new Record(TimeUtil.currentTimeMillis(), wsrep_local_recv_queue_avg));
             	}
             	
                 return;
             }
-    	}catch(Exception e){ 
-    		LOGGER.error("record DataSourceSyncRecorder error " + e.getMessage());
+    	} catch(Exception e){
+    		log.warn("Record DataSourceSyncRecorder error", e);
     	}
-        
     }
 
     /**
      * 删除超过统计时间段的数据
      */
     private void remove(long time) {
-        final List<Record> recordsAll = this.asynRecords;
+        final List<Record> recordsAll = this.asyncRecords;
         while (recordsAll.size() > 0) {
             Record record = recordsAll.get(0);
             if (time >= record.time + SWAP_TIME) {
@@ -108,17 +106,17 @@ public class DataSourceSyncRecorder {
     public int getSwitchType() {
 		return this.switchType;
 	}
+
 	public void setSwitchType(int switchType) {
 		this.switchType = switchType;
 	}
+
 	public Map<String, String> getRecords() {
 		return this.records;
 	}
-	public List<Record> getAsynRecords() {
-		return this.asynRecords;
-	}
-	public static SimpleDateFormat getSdf() {
-		return sdf;
+
+	public List<Record> getAsyncRecords() {
+		return this.asyncRecords;
 	}
 
 	/**
@@ -132,19 +130,22 @@ public class DataSourceSyncRecorder {
             this.time = time;
             this.value = value;
         }
+
 		public Object getValue() {
 			return this.value;
 		}
+
 		public void setValue(Object value) {
 			this.value = value;
 		}
+
 		public long getTime() {
 			return this.time;
 		}
+
 		public void setTime(long time) {
 			this.time = time;
 		}
-        
-        
     }
+
 }

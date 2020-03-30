@@ -1,6 +1,5 @@
 package org.opencloudb.route.impl;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.MycatServer;
 import org.opencloudb.cache.LayerCachePool;
 import org.opencloudb.config.model.SchemaConfig;
@@ -11,13 +10,14 @@ import org.opencloudb.route.RouteStrategy;
 import org.opencloudb.route.util.RouterUtil;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.parser.ServerParse;
+import org.slf4j.*;
 
 import java.sql.SQLNonTransientException;
 import java.sql.SQLSyntaxErrorException;
 
 public abstract class AbstractRouteStrategy implements RouteStrategy {
 	
-	private static final Logger LOGGER = Logger.getLogger(AbstractRouteStrategy.class);
+	private static final Logger log = LoggerFactory.getLogger(AbstractRouteStrategy.class);
 
 	@Override
 	public RouteResultset route(SystemConfig sysConfig, SchemaConfig schema,
@@ -36,8 +36,8 @@ public abstract class AbstractRouteStrategy implements RouteStrategy {
 		 */
 		MycatServer server = MycatServer.getContextServer();
 		String stmt = server.getSqlInterceptor().interceptSQL(origSQL, sqlType);
-		if (origSQL != stmt && LOGGER.isDebugEnabled()) {
-			LOGGER.debug("sql intercepted to " + stmt + " from " + origSQL);
+		if (origSQL != stmt) {
+			log.debug("sql intercepted to '{}' from '{}'", stmt, origSQL);
 		}
 		
 		if (schema.isCheckSQLSchema()) {
@@ -48,7 +48,7 @@ public abstract class AbstractRouteStrategy implements RouteStrategy {
 		/**
 		 * 优化debug loaddata输出cache的日志会极大降低性能
 		 */
-		if (LOGGER.isDebugEnabled() && origSQL.startsWith(LoadData.loadDataHint)) {
+		if (log.isDebugEnabled() && origSQL.startsWith(LoadData.loadDataHint)) {
 			rrs.setCacheAble(false);
 		}
 

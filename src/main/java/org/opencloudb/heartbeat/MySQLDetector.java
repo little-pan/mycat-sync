@@ -127,9 +127,8 @@ public class MySQLDetector implements
             int switchType = source.getHostConfig().getSwitchType();
             Map<String, String> resultResult = result.getResult();
             
-            if(PhysicalDBPool.BALANCE_NONE!=balance && switchType==DataHostConfig.SYN_STATUS_SWITCH_DS
-            		&& source.getHostConfig().isShowSlaveSql())
-            {
+            if(PhysicalDBPool.BALANCE_NONE != balance && switchType == DataHostConfig.SYN_STATUS_SWITCH_DS
+            		&& source.getHostConfig().isShowSlaveSql()) {
                 String Slave_IO_Running =resultResult!=null? resultResult.get("Slave_IO_Running"):null;
 				String Slave_SQL_Running = resultResult!=null?resultResult.get("Slave_SQL_Running"):null;
 				if (Slave_IO_Running != null && Slave_IO_Running.equals(Slave_SQL_Running) && Slave_SQL_Running.equals("Yes")) {
@@ -144,7 +143,7 @@ public class MySQLDetector implements
 							this.heartbeat.getSource().getConfig(), Last_IO_Error);
 					this.heartbeat.setDbSynStatus(DBHeartbeat.DB_SYN_ERROR);
 				}
-				this.heartbeat.getAsynRecorder().set(resultResult, switchType);
+				this.heartbeat.getAsyncRecorder().set(resultResult, switchType);
 				this.heartbeat.setResult(MySQLHeartbeat.OK_STATUS, this,  null);
             }
             else if(PhysicalDBPool.BALANCE_NONE!=balance && switchType==DataHostConfig.CLUSTER_STATUS_SWITCH_DS 
@@ -164,7 +163,7 @@ public class MySQLDetector implements
 					this.heartbeat.setDbSynStatus(DBHeartbeat.DB_SYN_ERROR);
 					this.heartbeat.setResult(MySQLHeartbeat.ERROR_STATUS, this,  null);
 				}
-				this.heartbeat.getAsynRecorder().set(resultResult, switchType);
+				this.heartbeat.getAsyncRecorder().set(resultResult, switchType);
     		} else {
 				this.heartbeat.setResult(MySQLHeartbeat.OK_STATUS, this,  null);
     		}

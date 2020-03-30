@@ -25,7 +25,7 @@ package org.opencloudb.manager;
 
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.handler.ClearHandler;
-import org.opencloudb.handler.ConfFileHandler;
+import org.opencloudb.handler.ConfigFileHandler;
 import org.opencloudb.handler.ReloadHandler;
 import org.opencloudb.handler.RollbackHandler;
 import org.opencloudb.handler.SelectHandler;
@@ -101,7 +101,7 @@ public class ManagerQueryHandler implements FrontendQueryHandler {
                 ClearHandler.handle(sql, c, rs >>> SHIFT);
                 break;
             case ManagerParse.CONFIGFILE:
-                ConfFileHandler.handle(sql, c);
+                ConfigFileHandler.handle(sql, c);
                 break;
             case ManagerParse.LOGFILE:
                 ShowServerLog.handle(sql, c);

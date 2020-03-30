@@ -1,17 +1,20 @@
 package org.opencloudb.config;
 
 import com.google.common.base.Strings;
-import org.apache.log4j.Logger;
 import org.json.JSONObject;
 import org.opencloudb.config.loader.zookeeper.ZookeeperLoader;
 import org.opencloudb.config.loader.zookeeper.ZookeeperSaver;
+import org.opencloudb.config.util.ConfigException;
+import org.slf4j.*;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
 
 public class ZkConfig {
-    private static final Logger LOGGER = Logger.getLogger(ZkConfig.class);
+
+    private static final Logger log = LoggerFactory.getLogger(ZkConfig.class);
+
     private static final String ZK_CONFIG_FILE_NAME = "/myid.properties";
 
     private ZkConfig() {
@@ -26,42 +29,45 @@ public class ZkConfig {
 
         //disable load from zookeeper,use local file.
         if (pros == null) {
-            LOGGER.trace("use local configuration to startup");
+            log.info("use local configuration to startup");
             return;
         }
         
         try {
             JSONObject jsonObject = new ZookeeperLoader().loadConfig(pros);
             new ZookeeperSaver().saveConfig(jsonObject);
-            LOGGER.trace("use zookeeper configuration to startup");
+            log.info("use zookeeper configuration to startup");
         } catch (Exception e) {
-            LOGGER.error("fail to load configuration form zookeeper,using local file to run!", e);
+            log.error("Fail to load configuration form zookeeper", e);
+            // Note: here should throw exception instead of failing to
+            // local configuration(may be outdated or error)
+            throw new ConfigException("Fail to load configuration form zookeeper", e);
         }
     }
 
     public Properties loadMyid() {
         Properties pros = new Properties();
 
-        try (InputStream configIS = ZookeeperLoader.class
-            .getResourceAsStream(ZK_CONFIG_FILE_NAME)) {
+        try (InputStream configIS = ZookeeperLoader.class.getResourceAsStream(ZK_CONFIG_FILE_NAME)) {
             if (configIS == null) {
-                //file is not exist ,so ues local file.
+                //file is not exist, so ues local file.
                 return null;
             }
 
             pros.load(configIS);
         } catch (IOException e) {
-            throw new RuntimeException("can't find myid properties file : " + ZK_CONFIG_FILE_NAME);
+            throw new ConfigException("Can't find myid properties file: " + ZK_CONFIG_FILE_NAME, e);
         }
 
-        if (Boolean.valueOf(pros.getProperty("loadZk"))) {
+        if (Boolean.parseBoolean(pros.getProperty("loadZk"))) {
             //validate
             String zkURL = pros.getProperty("zkURL");
             String myid = pros.getProperty("myid");
 
             if (Strings.isNullOrEmpty(zkURL) || Strings.isNullOrEmpty(myid)) {
-                throw new RuntimeException("zkURL and myid must be not null or empty!");
+                throw new ConfigException("zkURL and myid must be not null or empty!");
             }
+
             return pros;
         }
 

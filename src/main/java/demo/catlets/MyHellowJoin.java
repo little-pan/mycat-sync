@@ -20,10 +20,9 @@ import org.opencloudb.util.ResultSetUtil;
 public class MyHellowJoin implements Catlet {
 
 	public void processSQL(String sql, EngineCtx ctx) {
-
 		DirectDBJoinHandler joinHandler = new DirectDBJoinHandler(ctx);
 		String[] dataNodes = { "dn1", "dn2", "dn3" };
-		ctx.executeNativeSQLSequnceJob(dataNodes, sql, joinHandler);
+		ctx.executeNativeSQLSequenceJob(dataNodes, sql, joinHandler);
 		ctx.setAllJobFinishedListener(new AllJobFinishedListener() {
 
 			@Override
@@ -38,9 +37,9 @@ public class MyHellowJoin implements Catlet {
 	public void route(SystemConfig sysConfig, SchemaConfig schema, int sqlType,
 			String realSQL, String charset, ServerConnection sc,
 			LayerCachePool cachePool) {
-		
-		
+		throw new UnsupportedOperationException("Not impl");
 	}
+
 }
 
 class DirectDBJoinHandler implements SQLJobHandler {

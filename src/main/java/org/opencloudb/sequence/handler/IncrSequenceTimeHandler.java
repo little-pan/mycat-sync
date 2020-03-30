@@ -1,17 +1,17 @@
 package org.opencloudb.sequence.handler;
 
+import org.opencloudb.config.util.ConfigException;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
-
 public class IncrSequenceTimeHandler implements SequenceHandler {
-    protected static final Logger LOGGER = Logger.getLogger(IncrSequenceTimeHandler.class);
 
 	private static final String SEQUENCE_DB_PROPS = "sequence_time_conf.properties";
 	private static final IncrSequenceTimeHandler instance = new IncrSequenceTimeHandler();
-	private static IdWorker workey = new IdWorker(1,1);
+
+	private static IdWorker worker = new IdWorker(1,1);
 
 
 	public static IncrSequenceTimeHandler getInstance() {
@@ -22,41 +22,42 @@ public class IncrSequenceTimeHandler implements SequenceHandler {
 		load();
 	}
 
-
 	public void load(){
-		// load sequnce properties
+		// load sequence properties
 		Properties props = loadProps(SEQUENCE_DB_PROPS);
+		long workid = Long.parseLong(props.getProperty("WORKID"));
+		long dataCenterId = Long.parseLong(props.getProperty("DATAACENTERID"));
 
-		long workid = Long.valueOf(props.getProperty("WORKID"));
-		long dataCenterId = Long.valueOf(props.getProperty("DATAACENTERID"));
-
-		workey = new IdWorker(workid,dataCenterId);
+		worker = new IdWorker(workid,dataCenterId);
 	}
+
 	private Properties loadProps(String propsFile){
 		Properties props = new Properties();
 		InputStream inp = Thread.currentThread().getContextClassLoader().getResourceAsStream(propsFile);
 
 		if (inp == null) {
-			throw new java.lang.RuntimeException("time sequnce properties not found " + propsFile);
+			throw new ConfigException("Time sequence properties file not found: " + propsFile);
 		}
 		try {
 			props.load(inp);
 		} catch (IOException e) {
-			throw new java.lang.RuntimeException(e);
+			throw new ConfigException("Fatal: load file '" + propsFile + "'", e);
 		}
+
 		return props;
 	}
+
 	@Override
 	public long nextId(String prefixName) {
-		return workey.nextId();
+		return worker.nextId();
 	}
-
 
 	/**
 	* 64位ID (42(毫秒)+5(机器ID)+5(业务编码)+12(重复累加))
 	* @author sw
 	*/
 	static class IdWorker {
+
 		private final static long twepoch = 1288834974657L;
 		// 机器标识位数
 		private final static long workerIdBits = 5L;
@@ -116,11 +117,10 @@ public class IncrSequenceTimeHandler implements SequenceHandler {
 			}
 			lastTimestamp = timestamp;
 			// ID偏移组合生成最终的ID，并返回ID
-			long nextId = ((timestamp - twepoch) << timestampLeftShift)
+
+			return ((timestamp - twepoch) << timestampLeftShift)
 					| (datacenterId << datacenterIdShift)
 					| (workerId << workerIdShift) | sequence;
-
-			return nextId;
 		}
 
 		private long tilNextMillis(final long lastTimestamp) {
@@ -135,11 +135,6 @@ public class IncrSequenceTimeHandler implements SequenceHandler {
 			return System.currentTimeMillis();
 		}
 
-
-
 	}
-
-
-
 
 }

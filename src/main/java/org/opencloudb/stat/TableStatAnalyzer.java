@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.server.parser.ServerParse;
 import org.opencloudb.util.StringUtil;
 
@@ -25,6 +24,7 @@ import com.alibaba.druid.sql.parser.SQLParserUtils;
 import com.alibaba.druid.sql.parser.SQLStatementParser;
 import com.alibaba.druid.sql.visitor.SQLASTVisitorAdapter;
 import com.alibaba.druid.util.JdbcConstants;
+import org.slf4j.*;
 
 /**
  * 按SQL表名进行计算
@@ -34,15 +34,15 @@ import com.alibaba.druid.util.JdbcConstants;
  */
 public class TableStatAnalyzer implements QueryResultListener {
 	
-	private static final Logger LOGGER = Logger.getLogger(TableStatAnalyzer.class);
+	private static final Logger log = LoggerFactory.getLogger(TableStatAnalyzer.class);
+
+	private final static TableStatAnalyzer instance = new TableStatAnalyzer();
 	
-	private LinkedHashMap<String, TableStat> tableStatMap = new LinkedHashMap<String, TableStat>();	
-	private ReentrantReadWriteLock  lock  = new ReentrantReadWriteLock();
+	private LinkedHashMap<String, TableStat> tableStatMap = new LinkedHashMap<>();
+	private ReentrantReadWriteLock  lock = new ReentrantReadWriteLock();
 	
-	//解析SQL 提取表名
+	// 解析SQL 提取表名
 	private SQLParser sqlParser = new SQLParser();
-	
-    private final static TableStatAnalyzer instance  = new TableStatAnalyzer();
     
     private TableStatAnalyzer() {}
     
@@ -52,61 +52,66 @@ public class TableStatAnalyzer implements QueryResultListener {
     
 	@Override
 	public void onQueryResult(QueryResult queryResult) {
-		
 		int sqlType = queryResult.getSqlType();
 		String sql = queryResult.getSql();
 
 		switch(sqlType) {
-    	case ServerParse.SELECT:		
-    	case ServerParse.UPDATE:			
-    	case ServerParse.INSERT:		
-    	case ServerParse.DELETE:
-    	case ServerParse.REPLACE:  
-    		
-    		//关联表提取
-    		String masterTable = null;
-    		List<String> relaTables = new ArrayList<String>();
-    		
-    		List<String> tables = sqlParser.parseTableNames(sql);
-    		for(int i = 0; i < tables.size(); i++) {
-    			String table = tables.get(i);
-    			if ( i == 0 ) {
-    				masterTable = table;
-    			} else {
-    				relaTables.add( table );
-    			}
-    		}
-    		
-    		if ( masterTable != null ) {
-    			TableStat tableStat = getTableStat( masterTable );
-    			tableStat.update(sqlType, sql, queryResult.getStartTime(), queryResult.getEndTime(), relaTables);		
-    		}    		
-    		break;
-    	}		
+			case ServerParse.SELECT:
+			case ServerParse.UPDATE:
+			case ServerParse.INSERT:
+			case ServerParse.DELETE:
+			case ServerParse.REPLACE:
+				// 关联表提取
+				List<String> tables = sqlParser.parseTableNames(sql);
+				int n = tables.size();
+				List<String> relTables = new ArrayList<>(n);
+				String masterTable = null;
+				for(int i = 0; i < n; i++) {
+					String table = tables.get(i);
+					if (i == 0) {
+						masterTable = table;
+					} else {
+						relTables.add(table );
+					}
+				}
+
+				if (masterTable != null) {
+					TableStat tableStat = getTableStat(masterTable);
+					long startTime = queryResult.getStartTime();
+					long endTime = queryResult.getEndTime();
+					tableStat.update(sqlType, sql, startTime, endTime, relTables);
+				}
+				break;
+			default:
+				// Ignore
+				break;
+		}
 	}	
 	
 	private TableStat getTableStat(String tableName) {
-        lock.writeLock().lock();
+        this.lock.writeLock().lock();
         try {
-        	TableStat userStat = tableStatMap.get(tableName);
+        	TableStat userStat = this.tableStatMap.get(tableName);
             if (userStat == null) {
                 userStat = new TableStat(tableName);
-                tableStatMap.put(tableName, userStat);
+				this.tableStatMap.put(tableName, userStat);
             }
             return userStat;
         } finally {
-            lock.writeLock().unlock();
+			this.lock.writeLock().unlock();
         }
     }	
 	
 	public Map<String, TableStat> getTableStatMap() {
-		Map<String, TableStat> map = new LinkedHashMap<String, TableStat>(tableStatMap.size());
-        lock.readLock().lock();
+		Map<String, TableStat> map;
+		this.lock.readLock().lock();
         try {
-            map.putAll(tableStatMap);
+			map = new LinkedHashMap<>(this.tableStatMap.size());
+            map.putAll(this.tableStatMap);
         } finally {
-            lock.readLock().unlock();
+			this.lock.readLock().unlock();
         }
+
         return map;
 	}
 	
@@ -114,36 +119,40 @@ public class TableStatAnalyzer implements QueryResultListener {
 	 * 获取 table 访问排序统计
 	 */
 	public List<Map.Entry<String, TableStat>> getTableStats(boolean isClear) {
+		List<Map.Entry<String, TableStat>> list;
 		
-		List<Map.Entry<String, TableStat>> list = null;
-		
-        lock.readLock().lock();
+        this.lock.readLock().lock();
         try {
-        	list = this.sortTableStats(tableStatMap , false );
+        	list = sortTableStats(this.tableStatMap , false );
         } finally {
-            lock.readLock().unlock();
+			this.lock.readLock().unlock();
         }
         
-        if ( isClear ) {
-          ClearTable();//获取 table 访问排序统计后清理
+        if (isClear) {
+          clearTable(); //获取table访问排序统计后清理
         }
+
         return list;
 	}	
 	
-	public void ClearTable() {
-		tableStatMap.clear();
+	public void clearTable() {
+		this.lock.writeLock().lock();
+		try {
+			this.tableStatMap.clear();
+		} finally {
+			this.lock.writeLock().unlock();
+		}
 	}
+
 	/**
 	 * 排序
 	 */
 	private List<Map.Entry<String, TableStat>> sortTableStats(HashMap<String, TableStat> map,
 			final boolean bAsc) {
 
-		List<Map.Entry<String, TableStat>> list = new ArrayList<Map.Entry<String, TableStat>>(map.entrySet());
-
+		List<Map.Entry<String, TableStat>> list = new ArrayList<>(map.entrySet());
 		Collections.sort(list, new Comparator<Map.Entry<String, TableStat>>() {
 			public int compare(Map.Entry<String, TableStat> o1, Map.Entry<String, TableStat> o2) {
-
 				if (!bAsc) {
 					return o2.getValue().getCount() - o1.getValue().getCount(); // 降序
 				} else {
@@ -153,7 +162,6 @@ public class TableStatAnalyzer implements QueryResultListener {
 		});
 
 		return list;
-
 	}
 	
 	/**
@@ -173,10 +181,10 @@ public class TableStatAnalyzer implements QueryResultListener {
 		 * @return
 		 */
 		private String fixName(String tableName) {
-			if ( tableName != null ) {
+			if (tableName != null) {
 				tableName = tableName.replace("`", "");
 				int dotIdx = tableName.indexOf(".");
-				if ( dotIdx > 0 ) {
+				if (dotIdx > 0) {
 					tableName = tableName.substring(1 + dotIdx).trim();
 				}
 			}
@@ -187,77 +195,52 @@ public class TableStatAnalyzer implements QueryResultListener {
 		 * 解析 SQL table name
 		 */
 		public List<String> parseTableNames(String sql) {
-			final List<String> tables = new ArrayList<String>();
-		  try{			
-			
-			SQLStatement stmt = parseStmt(sql);
-			if (stmt instanceof MySqlReplaceStatement ) {
-				String table = ((MySqlReplaceStatement)stmt).getTableName().getSimpleName();
-				tables.add( fixName( table ) );
-				
-			} else if (stmt instanceof SQLInsertStatement ) {
-				String table = ((SQLInsertStatement)stmt).getTableName().getSimpleName();
-				tables.add( fixName( table ) );
-				
-			} else if (stmt instanceof SQLUpdateStatement ) {
-				String table = ((SQLUpdateStatement)stmt).getTableName().getSimpleName();
-				tables.add( fixName( table ) );
-				
-			} else if (stmt instanceof SQLDeleteStatement ) {
-				String table = ((SQLDeleteStatement)stmt).getTableName().getSimpleName();
-				tables.add( fixName( table ) );
-				
-			} else if (stmt instanceof SQLSelectStatement ) {
-				
-				//TODO: modify by owenludong
-				String dbType = ((SQLSelectStatement) stmt).getDbType();
-				if( !StringUtil.isEmpty(dbType) && JdbcConstants.MYSQL.equals(dbType) ){
-					stmt.accept(new MySqlASTVisitorAdapter() {
-						public boolean visit(SQLExprTableSource x){
-							tables.add( fixName( x.toString() ) );
-							return super.visit(x);
-						}
-					});
-					
-				} else {
-					stmt.accept(new SQLASTVisitorAdapter() {
-						public boolean visit(SQLExprTableSource x){
-							tables.add( fixName( x.toString() ) );
-							return super.visit(x);
-						}
-					});
+			final List<String> tables = new ArrayList<>();
+			try {
+				SQLStatement stmt = parseStmt(sql);
+				if (stmt instanceof MySqlReplaceStatement ) {
+					String table = ((MySqlReplaceStatement)stmt).getTableName().getSimpleName();
+					tables.add( fixName( table ) );
+
+				} else if (stmt instanceof SQLInsertStatement ) {
+					String table = ((SQLInsertStatement)stmt).getTableName().getSimpleName();
+					tables.add( fixName( table ) );
+
+				} else if (stmt instanceof SQLUpdateStatement ) {
+					String table = ((SQLUpdateStatement)stmt).getTableName().getSimpleName();
+					tables.add( fixName( table ) );
+
+				} else if (stmt instanceof SQLDeleteStatement ) {
+					String table = ((SQLDeleteStatement)stmt).getTableName().getSimpleName();
+					tables.add( fixName( table ) );
+
+				} else if (stmt instanceof SQLSelectStatement ) {
+					// modify by owenludong
+					String dbType = ((SQLSelectStatement) stmt).getDbType();
+					if( !StringUtil.isEmpty(dbType) && JdbcConstants.MYSQL.equals(dbType) ){
+						stmt.accept(new MySqlASTVisitorAdapter() {
+							public boolean visit(SQLExprTableSource x){
+								tables.add( fixName( x.toString() ) );
+								return super.visit(x);
+							}
+						});
+
+					} else {
+						stmt.accept(new SQLASTVisitorAdapter() {
+							public boolean visit(SQLExprTableSource x){
+								tables.add( fixName( x.toString() ) );
+								return super.visit(x);
+							}
+						});
+					}
 				}
-			}	
-		  } catch (Exception e) {
-			  LOGGER.error("TableStatAnalyzer err:"+ e.toString());
-		  }
-		  
-		 return tables;
-		}
-	}	
-	
-	
-/*	public static void main(String[] args) {
-		
-		List<String> sqls = new ArrayList<String>();
-		
-		sqls.add( "SELECT id, name, age FROM v1select1 a LEFT OUTER JOIN v1select2 b ON  a.id = b.id WHERE a.name = 12 ");
-		sqls.add( "insert into v1user_insert(id, name) values(1,3)");
-		sqls.add( "delete from v1user_delete where id= 2");
-		sqls.add( "update v1user_update set id=2 where id=3");
-		sqls.add( "select ename,deptno,sal from v1user_subquery1 where deptno=(select deptno from v1user_subquery2 where loc='NEW YORK')");
-		sqls.add( "replace into v1user_insert(id, name) values(1,3)");
-		sqls.add( "select * from v1xx where id=3 group by zz");
-		sqls.add( "select * from v1yy where xx=3 limit 0,3");
-		sqls.add( "SELECT * FROM (SELECT * FROM posts ORDER BY dateline DESC) GROUP BY  tid ORDER BY dateline DESC LIMIT 10");
-		
-		for(String sql: sqls) {
-			List<String> tables = TableStatAnalyzer.getInstance().sqlParser.parseTableNames(sql);
-			for(String t: tables) {
-				System.out.println( t );
+			} catch (Exception e) {
+				log.warn("TableStatAnalyzer error", e);
 			}
-		}		
+
+			return tables;
+		}
+
 	}
-	*/
 
 }

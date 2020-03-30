@@ -39,6 +39,7 @@ import org.opencloudb.cache.CacheService;
 import org.opencloudb.classloader.DynaClassLoader;
 import org.opencloudb.config.Isolations;
 import org.opencloudb.config.model.SystemConfig;
+import org.opencloudb.config.util.ConfigException;
 import org.opencloudb.interceptor.SQLInterceptor;
 import org.opencloudb.manager.ManagerConnectionFactory;
 import org.opencloudb.net.*;
@@ -96,7 +97,7 @@ public class MycatServer {
 		    String interceptor = this.config.getSystem().getSqlInterceptor();
             this.sqlInterceptor = (SQLInterceptor) Class.forName(interceptor).newInstance();
 		} catch (Exception e) {
-			throw new RuntimeException(e);
+			throw new ConfigException("Create sql interceptor error: " + e, e);
 		}
 		String catletDir = getDirectory("catlet");
 		int checkSeconds = config.getSystem().getCatletClassCheckSeconds();
@@ -158,10 +159,10 @@ public class MycatServer {
             NioAcceptor manager = null, server = null;
             boolean failed = true;
             try {
-                String name = AbstractProcessor.PROCESSOR_THREAD_PREFIX + "SvrProcessor";
+                String name = AbstractProcessor.PROCESSOR_THREAD_PREFIX + "Server";
                 this.svrProcessorPool = new NioProcessorPool(name, processorCount);
                 // Use an independent processor pool in manager for management isolation
-                name = AbstractProcessor.PROCESSOR_THREAD_PREFIX + "MgrProcessor";
+                name = AbstractProcessor.PROCESSOR_THREAD_PREFIX + "Manager";
                 this.mgrProcessorPool = new NioProcessorPool(name, 2);
 
                 // init dataHost
@@ -264,12 +265,12 @@ public class MycatServer {
 		return prop;
 	}
 
-	private String getDirectory (String name) {
+	public static String getDirectory (String name) {
 	    String home = SystemConfig.getHomePath();
 	    return String.format("%s%s%s", home,  File.separator, name);
     }
 
-	private File getConfigFile(String name) {
+    public static File getConfigFile(String name) {
         String path = String.format("conf%s%s",  File.separator, name);
         String home = SystemConfig.getHomePath();
         return new File(home, path);

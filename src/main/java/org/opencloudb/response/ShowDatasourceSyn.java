@@ -142,7 +142,7 @@ public class ShowDatasourceSyn {
 		for (PhysicalDBPool pool : dataHosts.values()) {
 			for (PhysicalDataSource ds : pool.getAllDataSources()) {
 				DBHeartbeat hb = ds.getHeartbeat();
-				DataSourceSyncRecorder record = hb.getAsynRecorder();
+				DataSourceSyncRecorder record = hb.getAsyncRecorder();
 				Map<String, String> states = record.getRecords();
 				RowDataPacket row = new RowDataPacket(FIELD_COUNT);
 				if(!states.isEmpty()){
@@ -150,14 +150,14 @@ public class ShowDatasourceSyn {
 					row.add(StringUtil.encode(ds.getConfig().getIp(),charset));
 					row.add(LongUtil.toBytes(ds.getConfig().getPort()));
 					row.add(StringUtil.encode(states.get("Master_Host"),charset));
-					row.add(LongUtil.toBytes(Long.valueOf(states.get("Master_Port"))));
+					row.add(LongUtil.toBytes(Long.parseLong(states.get("Master_Port"))));
 					row.add(StringUtil.encode(states.get("Master_Use"),charset));
 					String secords = states.get("Seconds_Behind_Master");
-					row.add(secords==null?null:LongUtil.toBytes(Long.valueOf(secords)));
+					row.add(secords==null?null:LongUtil.toBytes(Long.parseLong(secords)));
 					row.add(StringUtil.encode(states.get("Slave_IO_Running"),charset));
 					row.add(StringUtil.encode(states.get("Slave_SQL_Running"),charset));
 					row.add(StringUtil.encode(states.get("Slave_IO_State"),charset));
-					row.add(LongUtil.toBytes(Long.valueOf(states.get("Connect_Retry"))));
+					row.add(LongUtil.toBytes(Long.parseLong(states.get("Connect_Retry"))));
 					row.add(StringUtil.encode(states.get("Last_IO_Error"),charset));
 
 					list.add(row);

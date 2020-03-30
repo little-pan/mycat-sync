@@ -23,14 +23,13 @@
  */
 package org.opencloudb;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.config.model.MycatNodeConfig;
 
-/**
+/** The configuration of MyCat server node.
+ *
  * @author mycat
  */
 public class MycatNode {
-	private static final Logger LOGGER = Logger.getLogger(MycatNode.class);
 
 	private final String name;
 	private final MycatNodeConfig config;

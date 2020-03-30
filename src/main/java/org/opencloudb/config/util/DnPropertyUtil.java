@@ -2,11 +2,13 @@ package org.opencloudb.config.util;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.config.model.SystemConfig;
+import org.opencloudb.util.IoUtil;
+import org.slf4j.*;
 
 /**
  * 
@@ -15,33 +17,34 @@ import org.opencloudb.config.model.SystemConfig;
  */
 public class DnPropertyUtil {
 
-	private static final Logger LOGGER = Logger.getLogger("DnPropertyUtil");
+	private static final Logger log = LoggerFactory.getLogger(DnPropertyUtil.class);
 	
 	/**
 	 * 加载dnindex.properties属性文件
+	 *
 	 * @return 属性文件
+	 * @throws IllegalStateException if load properties failed
 	 */
-	public static Properties loadDnIndexProps() {
+	public static Properties loadDnIndexProps() throws IllegalStateException {
 		Properties prop = new Properties();
-		File file = new File(SystemConfig.getHomePath(), "conf"
-				+ File.separator + "dnindex.properties");
-		if (!file.exists()) {
+		File file = new File(SystemConfig.getHomePath(),
+				"conf" + File.separator + "dnindex.properties");
+		if (!file.isFile()) {
 			return prop;
 		}
-		FileInputStream filein = null;
+
+		FileInputStream in = null;
 		try {
-			filein = new FileInputStream(file);
-			prop.load(filein);
-		} catch (Exception e) {
-			LOGGER.warn("load DataNodeIndex err:" + e);
+			in = new FileInputStream(file);
+			prop.load(in);
+		} catch (FileNotFoundException e) {
+			log.debug("No file '{}'", file);
+		} catch (IOException e) {
+			throw new IllegalStateException("Fatal: access file '"+file+"'", e);
 		} finally {
-			if (filein != null) {
-				try {
-					filein.close();
-				} catch (IOException e) {
-				}
-			}
+			IoUtil.close(in);
 		}
+
 		return prop;
 	}
 	

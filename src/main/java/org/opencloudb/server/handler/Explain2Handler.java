@@ -25,7 +25,6 @@ package org.opencloudb.server.handler;
 
 import java.nio.ByteBuffer;
 
-import org.apache.log4j.Logger;
 import org.opencloudb.config.Fields;
 import org.opencloudb.mysql.PacketUtil;
 import org.opencloudb.mysql.handler.SingleNodeHandler;
@@ -38,25 +37,24 @@ import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.parser.ServerParse;
 import org.opencloudb.util.StringUtil;
+import org.slf4j.*;
 
 /**
  * @author rainbow
  */
 public class Explain2Handler {
 
-	private static final Logger logger = Logger.getLogger(Explain2Handler.class);
+	private static final Logger log = LoggerFactory.getLogger(Explain2Handler.class);
+
 	private static final RouteResultsetNode[] EMPTY_ARRAY = new RouteResultsetNode[1];
 	private static final int FIELD_COUNT = 2;
 	private static final FieldPacket[] fields = new FieldPacket[FIELD_COUNT];
 	static {
-		fields[0] = PacketUtil.getField("SQL",
-				Fields.FIELD_TYPE_VAR_STRING);
-		fields[1] = PacketUtil.getField("MSG",
-				Fields.FIELD_TYPE_VAR_STRING);
+		fields[0] = PacketUtil.getField("SQL", Fields.FIELD_TYPE_VAR_STRING);
+		fields[1] = PacketUtil.getField("MSG", Fields.FIELD_TYPE_VAR_STRING);
 	}
 
 	public static void handle(String stmt, ServerConnection c, int offset) {
-
 		try {
 			stmt = stmt.substring(offset);
 			if(!stmt.toLowerCase().contains("datanode=") || !stmt.toLowerCase().contains("sql=")){
@@ -64,9 +62,9 @@ public class Explain2Handler {
 				return ;
 			}
 			String dataNode = stmt.substring(stmt.indexOf("=") + 1 ,stmt.indexOf("sql=")).trim();
-			String sql = "explain " + stmt.substring(stmt.indexOf("sql=") + 4 ,stmt.length()).trim();
+			String sql = "explain " + stmt.substring(stmt.indexOf("sql=") + 4, stmt.length()).trim();
 			
-			if(dataNode == null || dataNode.isEmpty() || sql == null || sql.isEmpty()){
+			if(dataNode.isEmpty()){
 				showerror(stmt, c, "dataNode or sql is null or empty");
 				return;
 			}
@@ -78,8 +76,7 @@ public class Explain2Handler {
 			SingleNodeHandler singleNodeHandler = new SingleNodeHandler(rrs, c.getSession());
 			singleNodeHandler.execute();
 		} catch (Exception e) {
-			logger.error(e.getMessage(), e.getCause());
-			e.printStackTrace();
+			log.warn("Execute 'explain2' error", e);
 			showerror(stmt, c, e.getMessage());
 		}
 	}
@@ -117,4 +114,5 @@ public class Explain2Handler {
 		// post write
 		c.write(buffer);
 	}
+
 }

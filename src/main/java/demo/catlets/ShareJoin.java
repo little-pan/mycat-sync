@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-
-
 import org.opencloudb.cache.LayerCachePool;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.Fields;
@@ -27,24 +25,26 @@ import org.opencloudb.sqlengine.SQLJobHandler;
 import org.opencloudb.util.ByteUtil;
 import org.opencloudb.util.ResultSetUtil;
 
-
-
-//import org.opencloudb.route.RouteStrategy;
-//import org.opencloudb.route.impl.DruidMysqlRouteStrategy;
-//import org.opencloudb.parser.druid.DruidParser;
 import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.ast.statement.SQLSelectQuery;
 import com.alibaba.druid.sql.ast.statement.SQLSelectStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlSelectQueryBlock;
 import com.alibaba.druid.sql.dialect.mysql.parser.MySqlStatementParser;
-/**  
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
  * 功能详细描述:分片join
+ *
  * @author sohudo[http://blog.csdn.net/wind520]
  * @create 2015年01月22日 下午6:50:23 
  * @version 0.0.1
  */
 
 public class ShareJoin implements Catlet {
+
+	static final Logger log = LoggerFactory.getLogger(ShareJoin.class);
+
 	private EngineCtx ctx;
 	private RouteResultset rrs ;
 	private JoinParser joinParser;
@@ -153,17 +153,17 @@ public class ShareJoin implements Catlet {
 		String[] dataNodes =getDataNodes();
 		maxjob=dataNodes.length;
 		ShareDBJoinHandler joinHandler = new ShareDBJoinHandler(this,joinParser.getJoinLkey());		
-		ctx.executeNativeSQLSequnceJob(dataNodes, ssql, joinHandler);
-    	EngineCtx.LOGGER.info("Catlet exec:"+getDataNode(getDataNodes())+" sql:" +ssql);
+		ctx.executeNativeSQLSequenceJob(dataNodes, ssql, joinHandler);
+		log.debug("Catlet exec: {}, sql: '{}'", getDataNode(getDataNodes()), ssql);
 
 		ctx.setAllJobFinishedListener(new AllJobFinishedListener() {
 			@Override
-			public void onAllJobFinished(EngineCtx ctx) {				
-				 if (!jointTableIsData) {
-					 ctx.writeHeader(fields);
-				 }
-				 ctx.writeEof();
-				EngineCtx.LOGGER.info("发送数据OK"); 
+			public void onAllJobFinished(EngineCtx ctx) {
+				if (!jointTableIsData) {
+					ctx.writeHeader(fields);
+				}
+				ctx.writeEof();
+				log.debug("发送数据OK");
 			}
 		});
 	}
@@ -237,8 +237,9 @@ public class ShareJoin implements Catlet {
 		  getRoute(sql);
 		 //childRoute=true;
 		//}
-		ctx.executeNativeSQLParallJob(getDataNodes(),sql, new ShareRowOutPutDataHandler(this,fields,joinindex,joinParser.getJoinRkey(), batchRows));
-		EngineCtx.LOGGER.info("SQLParallJob:"+getDataNode(getDataNodes())+" sql:" + sql);		
+		ctx.executeNativeSQLParallJob(getDataNodes(),sql,
+				new ShareRowOutPutDataHandler(this, fields, joinindex, joinParser.getJoinRkey(), batchRows));
+		log.info("SQLParallJob: {}, sql: '{}'", getDataNode(getDataNodes()), sql);
 	}  
 	public void writeHeader(String dataNode,List<byte[]> afields, List<byte[]> bfields) {
 		sendField++;
