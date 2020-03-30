@@ -25,25 +25,21 @@ package org.opencloudb.mpp;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.LinkedList;
 
 import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.util.ByteUtil;
 import org.opencloudb.util.CompareUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class RowDataPacketSorter {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(RowDataPacketSorter.class);
     protected final OrderCol[] orderCols;
 
-    private Collection<RowDataPacket> sorted = new ConcurrentLinkedQueue<RowDataPacket>();
+    private Collection<RowDataPacket> sorted = new LinkedList<>();
     private RowDataPacket[] array, resultTemp;
     private int p1, pr, p2;
 
     public RowDataPacketSorter(OrderCol[] orderCols) {
-        super();
         this.orderCols = orderCols;
     }
 
@@ -53,27 +49,24 @@ public class RowDataPacketSorter {
     }
 
     public Collection<RowDataPacket> getSortedResult() {
-        try {
-            this.mergeSort(sorted.toArray(new RowDataPacket[sorted.size()]));
-        } catch (Exception e) {
-            LOGGER.error("getSortedResultError",e);
-        }
-        if (array != null) {
-            Collections.addAll(this.sorted, array);
+        mergeSort(this.sorted.toArray(new RowDataPacket[this.sorted.size()]));
+        if (this.array != null) {
+            Collections.addAll(this.sorted, this.array);
         }
 
-        return sorted;
+        return this.sorted;
     }
 
-    private RowDataPacket[] mergeSort(RowDataPacket[] result) throws Exception {
+    private RowDataPacket[] mergeSort(RowDataPacket[] result) {
         this.sorted.clear();
-        array = result;
-        if (result == null || result.length < 2 || this.orderCols == null || orderCols.length < 1) {
+        this.array = result;
+        if (result == null || result.length < 2
+                || this.orderCols == null || this.orderCols.length < 1) {
             return result;
         }
         mergeR(0, result.length - 1);
 
-        return array;
+        return this.array;
     }
 
     private void mergeR(int startIndex, int endIndex) {
@@ -81,9 +74,7 @@ public class RowDataPacketSorter {
             int mid = (startIndex + endIndex) / 2;
 
             mergeR(startIndex, mid);
-
             mergeR(mid + 1, endIndex);
-
             merge(startIndex, mid, endIndex);
         }
     }
@@ -98,13 +89,11 @@ public class RowDataPacketSorter {
             if (p1 == midIndex + 1) {
                 while (p2 <= endIndex) {
                     resultTemp[pr++] = array[p2++];
-
                 }
             } else if (p2 == endIndex + 1) {
                 while (p1 <= midIndex) {
                     resultTemp[pr++] = array[p1++];
                 }
-
             } else {
                 compare(0);
             }
@@ -121,10 +110,8 @@ public class RowDataPacketSorter {
      * @param byColumnIndex
      */
     private void compare(int byColumnIndex) {
-
         if (byColumnIndex == this.orderCols.length) {
             if (this.orderCols[byColumnIndex - 1].orderType == OrderCol.COL_ORDER_TYPE_ASC) {
-
                 resultTemp[pr++] = array[p1++];
             } else {
                 resultTemp[pr++] = array[p2++];
@@ -144,24 +131,21 @@ public class RowDataPacketSorter {
                 }
             } else {// 如果当前字段相等，则按照下一个字段排序
                 compare(byColumnIndex + 1);
-
             }
-
         } else {
             if (this.orderCols[byColumnIndex].orderType == OrderCol.COL_ORDER_TYPE_ASC) {// 升序
                 resultTemp[pr++] = array[p2++];
             } else {
                 resultTemp[pr++] = array[p1++];
             }
-
         }
     }
 
-    public static final int compareObject(Object l, Object r, OrderCol orderCol) {
+    public static int compareObject(Object l, Object r, OrderCol orderCol) {
       return compareObject(( byte[])l, (byte[])r, orderCol);
     }
     
-    public static final int compareObject(byte[] left,byte[] right, OrderCol orderCol) {
+    public static int compareObject(byte[] left,byte[] right, OrderCol orderCol) {
         int colType = orderCol.getColMeta().getColType();
         switch (colType) {
         case ColMeta.COL_TYPE_DECIMAL:
@@ -193,4 +177,5 @@ public class RowDataPacketSorter {
         }
         return 0;
     }
+
 }

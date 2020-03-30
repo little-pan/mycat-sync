@@ -32,22 +32,22 @@ import java.util.List;
 public class RowSorter extends RowDataPacketSorter {
 
     // 记录总数(=offset+limit)
-    private volatile int total;
+    private int total;
     // 查询的记录数(=limit)
-    private volatile int size;
+    private int size;
     // 堆
-    private volatile HeapItf heap;
+    private HeapItf heap;
     // 多列比较器
-    private volatile RowDataCmp cmp;
+    private RowDataCmp cmp;
     // 是否执行过buildHeap
-    private volatile boolean hasBuild;
+    private boolean hasBuild;
 
     public RowSorter(OrderCol[] orderCols) {
         super(orderCols);
         this.cmp = new RowDataCmp(orderCols);
     }
 
-    public synchronized void setLimit(int start, int size) {
+    public void setLimit(int start, int size) {
         // 容错处理
         if (start < 0) {
             start = 0;
@@ -63,17 +63,17 @@ public class RowSorter extends RowDataPacketSorter {
     }
 
     @Override
-    public synchronized boolean addRow(RowDataPacket row) {
-        if (heap.getData().size() < total) {
-            heap.add(row);
+    public boolean addRow(RowDataPacket row) {
+        if (this.heap.getData().size() < this.total) {
+            this.heap.add(row);
             return true;
         }
         // 堆已满，构建最大堆，并执行淘汰元素逻辑
-        if (heap.getData().size() == total && hasBuild == false) {
-            heap.buildHeap();
-            hasBuild = true;
+        if (this.heap.getData().size() == this.total && !hasBuild) {
+            this.heap.buildHeap();
+            this.hasBuild = true;
         }
-        return heap.addIfRequired(row);
+        return this.heap.addIfRequired(row);
     }
 
     @Override

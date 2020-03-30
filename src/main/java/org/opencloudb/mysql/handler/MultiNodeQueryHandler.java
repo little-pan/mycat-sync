@@ -193,8 +193,8 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 						source.setLastInsertId(insertId);
 					}
 					ok.write(source);
-				} catch (Exception e) {
-					handleDataProcessException(e);
+				} catch (Exception | OutOfMemoryError e) {
+					handleDataProcessFatal(e);
 				}
 			}
 		}
@@ -230,8 +230,10 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 			if (this.dataMergeSvr != null) {
 				try {
 					this.dataMergeSvr.outputMergeResult(this.session, eof);
-				} catch (Exception e) {
-					handleDataProcessException(e);
+					log.debug("Multi-nq: signal output merge result");
+					this.dataMergeSvr.run();
+				} catch (Exception | OutOfMemoryError e) {
+					handleDataProcessFatal(e);
 				}
 			} else {
 				eof[3] = ++this.packetId;
@@ -271,44 +273,36 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 			eof[3] = ++this.packetId;
 			log.debug("last packet id: {}", this.packetId);
 			source.write(source.writeToBuffer(eof, buffer));
-		} catch (Exception e) {
-			handleDataProcessException(e);
+		} catch (Exception | OutOfMemoryError e) {
+			handleDataProcessFatal(e);
 		} finally {
-			this.dataMergeSvr.clear();
+			clearResources();
 		}
 	}
 
 	@Override
-	public void fieldEofResponse(byte[] header, List<byte[]> fields,
-			byte[] eof, BackendConnection conn) {
-		ServerConnection source;
+	public void fieldEofResponse(byte[] header, List<byte[]> fields, byte[] eof, BackendConnection conn) {
 		this.execCount++;
 		if (this.execCount == this.rrs.getNodes().length) {
 			// add by zhuam
 			//查询结果派发
 			QueryResult queryResult = new QueryResult(this.session.getSource().getUser(),
 					this.rrs.getSqlType(), this.rrs.getStatement(), this.startTime, System.currentTimeMillis());
-			QueryResultDispatcher.dispatchQuery( queryResult );
+			QueryResultDispatcher.dispatchQuery( queryResult);
 		}
 		if (this.fieldsReturned) {
 			return;
 		}
+		this.fieldsReturned = true;
 
 		try {
-			if (this.fieldsReturned) {
-				return;
-			}
-			this.fieldsReturned = true;
-
 			boolean needMerge = (this.dataMergeSvr != null) && this.dataMergeSvr.getRrs().needMerge();
 			Set<String> shouldRemoveAvgField = new HashSet<>();
 			Set<String> shouldRenameAvgField = new HashSet<>();
 			if (needMerge) {
-				Map<String, Integer> mergeColsMap = dataMergeSvr.getRrs()
-						.getMergeCols();
+				Map<String, Integer> mergeColsMap = this.dataMergeSvr.getRrs().getMergeCols();
 				if (mergeColsMap != null) {
-					for (Map.Entry<String, Integer> entry : mergeColsMap
-							.entrySet()) {
+					for (Map.Entry<String, Integer> entry : mergeColsMap.entrySet()) {
 						String key = entry.getKey();
 						int mergeType = entry.getValue();
 						if (MergeCol.MERGE_AVG == mergeType && mergeColsMap.containsKey(key + "SUM")) {
@@ -319,29 +313,28 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 				}
 			}
 
-			source = session.getSource();
+			ServerConnection source = this.session.getSource();
 			ByteBuffer buffer = source.allocate();
-			fieldCount = fields.size();
+			this.fieldCount = fields.size();
 			if (shouldRemoveAvgField.size() > 0) {
 				ResultSetHeaderPacket packet = new ResultSetHeaderPacket();
-				packet.packetId = ++packetId;
-				packet.fieldCount = fieldCount - shouldRemoveAvgField.size();
+				packet.packetId = ++this.packetId;
+				packet.fieldCount = this.fieldCount - shouldRemoveAvgField.size();
 				buffer = packet.write(buffer, source, true);
 			} else {
-
-				header[3] = ++packetId;
+				header[3] = ++this.packetId;
 				buffer = source.writeToBuffer(header, buffer);
 			}
 
 			String primaryKey = null;
-			if (rrs.hasPrimaryKeyToCache()) {
-				String[] items = rrs.getPrimaryKeyItems();
+			if (this.rrs.hasPrimaryKeyToCache()) {
+				String[] items = this.rrs.getPrimaryKeyItems();
 				this.primaryKeyTable = items[0];
 				primaryKey = items[1];
 			}
 
-			Map<String, ColMeta> columnToIndex = new HashMap<>(fieldCount);
-			for (int i = 0, len = fieldCount; i < len; ++i) {
+			Map<String, ColMeta> columnToIndex = new HashMap<>(this.fieldCount);
+			for (int i = 0, len = this.fieldCount; i < len; ++i) {
 				boolean shouldSkip = false;
 				byte[] field = fields.get(i);
 				if (needMerge) {
@@ -353,48 +346,46 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 							shouldSkip = true;
 						}
 						if (shouldRenameAvgField.contains(fieldName)) {
-							String newFieldName = fieldName.substring(0,
-									fieldName.length() - 3);
+							String newFieldName = fieldName.substring(0, fieldName.length() - 3);
 							fieldPkg.name = newFieldName.getBytes();
-							fieldPkg.packetId = ++packetId;
+							fieldPkg.packetId = ++this.packetId;
 							shouldSkip = true;
 							buffer = fieldPkg.write(buffer, source, false);
-
 						}
 						columnToIndex.put(fieldName, new ColMeta(i, fieldPkg.type));
 					}
-				} else if (primaryKey != null && primaryKeyIndex == -1) {
+				} else if (primaryKey != null && this.primaryKeyIndex == -1) {
 					// find primary key index
 					FieldPacket fieldPkg = new FieldPacket();
 					fieldPkg.read(field);
 					String fieldName = new String(fieldPkg.name);
 					if (primaryKey.equalsIgnoreCase(fieldName)) {
-						primaryKeyIndex = i;
-						fieldCount = fields.size();
+						this.primaryKeyIndex = i;
+						this.fieldCount = fields.size();
 					}
 				}
 				if (!shouldSkip) {
-					field[3] = ++packetId;
+					field[3] = ++this.packetId;
 					buffer = source.writeToBuffer(field, buffer);
 				}
 			}
-			eof[3] = ++packetId;
+			eof[3] = ++this.packetId;
 			buffer = source.writeToBuffer(eof, buffer);
 			source.write(buffer);
-			if (dataMergeSvr != null) {
-				dataMergeSvr.onRowMetaData(columnToIndex, fieldCount);
-
+			if (this.dataMergeSvr != null) {
+				this.dataMergeSvr.onRowMetaData(columnToIndex, this.fieldCount);
 			}
-		} catch (Exception e) {
-			handleDataProcessException(e);
+		} catch (Exception | OutOfMemoryError e) {
+			handleDataProcessFatal(e);
 		}
 	}
 
-	public void handleDataProcessException(Exception e) {
+	private void handleDataProcessFatal(Throwable cause) {
 		if (!this.errorResponsed) {
-			this.error = e.toString();
-			log.warn("Caught exception", e);
-			setFail(e.toString());
+			// Release resources
+			clearResources();
+			log.warn("Caught exception", cause);
+			setFail(cause.toString());
 			tryErrorFinished(true);
 		}
 	}
@@ -402,33 +393,37 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 	@Override
 	public void rowResponse(final byte[] row, final BackendConnection conn) {
 		if (this.errorResponsed) {
-			conn.close(error);
+			conn.close(this.error);
 			return;
 		}
 
 		try {
 			RouteResultsetNode rNode = (RouteResultsetNode) conn.getAttachment();
 			String dataNode = rNode.getName();
-			if (dataMergeSvr != null) {
-				if (dataMergeSvr.onNewRecord(dataNode, row)) {
+			if (this.dataMergeSvr != null) {
+				if (this.dataMergeSvr.onNewRecord(dataNode, row)) {
 					this.isClosedByDiscard = true;
+					log.debug("Multi-nq: signal closed by discard");
+					this.dataMergeSvr.run();
+				} else if (this.dataMergeSvr.canRun()) {
+					log.debug("Multi-nq: signal batch rows reached");
+					this.dataMergeSvr.run();
 				}
 			} else {
 				// cache primaryKey-> dataNode
-				if (primaryKeyIndex != -1) {
-					RowDataPacket rowDataPkg = new RowDataPacket(fieldCount);
+				if (this.primaryKeyIndex != -1) {
+					RowDataPacket rowDataPkg = new RowDataPacket(this.fieldCount);
 					rowDataPkg.read(row);
-					String primaryKey = new String(rowDataPkg.fieldValues.get(primaryKeyIndex));
+					String primaryKey = new String(rowDataPkg.fieldValues.get(this.primaryKeyIndex));
 					MycatServer server = MycatServer.getContextServer();
 					LayerCachePool pool = server.getRouterservice().getTableId2DataNodeCache();
 					pool.putIfAbsent(this.primaryKeyTable, primaryKey, dataNode);
 				}
-				row[3] = ++packetId;
-				session.getSource().write(row);
+				row[3] = ++this.packetId;
+				this.session.getSource().write(row);
 			}
-
-		} catch (Exception e) {
-			handleDataProcessException(e);
+		} catch (Exception | OutOfMemoryError e) {
+			handleDataProcessFatal(e);
 		}
 	}
 

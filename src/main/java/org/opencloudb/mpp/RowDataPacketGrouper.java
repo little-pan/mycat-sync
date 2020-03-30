@@ -30,7 +30,6 @@ import org.opencloudb.util.LongUtil;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -42,14 +41,13 @@ import java.util.List;
  */
 public class RowDataPacketGrouper {
 
-	private List<RowDataPacket> result = Collections.synchronizedList(new ArrayList<RowDataPacket>());
+	private List<RowDataPacket> result = new ArrayList<>();
 	private final MergeCol[] mergCols;
 	private final int[] groupColumnIndexs;
 	private boolean isMergAvg=false;
 	private HavingCols havingCols;
 
 	public RowDataPacketGrouper(int[] groupColumnIndexs, MergeCol[] mergCols,HavingCols havingCols) {
-		super();
 		this.groupColumnIndexs = groupColumnIndexs;
 		this.mergCols = mergCols;
 		this.havingCols = havingCols;
@@ -77,8 +75,7 @@ public class RowDataPacketGrouper {
 			return;
 		}
 		Iterator<RowDataPacket> it = result.iterator();
-		byte[] right = havingCols.getRight().getBytes(
-				StandardCharsets.UTF_8);
+		byte[] right = havingCols.getRight().getBytes(StandardCharsets.UTF_8);
 		int index = havingCols.getColMeta().getColIndex();
 		while (it.hasNext()){
 			RowDataPacket rowDataPacket = it.next();
@@ -99,12 +96,14 @@ public class RowDataPacketGrouper {
 				}
 				break;
 			case ">=":
-				if (gt(rowDataPacket.fieldValues.get(index),right) && eq(rowDataPacket.fieldValues.get(index),right)) {
+				if (gt(rowDataPacket.fieldValues.get(index),right)
+						&& eq(rowDataPacket.fieldValues.get(index),right)) {
 					it.remove();
 				}
 				break;
 			case "<=":
-				if (lt(rowDataPacket.fieldValues.get(index),right) && eq(rowDataPacket.fieldValues.get(index),right)) {
+				if (lt(rowDataPacket.fieldValues.get(index),right)
+						&& eq(rowDataPacket.fieldValues.get(index),right)) {
 					it.remove();
 				}
 				break;
@@ -136,21 +135,21 @@ public class RowDataPacketGrouper {
 
 	public void addRow(RowDataPacket rowDataPkg) {
 		for (RowDataPacket row : result) {
-			if (sameGropuColums(rowDataPkg, row)) {
+			if (sameGroupColums(rowDataPkg, row)) {
 				aggregateRow(row, rowDataPkg);
 				return;
 			}
 		}
 
-		// not aggreated ,insert new
+		// not aggregated, insert new
 		result.add(rowDataPkg);
-
 	}
 
 	private void aggregateRow(RowDataPacket toRow, RowDataPacket newRow) {
 		if (mergCols == null) {
 			return;
 		}
+
 		for (MergeCol merg : mergCols) {
              if(merg.mergeType!=MergeCol.MERGE_AVG)
              {
@@ -165,9 +164,6 @@ public class RowDataPacketGrouper {
              }
 		}
 
-
-
-
     }
 
 	private void mergAvg(RowDataPacket toRow) {
@@ -175,16 +171,13 @@ public class RowDataPacketGrouper {
 			return;
 		}
 
-
 		for (MergeCol merg : mergCols) {
-			if(merg.mergeType==MergeCol.MERGE_AVG)
-			{
+			if(merg.mergeType==MergeCol.MERGE_AVG) {
 				byte[] result = mertFields(
 						toRow.fieldValues.get(merg.colMeta.avgSumIndex),
 						toRow.fieldValues.get(merg.colMeta.avgCountIndex),
 						merg.colMeta.colType, merg.mergeType);
-				if (result != null)
-				{
+				if (result != null) {
 					toRow.fieldValues.set(merg.colMeta.avgSumIndex, result);
 					toRow.fieldValues.remove(merg.colMeta.avgCountIndex) ;
 					toRow.fieldCount=toRow.fieldCount-1;
@@ -192,74 +185,53 @@ public class RowDataPacketGrouper {
 			}
 		}
 
-
-
 	}
 
 	private byte[] mertFields(byte[] bs, byte[] bs2, int colType, int mergeType) {
-		// System.out.println("mergeType:"+ mergeType+" colType "+colType+
-		// " field:"+Arrays.toString(bs)+ " ->  "+Arrays.toString(bs2));
-		if(bs2==null || bs2.length==0)
-		{
+		if(bs2==null || bs2.length==0) {
 			return bs;
-		}else if(bs==null || bs.length==0)
-		{
+		} else if(bs==null || bs.length==0) {
 			return bs2;
 		}
+
 		switch (mergeType) {
-		case MergeCol.MERGE_SUM:
-			if (colType == ColMeta.COL_TYPE_NEWDECIMAL
-					|| colType == ColMeta.COL_TYPE_DOUBLE
-					|| colType == ColMeta.COL_TYPE_FLOAT
-					|| colType == ColMeta.COL_TYPE_DECIMAL) {
+			case MergeCol.MERGE_SUM:
+				if (colType == ColMeta.COL_TYPE_NEWDECIMAL
+						|| colType == ColMeta.COL_TYPE_DOUBLE
+						|| colType == ColMeta.COL_TYPE_FLOAT
+						|| colType == ColMeta.COL_TYPE_DECIMAL) {
 
-				Double vale = ByteUtil.getDouble(bs) + ByteUtil.getDouble(bs2);
-				return vale.toString().getBytes();
-				// return String.valueOf(vale).getBytes();
+					double vale = ByteUtil.getDouble(bs) + ByteUtil.getDouble(bs2);
+					return Double.toString(vale).getBytes();
+				}
+				// continue to count case
+			case MergeCol.MERGE_COUNT: {
+				long s1 = Long.parseLong(new String(bs));
+				long s2 = Long.parseLong(new String(bs2));
+				long total = s1 + s2;
+				return LongUtil.toBytes(total);
 			}
-			// continue to count case
-		case MergeCol.MERGE_COUNT: {
-			long s1 = Long.parseLong(new String(bs));
-			long s2 = Long.parseLong(new String(bs2));
-			long total = s1 + s2;
-			return LongUtil.toBytes(total);
-		}
-		case MergeCol.MERGE_MAX: {
-			// System.out.println("value:"+
-			// ByteUtil.getNumber(bs).doubleValue());
-			// System.out.println("value2:"+
-			// ByteUtil.getNumber(bs2).doubleValue());
-			// int compare = CompareUtil.compareDouble(ByteUtil.getNumber(bs)
-			// .doubleValue(), ByteUtil.getNumber(bs2).doubleValue());
-			// return ByteUtil.compareNumberByte(bs, bs2);
-			int compare = ByteUtil.compareNumberByte(bs, bs2);
-			return (compare > 0) ? bs : bs2;
+			case MergeCol.MERGE_MAX: {
+				int compare = ByteUtil.compareNumberByte(bs, bs2);
+				return (compare > 0) ? bs : bs2;
 
+			}
+			case MergeCol.MERGE_MIN: {
+				int compare = ByteUtil.compareNumberByte(bs, bs2);
+				return (compare > 0) ? bs2 : bs;
+			}
+			case MergeCol.MERGE_AVG: {
+				double aDouble = ByteUtil.getDouble(bs);
+				long s2 = Long.parseLong(new String(bs2));
+				double vale = aDouble / s2;
+				return Double.toString(vale).getBytes();
+			}
+			default:
+				return null;
 		}
-		case MergeCol.MERGE_MIN: {
-			// int compare = CompareUtil.compareDouble(ByteUtil.getNumber(bs)
-			// .doubleValue(), ByteUtil.getNumber(bs2).doubleValue());
-			// int compare = ByteUtil.compareNumberArray(bs, bs2);
-			//return (compare > 0) ? bs2 : bs;
-			int compare = ByteUtil.compareNumberByte(bs, bs2);
-			return (compare > 0) ? bs2 : bs;
-			// return ByteUtil.compareNumberArray2(bs, bs2, 2);
-		}
-            case MergeCol.MERGE_AVG: {
-                double aDouble = ByteUtil.getDouble(bs);
-                long s2 = Long.parseLong(new String(bs2));
-                Double vale = aDouble / s2;
-                return vale.toString().getBytes();
-            }
-		default:
-			return null;
-		}
-
 	}
 
-	// private static final
-
-	private boolean sameGropuColums(RowDataPacket newRow, RowDataPacket existRow) {
+	private boolean sameGroupColums(RowDataPacket newRow, RowDataPacket existRow) {
 		if (groupColumnIndexs == null) {// select count(*) from aaa , or group
 										// column
 			return true;
@@ -269,9 +241,9 @@ public class RowDataPacketGrouper {
 					existRow.fieldValues.get(groupColumnIndexs[i]))) {
 				return false;
 			}
-
 		}
 		return true;
 
 	}
+
 }
