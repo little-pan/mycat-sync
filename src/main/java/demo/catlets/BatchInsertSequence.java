@@ -1,7 +1,7 @@
 package demo.catlets;
 
 import org.opencloudb.MycatServer;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.SystemConfig;
@@ -45,7 +45,7 @@ public class BatchInsertSequence implements Catlet {
 	private int sqltype; 
 	private String charset; 
 	private ServerConnection sc;
-	private LayerCachePool cachePool;
+	private LayeredCachePool cachePool;
 
 	@Override
 	public void processSQL(String sql, EngineCtx ctx) {
@@ -69,7 +69,7 @@ public class BatchInsertSequence implements Catlet {
 	@Override
 	public void route(SystemConfig sysConfig, SchemaConfig schema, int sqlType,
 			String realSQL, String charset, ServerConnection sc,
-			LayerCachePool cachePool) {
+			LayeredCachePool cachePool) {
 		int rs = ServerParse.parse(realSQL);
 		this.sqltype = rs & 0xff;
 		this.sysConfig=sysConfig; 

@@ -29,52 +29,51 @@ import org.opencloudb.cache.CacheStatic;
 
 public class MapDBCachePool implements CachePool {
 
-	private final HTreeMap<Object, Object> htreeMap;
-	private final CacheStatic cacheStati = new CacheStatic();
+	private final HTreeMap<Object, Object> hTreeMap;
+	private final CacheStatic cacheStatic = new CacheStatic();
     private final long maxSize;
-	public MapDBCachePool(HTreeMap<Object, Object> htreeMap,long maxSize) {
-		this.htreeMap = htreeMap;
-		this.maxSize=maxSize;
-		cacheStati.setMaxSize(maxSize);
+
+	public MapDBCachePool(HTreeMap<Object, Object> hTreeMap, long maxSize) {
+		this.hTreeMap = hTreeMap;
+		this.maxSize = maxSize;
+		this.cacheStatic.setMaxSize(maxSize);
 	}
 
 	@Override
 	public void putIfAbsent(Object key, Object value) {
-		if (htreeMap.putIfAbsent(key, value) == null) {
-			cacheStati.incPutTimes();
+		if (this.hTreeMap.putIfAbsent(key, value) == null) {
+			this.cacheStatic.incPutTimes();
 		}
-
 	}
 
 	@Override
 	public Object get(Object key) {
-		Object value = htreeMap.get(key);
+		Object value = this.hTreeMap.get(key);
+
 		if (value != null) {
-			cacheStati.incHitTimes();
+			this.cacheStatic.incHitTimes();
 			return value;
 		} else {
-			cacheStati.incAccessTimes();
+			this.cacheStatic.incAccessTimes();
 			return null;
 		}
 	}
 
 	@Override
 	public void clearCache() {
-		htreeMap.clear();
-		cacheStati.reset();
-
+		this.hTreeMap.clear();
+		this.cacheStatic.reset();
 	}
 
 	@Override
 	public CacheStatic getCacheStatic() {
-		
-		cacheStati.setItemSize(htreeMap.sizeLong());
-		return cacheStati;
+		this.cacheStatic.setItemSize(this.hTreeMap.sizeLong());
+		return this.cacheStatic;
 	}
 
 	@Override
 	public long getMaxSize() {
-		return maxSize;
+		return this.maxSize;
 	}
 
 }

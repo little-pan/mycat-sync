@@ -29,6 +29,7 @@ import org.junit.Test;
  * @author mycat
  */
 public class VolatileTest {
+
     @Test
     public void testNoop() {
     }

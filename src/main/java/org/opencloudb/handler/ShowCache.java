@@ -30,7 +30,7 @@ import org.opencloudb.MycatServer;
 import org.opencloudb.cache.CachePool;
 import org.opencloudb.cache.CacheService;
 import org.opencloudb.cache.CacheStatic;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.Fields;
 import org.opencloudb.manager.ManagerConnection;
 import org.opencloudb.mysql.PacketUtil;
@@ -67,22 +67,19 @@ public class ShowCache {
 		fields[i] = PacketUtil.getField("LAST_ACCESS", Fields.FIELD_TYPE_LONG);
 		fields[i++].packetId = ++packetId;
 		fields[i] = PacketUtil.getField("LAST_PUT", Fields.FIELD_TYPE_LONG);
-		fields[i++].packetId = ++packetId;
+		fields[i].packetId = ++packetId;
 		eof.packetId = ++packetId;
 	}
 
 	public static void execute(ManagerConnection c) {
-
 		ByteBuffer buffer = c.allocate();
 
 		// write header
 		buffer = header.write(buffer, c,true);
-
 		// write fields
 		for (FieldPacket field : fields) {
 			buffer = field.write(buffer, c,true);
 		}
-
 		// write eof
 		buffer = eof.write(buffer, c,true);
 
@@ -90,21 +87,19 @@ public class ShowCache {
 		byte packetId = eof.packetId;
 		MycatServer server = MycatServer.getContextServer();
 		CacheService cacheService = server.getCacheService();
-		for (Map.Entry<String, CachePool> entry : cacheService
-				.getAllCachePools().entrySet()) {
-			String cacheName=entry.getKey();
+		for (Map.Entry<String, CachePool> entry : cacheService.getAllCachePools().entrySet()) {
+			String cacheName = entry.getKey();
 			CachePool cachePool = entry.getValue();
-			if (cachePool instanceof LayerCachePool) {
-				for (Map.Entry<String, CacheStatic> staticsEntry : ((LayerCachePool) cachePool)
-						.getAllCacheStatic().entrySet()) {
+			if (cachePool instanceof LayeredCachePool) {
+				LayeredCachePool layeredPool = (LayeredCachePool)cachePool;
+				for (Map.Entry<String, CacheStatic> staticsEntry : layeredPool.getAllCacheStatic().entrySet()) {
 					RowDataPacket row = getRow(cacheName+'.'+staticsEntry.getKey(),
 							staticsEntry.getValue(), c.getCharset());
 					row.packetId = ++packetId;
 					buffer = row.write(buffer, c,true);
 				}
 			} else {
-				RowDataPacket row = getRow(cacheName,
-						cachePool.getCacheStatic(), c.getCharset());
+				RowDataPacket row = getRow(cacheName, cachePool.getCacheStatic(), c.getCharset());
 				row.packetId = ++packetId;
 				buffer = row.write(buffer, c,true);
 			}

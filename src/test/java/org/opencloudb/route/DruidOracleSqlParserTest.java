@@ -3,13 +3,12 @@ package org.opencloudb.route;
 import junit.framework.Assert;
 import org.junit.Test;
 import org.opencloudb.SimpleCachePool;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.loader.SchemaLoader;
 import org.opencloudb.config.loader.xml.XMLSchemaLoader;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.route.factory.RouteStrategyFactory;
-import org.opencloudb.route.util.RouterUtil;
 
 import java.sql.SQLNonTransientException;
 import java.util.Map;
@@ -18,7 +17,7 @@ import java.util.Map;
 public class DruidOracleSqlParserTest
 {
 	protected Map<String, SchemaConfig> schemaMap;
-	protected LayerCachePool cachePool = new SimpleCachePool();
+	protected LayeredCachePool cachePool = new SimpleCachePool();
     protected RouteStrategy routeStrategy = RouteStrategyFactory.getRouteStrategy("druidparser");
 
 	public DruidOracleSqlParserTest() {

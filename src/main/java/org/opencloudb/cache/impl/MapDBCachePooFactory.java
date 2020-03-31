@@ -32,18 +32,24 @@ import org.opencloudb.cache.CachePool;
 import org.opencloudb.cache.CachePoolFactory;
 
 public class MapDBCachePooFactory extends CachePoolFactory {
-	private DB db = DBMaker.newMemoryDirectDB().cacheSize(1000).cacheLRUEnable().make();
+
+	private final DB db = DBMaker.newTempFileDB()
+			.asyncWriteEnable()
+			.transactionDisable()
+			.commitFileSyncDisable()
+			.cacheSize(102400)
+			.sizeLimit(0.064)
+			.cacheLRUEnable()
+			.make();
 
 	@Override
-	public CachePool createCachePool(String poolName, int cacheSize,
-			int expiredSeconds) {
-
-		HTreeMap<Object, Object> cache = this.db.createHashMap(poolName)
+	public CachePool createCachePool(String poolName, int cacheSize, int expiredSeconds) {
+		HTreeMap<Object, Object> cache = this.db
+				.createHashMap(poolName)
 				.expireMaxSize(cacheSize)
 				.expireAfterAccess(expiredSeconds, TimeUnit.SECONDS)
 				.makeOrGet();
 		return new MapDBCachePool(cache, cacheSize);
-
 	}
 
 }

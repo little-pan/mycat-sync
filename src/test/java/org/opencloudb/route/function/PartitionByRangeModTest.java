@@ -26,7 +26,7 @@ package org.opencloudb.route.function;
 import junit.framework.Assert;
 import org.junit.Test;
 import org.opencloudb.SimpleCachePool;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.loader.SchemaLoader;
 import org.opencloudb.config.loader.xml.XMLSchemaLoader;
 import org.opencloudb.config.model.SchemaConfig;
@@ -82,7 +82,7 @@ public class PartitionByRangeModTest
     }
 
     protected Map<String, SchemaConfig> schemaMap;
-    protected LayerCachePool cachePool = new SimpleCachePool();
+    protected LayeredCachePool cachePool = new SimpleCachePool();
     protected RouteStrategy routeStrategy = RouteStrategyFactory.getRouteStrategy("druidparser");
 
     public PartitionByRangeModTest() {

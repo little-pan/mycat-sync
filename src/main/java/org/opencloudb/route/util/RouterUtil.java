@@ -7,7 +7,7 @@ import com.alibaba.druid.wall.spi.WallVisitorUtils;
 import com.google.common.base.Strings;
 
 import org.opencloudb.MycatServer;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.TableConfig;
@@ -746,7 +746,7 @@ public class RouterUtil {
 	 * 多表路由
 	 */
 	public static RouteResultset tryRouteForTables(SchemaConfig schema, DruidShardingParseInfo ctx,
-			RouteCalculateUnit routeUnit, RouteResultset rrs, boolean isSelect, LayerCachePool cachePool)
+			RouteCalculateUnit routeUnit, RouteResultset rrs, boolean isSelect, LayeredCachePool cachePool)
 					throws SQLNonTransientException {
 		
 		List<String> tables = ctx.getTables();
@@ -838,7 +838,7 @@ public class RouterUtil {
 	 */
 	public static RouteResultset tryRouteForOneTable(SchemaConfig schema, DruidShardingParseInfo ctx,
 			RouteCalculateUnit routeUnit, String tableName, RouteResultset rrs, boolean isSelect,
-			LayerCachePool cachePool) throws SQLNonTransientException {
+			LayeredCachePool cachePool) throws SQLNonTransientException {
 		
 		if (isNoSharding(schema, tableName)) {
 			return routeToSingleNode(rrs, schema.getDataNode(), ctx.getSql());
@@ -891,8 +891,8 @@ public class RouterUtil {
 	 * 处理分库表路由
 	 */
 	public static void findRouteWithcConditionsForTables(SchemaConfig schema, RouteResultset rrs,
-			Map<String, Map<String, Set<ColumnRoutePair>>> tablesAndConditions,
-			Map<String, Set<String>> tablesRouteMap, String sql, LayerCachePool cachePool, boolean isSelect)
+                                                         Map<String, Map<String, Set<ColumnRoutePair>>> tablesAndConditions,
+                                                         Map<String, Set<String>> tablesRouteMap, String sql, LayeredCachePool cachePool, boolean isSelect)
 			throws SQLNonTransientException {
 		
 		//为分库表找路由

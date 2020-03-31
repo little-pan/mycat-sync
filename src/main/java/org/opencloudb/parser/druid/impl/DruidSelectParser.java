@@ -5,7 +5,7 @@ import java.util.*;
 
 import com.alibaba.druid.sql.ast.expr.*;
 import org.opencloudb.MycatServer;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.TableConfig;
@@ -222,7 +222,7 @@ public class DruidSelectParser extends DefaultDruidParser {
 		  return true;
 	  }
 	  MycatServer server = MycatServer.getContextServer();
-	  LayerCachePool tableId2DataNodeCache = (LayerCachePool)server.getCacheService().
+	  LayeredCachePool tableId2DataNodeCache = (LayeredCachePool)server.getCacheService().
 			  getCachePool("TableID2DataNodeCache");
 	  try
 	  {
@@ -250,7 +250,7 @@ public class DruidSelectParser extends DefaultDruidParser {
 	 * 改写sql：需要加limit的加上
 	 */
 	@Override
-	public void changeSql(SchemaConfig schema, RouteResultset rrs, SQLStatement stmt,LayerCachePool cachePool) throws SQLNonTransientException {
+	public void changeSql(SchemaConfig schema, RouteResultset rrs, SQLStatement stmt, LayeredCachePool cachePool) throws SQLNonTransientException {
 
 		tryRoute(schema, rrs, cachePool);
 
@@ -342,7 +342,7 @@ public class DruidSelectParser extends DefaultDruidParser {
 		return map;
 	}
 
-	private void tryRoute(SchemaConfig schema, RouteResultset rrs, LayerCachePool cachePool)
+	private void tryRoute(SchemaConfig schema, RouteResultset rrs, LayeredCachePool cachePool)
 			throws SQLNonTransientException {
 		if(rrs.isFinishedRoute()) {
 			// 避免重复路由
@@ -587,7 +587,7 @@ public class DruidSelectParser extends DefaultDruidParser {
 		rrs.setLimitStart(firstrownum);
 		rrs.setLimitSize(lastrownum - firstrownum);
 		MycatServer server = MycatServer.getContextServer();
-		LayerCachePool tableId2DataNodeCache = (LayerCachePool)server.getCacheService()
+		LayeredCachePool tableId2DataNodeCache = (LayeredCachePool)server.getCacheService()
 				.getCachePool("TableID2DataNodeCache");
 		try
 		{

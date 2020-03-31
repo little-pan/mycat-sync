@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.net.mysql.RowDataPacket;
@@ -36,7 +36,7 @@ public class MyHellowJoin implements Catlet {
 	@Override
 	public void route(SystemConfig sysConfig, SchemaConfig schema, int sqlType,
 			String realSQL, String charset, ServerConnection sc,
-			LayerCachePool cachePool) {
+			LayeredCachePool cachePool) {
 		throw new UnsupportedOperationException("Not impl");
 	}
 

@@ -23,7 +23,8 @@
  */
 package org.opencloudb.cache;
 /**
- * factory used to create cachePool
+ * Factory used to create cachePool.
+ *
  * @author wuzhih
  *
  */
@@ -36,5 +37,6 @@ public abstract class CachePoolFactory {
 	 * @param expireSeconds -1 for not expired
 	 * @return
 	 */
-	public abstract CachePool createCachePool(String poolName,int cacheSize,int expireSeconds);
+	public abstract CachePool createCachePool(String poolName, int cacheSize, int expireSeconds);
+
 }

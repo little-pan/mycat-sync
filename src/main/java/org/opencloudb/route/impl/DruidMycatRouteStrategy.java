@@ -6,7 +6,7 @@ import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlReplaceStatement;
 import com.alibaba.druid.sql.dialect.mysql.parser.MySqlStatementParser;
 import com.alibaba.druid.sql.parser.SQLStatementParser;
 import com.google.common.base.Strings;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.parser.druid.*;
 import org.opencloudb.route.RouteResultset;
@@ -29,7 +29,7 @@ public class DruidMycatRouteStrategy extends AbstractRouteStrategy {
 	@Override
 	public RouteResultset routeNormalSqlWithAST(SchemaConfig schema,
 			String stmt, RouteResultset rrs, String charset,
-			LayerCachePool cachePool) throws SQLNonTransientException {
+			LayeredCachePool cachePool) throws SQLNonTransientException {
 		/**
 		 *  只有mysql时只支持mysql语法
 		 */

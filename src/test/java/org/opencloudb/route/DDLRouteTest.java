@@ -4,7 +4,7 @@ import junit.framework.Assert;
 import org.junit.Test;
 import org.opencloudb.SimpleCachePool;
 import org.opencloudb.cache.CacheService;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.loader.SchemaLoader;
 import org.opencloudb.config.loader.xml.XMLSchemaLoader;
 import org.opencloudb.config.model.SchemaConfig;
@@ -20,7 +20,7 @@ import java.util.Map;
 
 public class DDLRouteTest {
 	protected Map<String, SchemaConfig> schemaMap;
-	protected LayerCachePool cachePool = new SimpleCachePool();
+	protected LayeredCachePool cachePool = new SimpleCachePool();
 	protected RouteStrategy routeStrategy = RouteStrategyFactory.getRouteStrategy("druidparser");
 
 	public DDLRouteTest() {

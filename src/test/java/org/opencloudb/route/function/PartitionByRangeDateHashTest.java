@@ -4,7 +4,7 @@ import com.google.common.hash.Hashing;
 import org.junit.Assert;
 import org.junit.Test;
 import org.opencloudb.SimpleCachePool;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.loader.SchemaLoader;
 import org.opencloudb.config.loader.xml.XMLSchemaLoader;
 import org.opencloudb.config.model.SchemaConfig;
@@ -21,12 +21,10 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
-public class PartitionByRangeDateHashTest
-{
+public class PartitionByRangeDateHashTest {
 
     @Test
-    public void test() throws ParseException
-    {
+    public void test() throws ParseException {
         PartitionByRangeDateHash partition = new PartitionByRangeDateHash();
 
         partition.setDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -60,14 +58,10 @@ public class PartitionByRangeDateHashTest
         int v=    partition.calculate(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(cal.getTime()))     ;
             Assert.assertTrue(v<6);
         }
-
-
     }
 
-
-
     protected Map<String, SchemaConfig> schemaMap;
-    protected LayerCachePool cachePool = new SimpleCachePool();
+    protected LayeredCachePool cachePool = new SimpleCachePool();
     protected RouteStrategy routeStrategy = RouteStrategyFactory.getRouteStrategy("druidparser");
 
     public PartitionByRangeDateHashTest() {
@@ -99,33 +93,24 @@ public class PartitionByRangeDateHashTest
 
     }
 
-     public static int hash(long str,int size)
-     {
-     return     Hashing.consistentHash(str,size)      ;
-     }
+    public static int hash(long str,int size) {
+        return Hashing.consistentHash(str,size)      ;
+    }
 
-    public static void main(String[] args) throws ParseException
-    {
-
-        Map map=new HashMap<>()  ;
+    public static void main(String[] args) throws ParseException {
+        Map<Integer, Integer> map=new HashMap<>()  ;
         Date beginDate = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse("2014-01-04 00:00:01");
-        for (int i = 0; i < 60*60*24*10; i++)
-        {
-
-
+        for (int i = 0; i < 60*60*24*10; i++) {
             Calendar cal = Calendar.getInstance();
             cal.setTime(beginDate);
-           cal.add(Calendar.SECOND, 1);
+            cal.add(Calendar.SECOND, 1);
             beginDate = cal.getTime();
             int hash = hash(beginDate.getTime(), 3);
-            if(map.containsKey(hash))
-            {
-            map.put(hash,    (int)map.get(hash)+1);
-            } else
-            {
+            if(map.containsKey(hash)) {
+                map.put(hash,    (int)map.get(hash)+1);
+            } else {
                 map.put(hash,1);
             }
-          //  System.out.println(hash);
         }
 
 

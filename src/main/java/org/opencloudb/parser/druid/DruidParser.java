@@ -2,8 +2,7 @@ package org.opencloudb.parser.druid;
 
 import java.sql.SQLNonTransientException;
 
-import com.alibaba.druid.sql.visitor.SchemaStatVisitor;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.route.RouteResultset;
 
@@ -24,7 +23,7 @@ public interface DruidParser {
 	 * @param stmt
 	 */
 	void parser(SchemaConfig schema, RouteResultset rrs, SQLStatement stmt,
-				String originSql,LayerCachePool cachePool,MycatSchemaStatVisitor schemaStatVisitor)
+                String originSql, LayeredCachePool cachePool, MycatSchemaStatVisitor schemaStatVisitor)
 			throws SQLNonTransientException;
 	
 	/**
@@ -50,7 +49,7 @@ public interface DruidParser {
 	 * @param stmt
 	 * @throws SQLNonTransientException
 	 */
-	void changeSql(SchemaConfig schema, RouteResultset rrs, SQLStatement stmt,LayerCachePool cachePool)
+	void changeSql(SchemaConfig schema, RouteResultset rrs, SQLStatement stmt, LayeredCachePool cachePool)
 			throws SQLNonTransientException;
 
 	/**

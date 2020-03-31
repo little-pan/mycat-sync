@@ -3,7 +3,7 @@ package org.opencloudb.route.handler;
 import java.sql.SQLNonTransientException;
 
 import org.opencloudb.MycatServer;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.route.RouteResultset;
@@ -41,8 +41,8 @@ public class HintSchemaHandler implements HintHandler {
 	 */
 	@Override
 	public RouteResultset route(SystemConfig sysConfig, SchemaConfig schema,
-			int sqlType, String realSQL, String charset, ServerConnection sc,
-			LayerCachePool cachePool, String hintSQLValue)
+                                int sqlType, String realSQL, String charset, ServerConnection sc,
+                                LayeredCachePool cachePool, String hintSQLValue)
 			throws SQLNonTransientException {
 		MycatServer server = MycatServer.getContextServer();
 	    SchemaConfig tempSchema = server.getConfig().getSchemas().get(hintSQLValue);

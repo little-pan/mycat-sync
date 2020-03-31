@@ -24,36 +24,19 @@
 package org.opencloudb.cache;
 
 /**
- * test cache performance ,for encache test set  VM param  -server -Xms1100M -Xmx1100M
- * for mapdb set vm param -server -Xms100M -Xmx100M -XX:MaxPermSize=1G
+ * Test cache performance, for mapdb set vm param -server -Xms100M -Xmx100M
+ * Test result eg. write 40k+/s, read 60k+/s.
  */
-import net.sf.ehcache.Cache;
-import net.sf.ehcache.CacheManager;
-import net.sf.ehcache.config.CacheConfiguration;
-import net.sf.ehcache.config.MemoryUnit;
-
-import org.opencloudb.cache.impl.EnchachePool;
 import org.opencloudb.cache.impl.MapDBCachePooFactory;
 
 public class TestCachePoolPerformance {
+
 	private CachePool pool;
 	private int maxCacheCount = 100 * 10000;
-
-	public static CachePool createEnCachePool() {
-		CacheConfiguration cacheConf = new CacheConfiguration();
-		cacheConf.setName("testcache");
-		cacheConf.maxBytesLocalHeap(400, MemoryUnit.MEGABYTES)
-				.timeToIdleSeconds(3600);
-		Cache cache = new Cache(cacheConf);
-		CacheManager.create().addCache(cache);
-		EnchachePool enCachePool = new EnchachePool(cacheConf.getName(),cache,400*10000);
-		return enCachePool;
-	}
 
 	public static CachePool createMapDBCachePool() {
 		MapDBCachePooFactory fact = new MapDBCachePooFactory();
 		return fact.createCachePool("mapdbcache", 100 * 10000, 3600);
-
 	}
 
 	public void test() {
@@ -118,22 +101,9 @@ public class TestCachePoolPerformance {
 	}
 
 	public static void main(String[] args) {
-		if (args.length < 1) {
-			System.out
-					.println("usage : \r\n cache: 1 for encache 2 for mapdb\r\n");
-			return;
-		}
 		TestCachePoolPerformance tester = new TestCachePoolPerformance();
-		int cacheType = Integer.parseInt(args[0]);
-		if (cacheType == 1) {
-			tester.pool = createEnCachePool();
-			tester.test();
-		} else if (cacheType == 2) {
-			tester.pool = createMapDBCachePool();
-			tester.test();
-		} else {
-			System.out.println("not valid input ");
-		}
-
+		tester.pool = createMapDBCachePool();
+		tester.test();
 	}
+
 }

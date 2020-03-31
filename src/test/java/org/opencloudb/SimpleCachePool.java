@@ -27,26 +27,26 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.opencloudb.cache.CacheStatic;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 
-public class SimpleCachePool implements LayerCachePool {
-	private HashMap<Object, Object> cacheMap = new HashMap<Object, Object>();
+public class SimpleCachePool implements LayeredCachePool {
+
+	private HashMap<Object, Object> cacheMap = new HashMap<>();
+	private Map<String, LayeredCachePool> children = new HashMap<>();
 
 	@Override
 	public void putIfAbsent(Object key, Object value) {
-		cacheMap.put(key, value);
-
+		this.cacheMap.put(key, value);
 	}
 
 	@Override
 	public Object get(Object key) {
-		return cacheMap.get(key);
+		return this.cacheMap.get(key);
 	}
 
 	@Override
 	public void clearCache() {
-		cacheMap.clear();
-
+		this.cacheMap.clear();
 	}
 
 	@Override
@@ -56,8 +56,19 @@ public class SimpleCachePool implements LayerCachePool {
 
 	@Override
 	public void putIfAbsent(String primaryKey, Object secondKey, Object value) {
-		putIfAbsent(primaryKey+"_"+secondKey,value);
-		
+		String ck = primaryKey+"_"+secondKey;
+		LayeredCachePool child = this.children.get(ck);
+		if (child == null) {
+			child = createChildIfAbsent(ck, Integer.MAX_VALUE, -1);
+		}
+		child.putIfAbsent(secondKey, value);
+	}
+
+	@Override
+	public LayeredCachePool createChildIfAbsent(String cacheName, int cacheSize, int expiredSeconds) {
+		LayeredCachePool child = new SimpleCachePool();
+		this.children.put(cacheName, child);
+		return child;
 	}
 
 	@Override
@@ -67,7 +78,6 @@ public class SimpleCachePool implements LayerCachePool {
 
 	@Override
 	public Map<String, CacheStatic> getAllCacheStatic() {
-
 		return null;
 	}
 
@@ -75,4 +85,5 @@ public class SimpleCachePool implements LayerCachePool {
 	public long getMaxSize() {
 		return 100;
 	}
-};
+
+}

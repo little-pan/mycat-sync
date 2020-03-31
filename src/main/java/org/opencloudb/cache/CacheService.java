@@ -34,7 +34,7 @@ import org.opencloudb.util.IoUtil;
 import org.slf4j.*;
 
 /**
- * cache service for other component default using memory cache encache
+ * Cache service for other component.
  * 
  * @author wuzhih
  * 
@@ -108,17 +108,10 @@ public class CacheService {
 					// root layers' children
 					String parent = cacheName.substring(0, index);
 					String child = cacheName.substring(index + 1);
-					CachePool pool = this.allPools.get(parent);
-					if (!(pool instanceof LayerCachePool)) {
-						throw new IllegalArgumentException(
-								"parent pool not exists or not layered cache pool:"
-										+ parent + " the child cache is: " + child);
-					}
-
+					LayeredCachePool pool = (LayeredCachePool)this.allPools.get(parent);
 					int size = Integer.parseInt(valueItems[0]);
 					int timeOut = Integer.parseInt(valueItems[1]);
-					((DefaultLayedCachePool) pool).createChildCache(child,
-							size, timeOut);
+					pool.createChildIfAbsent(child, size, timeOut);
 				}
 			}
 		}
@@ -126,9 +119,9 @@ public class CacheService {
 
 	private void createLayeredPool(String cacheName, String type, int size, int expireSeconds) {
 		checkExists(cacheName);
-		log.info("create layer cache pool '{}' of type '{}', default cache size {}, " +
+		log.info("Create layered cache pool '{}' of type '{}', default cache size {}, " +
 				"default expire seconds {}", cacheName, type, size, expireSeconds);
-		DefaultLayedCachePool layeredPool = new DefaultLayedCachePool(cacheName,
+		DefaultLayeredCachePool layeredPool = new DefaultLayeredCachePool(cacheName,
 			this.getCacheFact(type), size, expireSeconds);
 		this.allPools.put(cacheName, layeredPool);
 	}
@@ -141,27 +134,23 @@ public class CacheService {
 
 	private void createPoolFactory(String factryType, String factryClassName)
 			throws Exception {
-		CachePoolFactory factry = (CachePoolFactory) Class.forName(
-				factryClassName).newInstance();
-		poolFactorys.put(factryType, factry);
+		CachePoolFactory factory = (CachePoolFactory) Class.forName(factryClassName).newInstance();
+		poolFactorys.put(factryType, factory);
 	}
 
-	private void createPool(String poolName, String type, int cacheSize,
-			int expireSeconds) {
+	private void createPool(String poolName, String type, int cacheSize, int expireSeconds) {
 		checkExists(poolName);
 		CachePoolFactory cacheFact = getCacheFact(type);
-		CachePool cachePool = cacheFact.createCachePool(poolName, cacheSize,
-				expireSeconds);
-		allPools.put(poolName, cachePool);
-
+		CachePool cachePool = cacheFact.createCachePool(poolName, cacheSize, expireSeconds);
+		this.allPools.put(poolName, cachePool);
 	}
 
 	private CachePoolFactory getCacheFact(String type) {
 		CachePoolFactory facty = this.poolFactorys.get(type);
 		if (facty == null) {
-			throw new RuntimeException("CachePoolFactory not defined for type:"
-					+ type);
+			throw new RuntimeException("CachePoolFactory not defined for type: " + type);
 		}
+
 		return facty;
 	}
 

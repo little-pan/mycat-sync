@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.Fields;
 import org.opencloudb.config.model.SchemaConfig;
@@ -73,12 +73,12 @@ public class ShareJoin implements Catlet {
 	private int sqltype; 
 	private String charset; 
 	private ServerConnection sc;	
-	private LayerCachePool cachePool;
+	private LayeredCachePool cachePool;
 	public void setRoute(RouteResultset rrs){
 		this.rrs =rrs;
 	}	
 	
-	public void route(SystemConfig sysConfig, SchemaConfig schema,int sqlType, String realSQL, String charset, ServerConnection sc,	LayerCachePool cachePool) {
+	public void route(SystemConfig sysConfig, SchemaConfig schema,int sqlType, String realSQL, String charset, ServerConnection sc,	LayeredCachePool cachePool) {
 		int rs = ServerParse.parse(realSQL);
 		this.sqltype = rs & 0xff;
 		this.sysConfig=sysConfig; 

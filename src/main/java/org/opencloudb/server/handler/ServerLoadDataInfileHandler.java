@@ -34,7 +34,7 @@ import com.google.common.io.Files;
 import com.univocity.parsers.csv.CsvParser;
 import com.univocity.parsers.csv.CsvParserSettings;
 import org.opencloudb.MycatServer;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.ErrorCode;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.SystemConfig;
@@ -90,7 +90,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
     private String tableName;
     private TableConfig tableConfig;
     private int partitionColumnIndex = -1;
-    private LayerCachePool tableId2DataNodeCache;
+    private LayeredCachePool tableId2DataNodeCache;
     private SchemaConfig schema;
     private boolean isStartLoadData = false;
 
@@ -166,7 +166,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         }
         MycatServer server = MycatServer.getContextServer();
         schema = server.getConfig().getSchemas().get(serverConnection.getSchema());
-        tableId2DataNodeCache = (LayerCachePool) server.getCacheService().getCachePool("TableID2DataNodeCache");
+        tableId2DataNodeCache = (LayeredCachePool) server.getCacheService().getCachePool("TableID2DataNodeCache");
         tableName = statement.getTableName().getSimpleName().toUpperCase();
         tableConfig = schema.getTables().get(tableName);
         tempPath = SystemConfig.getHomePath() + File.separator + "temp" + File.separator + serverConnection.getId() + File.separator;

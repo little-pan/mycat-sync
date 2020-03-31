@@ -2,7 +2,7 @@ package org.opencloudb.route;
 
 import java.sql.SQLNonTransientException;
 
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.server.ServerConnection;
@@ -16,7 +16,7 @@ public interface RouteStrategy {
 
 	RouteResultset route(SystemConfig sysConfig,
 			SchemaConfig schema,int sqlType, String originSQL,
-						 String charset, ServerConnection sc, LayerCachePool cachePool)
+						 String charset, ServerConnection sc, LayeredCachePool cachePool)
 			throws SQLNonTransientException;
 
 }

@@ -29,7 +29,7 @@ import java.util.Locale;
 
 import org.opencloudb.cache.CachePool;
 import org.opencloudb.cache.CacheService;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.route.factory.RouteStrategyFactory;
@@ -45,7 +45,7 @@ public class RouteService {
     private static final Logger log = LoggerFactory.getLogger(RouteService.class);
 
 	private final CachePool sqlRouteCache;
-	private final LayerCachePool tableId2DataNodeCache;	
+	private final LayeredCachePool tableId2DataNodeCache;
 
 	private final String OLD_MYCAT_HINT = "/*!mycat:"; 	// 处理自定义分片注解, 注解格式：/*!mycat: type = value */ sql
 	private final String NEW_MYCAT_HINT = "/*#mycat:"; 	// 新的注解格式:/* !mycat: type = value */ sql，oldMycatHint的格式不兼容直连mysql
@@ -53,11 +53,11 @@ public class RouteService {
 
 	public RouteService(CacheService cachService) {
 		sqlRouteCache = cachService.getCachePool("SQLRouteCache");
-		tableId2DataNodeCache = (LayerCachePool) cachService
+		tableId2DataNodeCache = (LayeredCachePool) cachService
 				.getCachePool("TableID2DataNodeCache");
 	}
 
-	public LayerCachePool getTableId2DataNodeCache() {
+	public LayeredCachePool getTableId2DataNodeCache() {
 		return tableId2DataNodeCache;
 	}
 

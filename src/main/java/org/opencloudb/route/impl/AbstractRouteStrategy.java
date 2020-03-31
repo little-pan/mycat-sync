@@ -1,7 +1,7 @@
 package org.opencloudb.route.impl;
 
 import org.opencloudb.MycatServer;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.mpp.LoadData;
@@ -22,7 +22,7 @@ public abstract class AbstractRouteStrategy implements RouteStrategy {
 	@Override
 	public RouteResultset route(SystemConfig sysConfig, SchemaConfig schema,
 								int sqlType, String origSQL, String charset, ServerConnection sc,
-								LayerCachePool cachePool) throws SQLNonTransientException {
+								LayeredCachePool cachePool) throws SQLNonTransientException {
 
 		/**
 		 * 处理一些路由之前的逻辑
@@ -97,7 +97,7 @@ public abstract class AbstractRouteStrategy implements RouteStrategy {
 	 * 通过解析AST语法树类来寻找路由
 	 */
 	public abstract RouteResultset routeNormalSqlWithAST(SchemaConfig schema, String stmt, RouteResultset rrs,
-			String charset, LayerCachePool cachePool) throws SQLNonTransientException;
+			String charset, LayeredCachePool cachePool) throws SQLNonTransientException;
 
 	/**
 	 * 路由信息指令, 如 SHOW、SELECT@@、DESCRIBE

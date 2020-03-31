@@ -1,6 +1,6 @@
 package org.opencloudb.sqlengine;
 
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.server.ServerConnection;
@@ -21,6 +21,6 @@ public interface Catlet {
 	
 	void route(SystemConfig sysConfig, SchemaConfig schema,
 			int sqlType, String realSQL, String charset, ServerConnection sc,
-			LayerCachePool cachePool) ;
+			LayeredCachePool cachePool) ;
 	//void setRoute(RouteResultset rrs);
 }

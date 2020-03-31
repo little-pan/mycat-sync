@@ -26,7 +26,7 @@ package org.opencloudb.mysql.handler;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
 import org.opencloudb.backend.PhysicalDBNode;
-import org.opencloudb.cache.LayerCachePool;
+import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.mpp.ColMeta;
 import org.opencloudb.mpp.DataMergeService;
 import org.opencloudb.mpp.MergeCol;
@@ -410,7 +410,7 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 					rowDataPkg.read(row);
 					String primaryKey = new String(rowDataPkg.fieldValues.get(this.primaryKeyIndex));
 					MycatServer server = MycatServer.getContextServer();
-					LayerCachePool pool = server.getRouterservice().getTableId2DataNodeCache();
+					LayeredCachePool pool = server.getRouterservice().getTableId2DataNodeCache();
 					pool.putIfAbsent(this.primaryKeyTable, primaryKey, dataNode);
 				}
 				row[3] = ++this.packetId;
