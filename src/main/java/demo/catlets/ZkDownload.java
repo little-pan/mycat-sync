@@ -21,15 +21,14 @@ import org.dom4j.Element;
 import org.dom4j.QName;
 import org.dom4j.io.OutputFormat;
 import org.dom4j.io.XMLWriter;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.util.ConfigException;
 import org.opencloudb.util.IoUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
-
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
 
 /**
  * aStoneGod 2015.11
@@ -150,23 +149,23 @@ public class ZkDownload {
                 Element dataHost = serverElement.addElement("dataHost");
                 if (!key.isEmpty()){
                     Element datahost = dataHost.addAttribute("name", key);
-                    if (jsonObject.containsKey("writetype"))
+                    if (jsonObject.has("writetype"))
                         datahost.addAttribute("writeType",jsonObject.get("writetype").toString());
-                    if (jsonObject.containsKey("switchType"))
+                    if (jsonObject.has("switchType"))
                         datahost.addAttribute("switchType",jsonObject.get("switchType").toString());
-                    if (jsonObject.containsKey("slaveThreshold"))
+                    if (jsonObject.has("slaveThreshold"))
                         datahost.addAttribute("slaveThreshold",jsonObject.get("slaveThreshold").toString());
-                    if (jsonObject.containsKey("balance"))
+                    if (jsonObject.has("balance"))
                         datahost.addAttribute("balance",jsonObject.get("balance").toString());
-                    if (jsonObject.containsKey("dbtype"))
+                    if (jsonObject.has("dbtype"))
                         datahost.addAttribute("dbType",jsonObject.get("dbtype").toString());
-                    if (jsonObject.containsKey("maxcon"))
+                    if (jsonObject.has("maxcon"))
                         datahost.addAttribute("maxCon",jsonObject.get("maxcon").toString());
-                    if (jsonObject.containsKey("mincon"))
+                    if (jsonObject.has("mincon"))
                         datahost.addAttribute("minCon",jsonObject.get("mincon").toString());
-                    if (jsonObject.containsKey("dbDriver"))
+                    if (jsonObject.has("dbDriver"))
                         datahost.addAttribute("dbDriver",jsonObject.get("dbDriver").toString());
-                    if (jsonObject.containsKey("heartbeatSQL")){
+                    if (jsonObject.has("heartbeatSQL")){
                         Element  heartbeatSQL = dataHost.addElement("heartbeat");
                         heartbeatSQL.setText(jsonObject.get("heartbeatSQL").toString());
                     }
@@ -184,13 +183,13 @@ public class ZkDownload {
                             String childHost = temp.substring(temp.indexOf("/")+1, temp.length());
                             JSONObject childJsonObject = wdh.get(host);
                             Element writeHost = dataHost.addElement("writeHost");
-                            if (childJsonObject.containsKey("host"))
+                            if (childJsonObject.has("host"))
                                 writeHost.addAttribute("host", childJsonObject.get("host").toString());
-                            if (childJsonObject.containsKey("url"))
+                            if (childJsonObject.has("url"))
                                 writeHost.addAttribute("url", childJsonObject.get("url").toString());
-                            if (childJsonObject.containsKey("user"))
+                            if (childJsonObject.has("user"))
                                 writeHost.addAttribute("user", childJsonObject.get("user").toString());
-                            if (childJsonObject.containsKey("password"))
+                            if (childJsonObject.has("password"))
                                 writeHost.addAttribute("password", childJsonObject.get("password").toString());
                             //处理readHost
                             for (Map<String,JSONObject> rdh : datahostSet) {
@@ -201,13 +200,13 @@ public class ZkDownload {
                                 if (tempread.contains("/") && tempread.contains(childHost)) {
                                     JSONObject readJsonObject = rdh.get(readhost);
                                     Element readHostEl = writeHost.addElement("readHost");
-                                    if (readJsonObject.containsKey("host"))
+                                    if (readJsonObject.has("host"))
                                         readHostEl.addAttribute("host", readJsonObject.get("host").toString());
-                                    if (readJsonObject.containsKey("url"))
+                                    if (readJsonObject.has("url"))
                                         readHostEl.addAttribute("url", readJsonObject.get("url").toString());
-                                    if (readJsonObject.containsKey("user"))
+                                    if (readJsonObject.has("user"))
                                         readHostEl.addAttribute("user", readJsonObject.get("user").toString());
-                                    if (readJsonObject.containsKey("password"))
+                                    if (readJsonObject.has("password"))
                                         readHostEl.addAttribute("password", readJsonObject.get("password").toString());
                                 }
                             }
@@ -275,7 +274,7 @@ public class ZkDownload {
     //Datanode Child Config
     private static List<Map<String,JSONObject>> getDatanodeConfig(List<Map<String,JSONObject>> listServer,
                                                                   String childPath) throws Exception {
-        List list = framework.getChildren().forPath(childPath);
+        List<String> list = framework.getChildren().forPath(childPath);
         Iterator<String> iterator = list.iterator();
         int nodeSize = list.size();
         if (nodeSize==0 ){
@@ -417,21 +416,21 @@ public class ZkDownload {
         return listServer;
     }
 
-    private static List<Map<String,JSONObject>> getConfigData(List<Map<String,JSONObject>> list,
+    private static List<Map<String,JSONObject>> getConfigData(List<Map<String, JSONObject>> list,
                                                               String childPath) throws IOException {
         String data;
         try {
             data = new String(framework.getData().forPath(childPath), SystemConfig.CHARSET);
             if (data.startsWith("[")&&data.endsWith("]")){ //JsonArray
-                JSONArray jsonArray = JSONArray.parseArray(data);
-                for (int i=0;i<jsonArray.size();i++){
+                JSONArray jsonArray = new JSONArray(data);
+                for (int i=0;i<jsonArray.length();i++){
                     Map<String,JSONObject> map = new HashMap<>();
                     map.put(childPath,(JSONObject)jsonArray.get(i));
                     list.add(map);
                 }
                 return list;
             }else {
-                JSONObject jsonObject = JSONObject.parseObject(data);
+                JSONObject jsonObject = new JSONObject(data);
                 Map<String,JSONObject> map = new HashMap<>();
                 map.put(childPath,jsonObject);
                 list.add(map);
@@ -455,83 +454,83 @@ public class ZkDownload {
                 String key = mapList.get(i).keySet().toString().replace("[","").replace("]","").trim();
                 JSONObject jsonObject = mapList.get(i).get(key);
                 Element system = serverElement.addElement("system");
-                if (jsonObject.containsKey("defaultsqlparser")){
+                if (jsonObject.has("defaultsqlparser")){
                     Element defaultsqlparser = system.addElement("property").addAttribute("name", "defaultsqlparser");
                     defaultsqlparser.setText(jsonObject.getString("defaultsqlparser"));
                 }
-                if (jsonObject.containsKey("serverport")){
+                if (jsonObject.has("serverport")){
                     Element serverport = system.addElement("property").addAttribute("name", "serverport");
                     serverport.setText(jsonObject.getString("serverport"));
                 }
-                if (jsonObject.containsKey("sequncehandlertype")){
+                if (jsonObject.has("sequncehandlertype")){
                     Element sequncehandlertype = system.addElement("property").addAttribute("name", "sequncehandlertype");
                     sequncehandlertype.setText(jsonObject.getString("sequncehandlertype"));
                 }
-                if (jsonObject.containsKey("managerPort")){
+                if (jsonObject.has("managerPort")){
                     Element managerPort = system.addElement("property").addAttribute("name", "managerPort");
                     managerPort.setText(jsonObject.getString("managerPort"));
                 }
-                if (jsonObject.containsKey("charset")){
+                if (jsonObject.has("charset")){
                     Element charset = system.addElement("property").addAttribute("name", "charset");
                     charset.setText(jsonObject.getString("charset"));
                 }
-                if (jsonObject.containsKey("registryAddress")){
+                if (jsonObject.has("registryAddress")){
                     Element registryAddress = system.addElement("property").addAttribute("name", "registryAddress");
                     registryAddress.setText(jsonObject.getString("registryAddress"));
                 }
-                if (jsonObject.containsKey("useCompression")){
+                if (jsonObject.has("useCompression")){
                     Element useCompression = system.addElement("property").addAttribute("name", "useCompression");
                     useCompression.setText(jsonObject.getString("useCompression"));
                 }
-                if (jsonObject.containsKey("processorBufferChunk")){
+                if (jsonObject.has("processorBufferChunk")){
                     Element processorBufferChunk = system.addElement("property").addAttribute("name", "processorBufferChunk");
                     processorBufferChunk.setText(jsonObject.getString("processorBufferChunk"));
                 }
-                if (jsonObject.containsKey("processors")){
+                if (jsonObject.has("processors")){
                     Element processors = system.addElement("property").addAttribute("name", "processors");
                     processors.setText(jsonObject.getString("processors"));
                 }
-                if (jsonObject.containsKey("processorExecutor")){
+                if (jsonObject.has("processorExecutor")){
                     Element processorExecutor = system.addElement("property").addAttribute("name", "processorExecutor");
                     processorExecutor.setText(jsonObject.getString("processorExecutor"));
                 }
-                if (jsonObject.containsKey("maxStringLiteralLength")){
+                if (jsonObject.has("maxStringLiteralLength")){
                     Element maxStringLiteralLength = system.addElement("property").addAttribute("name", "maxStringLiteralLength");
                     maxStringLiteralLength.setText(jsonObject.getString("maxStringLiteralLength"));
                 }
-                if (jsonObject.containsKey("sequnceHandlerType")){
+                if (jsonObject.has("sequnceHandlerType")){
                     Element sequnceHandlerType = system.addElement("property").addAttribute("name", "sequnceHandlerType");
                     sequnceHandlerType.setText(jsonObject.getString("sequnceHandlerType"));
                 }
-                if (jsonObject.containsKey("backSocketNoDelay")){
+                if (jsonObject.has("backSocketNoDelay")){
                     Element backSocketNoDelay = system.addElement("property").addAttribute("name", "backSocketNoDelay");
                     backSocketNoDelay.setText(jsonObject.getString("backSocketNoDelay"));
                 }
-                if (jsonObject.containsKey("frontSocketNoDelay")){
+                if (jsonObject.has("frontSocketNoDelay")){
                     Element frontSocketNoDelay = system.addElement("property").addAttribute("name", "frontSocketNoDelay");
                     frontSocketNoDelay.setText(jsonObject.getString("frontSocketNoDelay"));
                 }
-                if (jsonObject.containsKey("processorExecutor")){
+                if (jsonObject.has("processorExecutor")){
                     Element processorExecutor = system.addElement("property").addAttribute("name", "processorExecutor");
                     processorExecutor.setText(jsonObject.getString("processorExecutor"));
                 }
-                if (jsonObject.containsKey("mutiNodeLimitType")){
+                if (jsonObject.has("mutiNodeLimitType")){
                     Element mutiNodeLimitType = system.addElement("property").addAttribute("name", "mutiNodeLimitType");
                     mutiNodeLimitType.setText(jsonObject.getString("mutiNodeLimitType"));
                 }
-                if (jsonObject.containsKey("mutiNodePatchSize")){
+                if (jsonObject.has("mutiNodePatchSize")){
                     Element mutiNodePatchSize = system.addElement("property").addAttribute("name", "mutiNodePatchSize");
                     mutiNodePatchSize.setText(jsonObject.getString("mutiNodePatchSize"));
                 }
-                if (jsonObject.containsKey("idleTimeout")){
+                if (jsonObject.has("idleTimeout")){
                     Element idleTimeout = system.addElement("property").addAttribute("name", "idleTimeout");
                     idleTimeout.setText(jsonObject.getString("idleTimeout"));
                 }
-                if (jsonObject.containsKey("bindIp")){
+                if (jsonObject.has("bindIp")){
                     Element bindIp = system.addElement("property").addAttribute("name", "bindIp");
                     bindIp.setText(jsonObject.getString("bindIp"));
                 }
-                if (jsonObject.containsKey("frontWriteQueueSize")){
+                if (jsonObject.has("frontWriteQueueSize")){
                     Element frontWriteQueueSize = system.addElement("property").addAttribute("name", "frontWriteQueueSize");
                     frontWriteQueueSize.setText(jsonObject.getString("frontWriteQueueSize"));
                 }
@@ -539,15 +538,15 @@ public class ZkDownload {
                 String key = mapList.get(i).keySet().toString().replace("[","").replace("]","").trim();
                 JSONObject jsonObject = mapList.get(i).get(key);
                 Element user = serverElement.addElement("user").addAttribute("name", jsonObject.get("name").toString());
-                if (jsonObject.containsKey("password")) {
+                if (jsonObject.has("password")) {
                     Element propertyUserEl = user.addElement("property").addAttribute("name", "password");
                     propertyUserEl.setText(jsonObject.get("password").toString());
                 }
-                if (jsonObject.containsKey("schemas")) {
+                if (jsonObject.has("schemas")) {
                     Element propertyUserEl1 = user.addElement("property").addAttribute("name", "schemas");
                     propertyUserEl1.setText(jsonObject.get("schemas").toString().replace("[\"","").replace("\"]",""));
                 }
-                if (jsonObject.containsKey("readOnly")) {
+                if (jsonObject.has("readOnly")) {
                     Element propertyUserEl1 = user.addElement("property").addAttribute("name", "readOnly");
                     propertyUserEl1.setText(jsonObject.get("readOnly").toString());
                 }
@@ -566,14 +565,14 @@ public class ZkDownload {
         for (int i=0;i<mapList.size();i++){
             String key = mapList.get(i).keySet().toString().replace("[","").replace("]","").trim();
             JSONObject jsonObject = mapList.get(i).get(key);
-                    //tableRule
+            // tableRule
             Element ruleEl = serverElement.addElement("tableRule").addAttribute("name",jsonObject.getString("name"));
-            if (jsonObject.containsKey("column")){
+            if (jsonObject.has("column")){
                 Element ruleEl1 = ruleEl.addElement("rule");
                 Element columns = ruleEl1.addElement("columns");
                 columns.setText(jsonObject.getString("column"));
 
-                if (jsonObject.containsKey("name")) {
+                if (jsonObject.has("name")) {
                     Element algorithm = ruleEl1.addElement("algorithm");
                     algorithm.setText(jsonObject.getString("name"));
                 }
@@ -585,66 +584,66 @@ public class ZkDownload {
             String key = mapList.get(i).keySet().toString().replace("[", "").replace("]", "").trim();
             JSONObject jsonObject = mapList.get(i).get(key);
             Element system = serverElement.addElement("function");
-            if (jsonObject.containsKey("name")) {
+            if (jsonObject.has("name")) {
                 system.addAttribute("name", jsonObject.getString("name"));
             }
-            if (jsonObject.containsKey("functionName")) {
+            if (jsonObject.has("functionName")) {
                 //1.4 class
                 String pathFor14 = "org.opencloudb.route.function";
                 String func = jsonObject.getString("functionName");
                 String className = pathFor14 + func.substring(func.lastIndexOf("."), func.length());
                 system.addAttribute("class", className);
             }
-            if (jsonObject.containsKey("count")) {
+            if (jsonObject.has("count")) {
                 Element serverport = system.addElement("property").addAttribute("name", "count");
                 serverport.setText(jsonObject.getString("count"));
             }
-            if (jsonObject.containsKey("virtualBucketTimes")) {
+            if (jsonObject.has("virtualBucketTimes")) {
                 Element serverport = system.addElement("property").addAttribute("name", "virtualBucketTimes");
                 serverport.setText(jsonObject.getString("virtualBucketTimes"));
             }
-            if (jsonObject.containsKey("partitionCount")) {
+            if (jsonObject.has("partitionCount")) {
                 Element serverport = system.addElement("property").addAttribute("name", "partitionCount");
                 serverport.setText(jsonObject.getString("partitionCount"));
             }
-            if (jsonObject.containsKey("partitionLength")) {
+            if (jsonObject.has("partitionLength")) {
                 Element serverport = system.addElement("property").addAttribute("name", "partitionLength");
                 serverport.setText(jsonObject.getString("partitionLength"));
             }
-            if (jsonObject.containsKey("splitOneDay")) {
+            if (jsonObject.has("splitOneDay")) {
                 Element serverport = system.addElement("property").addAttribute("name", "splitOneDay");
                 serverport.setText(jsonObject.getString("splitOneDay"));
             }
-            if (jsonObject.containsKey("dateFormat")) {
+            if (jsonObject.has("dateFormat")) {
                 Element serverport = system.addElement("property").addAttribute("name", "dateFormat");
                 serverport.setText(jsonObject.getString("dateFormat"));
             }
-            if (jsonObject.containsKey("sBeginDate")) {
+            if (jsonObject.has("sBeginDate")) {
                 Element serverport = system.addElement("property").addAttribute("name", "sBeginDate");
                 serverport.setText(jsonObject.getString("sBeginDate"));
             }
-            if (jsonObject.containsKey("type")) {
+            if (jsonObject.has("type")) {
                 Element serverport = system.addElement("property").addAttribute("name", "type");
                 serverport.setText(jsonObject.getString("type"));
             }
-            if (jsonObject.containsKey("totalBuckets")) {
+            if (jsonObject.has("totalBuckets")) {
                 Element serverport = system.addElement("property").addAttribute("name", "totalBuckets");
                 serverport.setText(jsonObject.getString("totalBuckets"));
             }
 
             //mapFile from config
-            if (jsonObject.containsKey("config")) {
+            if (jsonObject.has("config")) {
                 String config = jsonObject.getString("config").replace("{", "").replace("}", "").replace("\"", "").replace(":", "=");
                 String mapFile = jsonObject.getString("name");
                 Element mapFileEl = system.addElement("property").addAttribute("name", "mapFile");
                 mapFileEl.setText(mapFile + ".txt");
                 conf2File("/" + mapFile + ".txt", config);
             }
-            if (jsonObject.containsKey("groupPartionSize")) {
+            if (jsonObject.has("groupPartionSize")) {
                 Element serverport = system.addElement("property").addAttribute("name", "groupPartionSize");
                 serverport.setText(jsonObject.getString("groupPartionSize"));
             }
-            if (jsonObject.containsKey("sPartionDay")) {
+            if (jsonObject.has("sPartionDay")) {
                 Element serverport = system.addElement("property").addAttribute("name", "sPartionDay");
                 serverport.setText(jsonObject.getString("sPartionDay"));
             }
@@ -669,11 +668,11 @@ public class ZkDownload {
                 Element schemaEl = serverElement.addElement("schema");
                 if (!schema.isEmpty()){
                     Element schemaElCon = schemaEl.addAttribute("name", schema);
-                    if (jsonObject.containsKey("checkSQLSchema"))
+                    if (jsonObject.has("checkSQLSchema"))
                         schemaElCon.addAttribute("checkSQLschema",jsonObject.get("checkSQLSchema").toString());
-                    if (jsonObject.containsKey("defaultMaxLimit"))
+                    if (jsonObject.has("defaultMaxLimit"))
                         schemaElCon.addAttribute("sqlMaxLimit",jsonObject.get("defaultMaxLimit").toString());
-                    if (jsonObject.containsKey("dataNode"))
+                    if (jsonObject.has("dataNode"))
                         schemaElCon.addAttribute("dataNode",jsonObject.get("dataNode").toString());
                     //处理 table
                     for (int j=0;j<mapList.size();j++) {
@@ -687,16 +686,16 @@ public class ZkDownload {
 //                            System.out.println("table:" + tableName);
                             JSONObject tableJsonObject = mapList.get(j).get(tablePath);
                             Element tableEl = schemaEl.addElement("table");
-                            if (tableJsonObject.containsKey("name"))
+                            if (tableJsonObject.has("name"))
                                 tableEl.addAttribute("name", tableJsonObject.get("name").toString());
-                            if (tableJsonObject.containsKey("primaryschema"))
+                            if (tableJsonObject.has("primaryschema"))
                                 tableEl.addAttribute("primaryschema", tableJsonObject.get("primaryschema").toString());
-                            if (tableJsonObject.containsKey("datanode"))
+                            if (tableJsonObject.has("datanode"))
                                 tableEl.addAttribute("dataNode", tableJsonObject.get("datanode").toString());
-                            if (tableJsonObject.containsKey("type"))
+                            if (tableJsonObject.has("type"))
                                 if (tableJsonObject.get("type").toString().startsWith("1")) //目前只有1 全局表
                                 tableEl.addAttribute("type", "global");
-                            if (tableJsonObject.containsKey("ruleName"))
+                            if (tableJsonObject.has("ruleName"))
                                 tableEl.addAttribute("rule", tableJsonObject.get("ruleName").toString());
                             //处理childTable
                             for (int k=0;k<mapList.size();k++) {
@@ -713,13 +712,13 @@ public class ZkDownload {
 //                                        System.out.println("childTable:" + childTable);
                                         JSONObject childTableJsonObject = mapList.get(k).get(childTablePath);
                                         Element childTableEl = tableEl.addElement("childTable");
-                                        if (childTableJsonObject.containsKey("name"))
+                                        if (childTableJsonObject.has("name"))
                                             childTableEl.addAttribute("name", childTableJsonObject.get("name").toString());
-                                        if (childTableJsonObject.containsKey("primarykey"))
+                                        if (childTableJsonObject.has("primarykey"))
                                             childTableEl.addAttribute("primaryKey", childTableJsonObject.get("primarykey").toString());
-                                        if (childTableJsonObject.containsKey("parentkey"))
+                                        if (childTableJsonObject.has("parentkey"))
                                             childTableEl.addAttribute("parentKey", childTableJsonObject.get("parentkey").toString());
-                                        if (childTableJsonObject.containsKey("joinkey"))
+                                        if (childTableJsonObject.has("joinkey"))
                                             childTableEl.addAttribute("joinKey", childTableJsonObject.get("joinkey").toString());
                                         //处理 child-childTable
                                         for (int l=0;l<mapList.size();l++) {
@@ -736,13 +735,13 @@ public class ZkDownload {
                                                     //System.out.println("child-childTable:" + child_childTablePathName);
                                                     JSONObject child_childTableJsonObject = mapList.get(l).get(child_childTablePath);
                                                     Element child_childTablePathEl = childTableEl.addElement("childTable");
-                                                    if (child_childTableJsonObject.containsKey("name"))
+                                                    if (child_childTableJsonObject.has("name"))
                                                         child_childTablePathEl.addAttribute("name", child_childTableJsonObject.get("name").toString());
-                                                    if (child_childTableJsonObject.containsKey("primarykey"))
+                                                    if (child_childTableJsonObject.has("primarykey"))
                                                         child_childTablePathEl.addAttribute("primaryKey", child_childTableJsonObject.get("primarykey").toString());
-                                                    if (child_childTableJsonObject.containsKey("parentkey"))
+                                                    if (child_childTableJsonObject.has("parentkey"))
                                                         child_childTablePathEl.addAttribute("parentKey", child_childTableJsonObject.get("parentkey").toString());
-                                                    if (child_childTableJsonObject.containsKey("joinkey"))
+                                                    if (child_childTableJsonObject.has("joinkey"))
                                                         child_childTablePathEl.addAttribute("joinKey", child_childTableJsonObject.get("joinkey").toString());
                                                 }
                                             }
@@ -775,23 +774,23 @@ public class ZkDownload {
             Element dataHost = serverElement.addElement("dataHost");
             if (!key.isEmpty()){
                 Element datahost = dataHost.addAttribute("name", key);
-                if (jsonObject.containsKey("writetype"))
+                if (jsonObject.has("writetype"))
                 datahost.addAttribute("writeType",jsonObject.get("writetype").toString());
-                if (jsonObject.containsKey("switchType"))
+                if (jsonObject.has("switchType"))
                     datahost.addAttribute("switchType",jsonObject.get("switchType").toString());
-                if (jsonObject.containsKey("slaveThreshold"))
+                if (jsonObject.has("slaveThreshold"))
                     datahost.addAttribute("slaveThreshold",jsonObject.get("slaveThreshold").toString());
-                if (jsonObject.containsKey("balance"))
+                if (jsonObject.has("balance"))
                     datahost.addAttribute("balance",jsonObject.get("balance").toString());
-                if (jsonObject.containsKey("dbtype"))
+                if (jsonObject.has("dbtype"))
                     datahost.addAttribute("dbType",jsonObject.get("dbtype").toString());
-                if (jsonObject.containsKey("maxcon"))
+                if (jsonObject.has("maxcon"))
                     datahost.addAttribute("maxCon",jsonObject.get("maxcon").toString());
-                if (jsonObject.containsKey("mincon"))
+                if (jsonObject.has("mincon"))
                     datahost.addAttribute("minCon",jsonObject.get("mincon").toString());
-                if (jsonObject.containsKey("dbDriver"))
+                if (jsonObject.has("dbDriver"))
                     datahost.addAttribute("dbDriver",jsonObject.get("dbDriver").toString());
-                if (jsonObject.containsKey("heartbeatSQL")){
+                if (jsonObject.has("heartbeatSQL")){
                     Element  heartbeatSQL = dataHost.addElement("heartbeat");
                     heartbeatSQL.setText(jsonObject.get("heartbeatSQL").toString());
                 }
@@ -804,13 +803,13 @@ public class ZkDownload {
                         //System.out.println("childHost:" + childHost);
                         JSONObject childJsonObject = mapList.get(j).get(host);
                         Element writeHost = dataHost.addElement("writeHost");
-                        if (childJsonObject.containsKey("host"))
+                        if (childJsonObject.has("host"))
                             writeHost.addAttribute("host", childJsonObject.get("host").toString());
-                        if (childJsonObject.containsKey("url"))
+                        if (childJsonObject.has("url"))
                             writeHost.addAttribute("url", childJsonObject.get("url").toString());
-                        if (childJsonObject.containsKey("user"))
+                        if (childJsonObject.has("user"))
                             writeHost.addAttribute("user", childJsonObject.get("user").toString());
-                        if (childJsonObject.containsKey("password"))
+                        if (childJsonObject.has("password"))
                             writeHost.addAttribute("password", childJsonObject.get("password").toString());
                         //处理readHost
                         for (int k=0;k<mapList.size();k++) {
@@ -823,13 +822,13 @@ public class ZkDownload {
                                 //System.out.println("readHost:" + readHost);
                                 JSONObject readJsonObject = mapList.get(k).get(readhost);
                                 Element readHostEl = writeHost.addElement("readHost");
-                                if (readJsonObject.containsKey("host"))
+                                if (readJsonObject.has("host"))
                                     readHostEl.addAttribute("host", readJsonObject.get("host").toString());
-                                if (readJsonObject.containsKey("url"))
+                                if (readJsonObject.has("url"))
                                     readHostEl.addAttribute("url", readJsonObject.get("url").toString());
-                                if (readJsonObject.containsKey("user"))
+                                if (readJsonObject.has("user"))
                                     readHostEl.addAttribute("user", readJsonObject.get("user").toString());
-                                if (readJsonObject.containsKey("password"))
+                                if (readJsonObject.has("password"))
                                     readHostEl.addAttribute("password", readJsonObject.get("password").toString());
                             }
                         }
@@ -846,11 +845,11 @@ public class ZkDownload {
             String dataNode = mapList.get(i).keySet().toString().replace("[", "").replace("]", "").trim();
             JSONObject jsonObject = mapList.get(i).get(dataNode);
             Element dataNodeEl = serverElement.addElement("dataNode");
-            if (jsonObject.containsKey("name"))
+            if (jsonObject.has("name"))
                 dataNodeEl.addAttribute("name", jsonObject.get("name").toString());
-            if (jsonObject.containsKey("dataHost"))
+            if (jsonObject.has("dataHost"))
                 dataNodeEl.addAttribute("dataHost", jsonObject.get("dataHost").toString());
-            if (jsonObject.containsKey("database"))
+            if (jsonObject.has("database"))
                 dataNodeEl.addAttribute("database", jsonObject.get("database").toString());
             }
     }
