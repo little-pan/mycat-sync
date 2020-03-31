@@ -142,10 +142,10 @@ public final class ShowHandler {
 			ShowWhiteHost.execute(c);
 			break;
 		case ManagerParseShow.WHITE_HOST_SET:
-			ShowWhiteHost.setHost(c,ParseUtil.parseString(stmt));
+			ShowWhiteHost.setHost(c, ParseUtil.parseString(stmt));
 			break;					
 		case ManagerParseShow.SQL:
-			boolean isClearSql = Boolean.valueOf( stmt.substring(rs >>> 8).trim() );
+			boolean isClearSql = Boolean.parseBoolean( stmt.substring(rs >>> 8).trim() );
 			ShowSQL.execute(c, isClearSql);
 			break;
 		case ManagerParseShow.SQL_DETAIL:
@@ -155,22 +155,22 @@ public final class ShowHandler {
 			ShowSQLExecute.execute(c);
 			break;
 		case ManagerParseShow.SQL_SLOW:
-			boolean isClearSlow = Boolean.valueOf( stmt.substring(rs >>> 8).trim() );
+			boolean isClearSlow = Boolean.parseBoolean( stmt.substring(rs >>> 8).trim() );
 			ShowSQLSlow.execute(c, isClearSlow);
 			break;
 		case ManagerParseShow.SQL_HIGH:
-			boolean isClearHigh = Boolean.valueOf( stmt.substring(rs >>> 8).trim() );
+			boolean isClearHigh = Boolean.parseBoolean( stmt.substring(rs >>> 8).trim() );
 			ShowSQLHigh.execute(c, isClearHigh);
 			break;
 		case ManagerParseShow.SQL_CONDITION:
 			ShowSQLCondition.execute(c);
 			break;			
 		case ManagerParseShow.SQL_SUM_USER:
-			boolean isClearSum = Boolean.valueOf( stmt.substring(rs >>> 8).trim() );
+			boolean isClearSum = Boolean.parseBoolean( stmt.substring(rs >>> 8).trim() );
 			ShowSQLSumUser.execute(c,isClearSum);
 			break;
 		case ManagerParseShow.SQL_SUM_TABLE:
-			boolean isClearTable = Boolean.valueOf( stmt.substring(rs >>> 8).trim() );
+			boolean isClearTable = Boolean.parseBoolean( stmt.substring(rs >>> 8).trim() );
 			ShowSQLSumTable.execute(c, isClearTable);
 			break;
 		case ManagerParseShow.SLOW_DATANODE: {

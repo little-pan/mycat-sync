@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
+import org.opencloudb.cache.impl.MapDBCachePooFactory;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.util.IoUtil;
 import org.slf4j.*;
@@ -80,8 +81,7 @@ public class CacheService {
 		Arrays.sort(keys);
 		for (String key : keys) {
 			if (key.startsWith(poolFactoryPref)) {
-				createPoolFactory(key.substring(poolFactoryPref.length()),
-						(String) props.get(key));
+				createPoolFactory(key.substring(poolFactoryPref.length()), (String) props.get(key));
 			} else if (key.startsWith(poolKeyPref)) {
 				String cacheName = key.substring(poolKeyPref.length());
 				String value = (String) props.get(key);
@@ -132,10 +132,15 @@ public class CacheService {
 		}
 	}
 
-	private void createPoolFactory(String factryType, String factryClassName)
+	private void createPoolFactory(String factoryType, String factoryClassName)
 			throws Exception {
-		CachePoolFactory factory = (CachePoolFactory) Class.forName(factryClassName).newInstance();
-		poolFactorys.put(factryType, factory);
+		CachePoolFactory factory;
+		if ("mapdb".equalsIgnoreCase(factoryClassName)) {
+			factory = new MapDBCachePooFactory();
+		} else {
+			factory = (CachePoolFactory) Class.forName(factoryClassName).newInstance();
+		}
+		poolFactorys.put(factoryType, factory);
 	}
 
 	private void createPool(String poolName, String type, int cacheSize, int expireSeconds) {

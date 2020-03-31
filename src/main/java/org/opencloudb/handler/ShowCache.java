@@ -24,6 +24,9 @@
 package org.opencloudb.handler;
 
 import java.nio.ByteBuffer;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Map;
 
 import org.opencloudb.MycatServer;
@@ -64,9 +67,9 @@ public class ShowCache {
 		fields[i++].packetId = ++packetId;
 		fields[i] = PacketUtil.getField("PUT", Fields.FIELD_TYPE_LONG);
 		fields[i++].packetId = ++packetId;
-		fields[i] = PacketUtil.getField("LAST_ACCESS", Fields.FIELD_TYPE_LONG);
+		fields[i] = PacketUtil.getField("LAST_ACCESS", Fields.FIELD_TYPE_VAR_STRING);
 		fields[i++].packetId = ++packetId;
-		fields[i] = PacketUtil.getField("LAST_PUT", Fields.FIELD_TYPE_LONG);
+		fields[i] = PacketUtil.getField("LAST_PUT", Fields.FIELD_TYPE_VAR_STRING);
 		fields[i].packetId = ++packetId;
 		eof.packetId = ++packetId;
 	}
@@ -87,6 +90,7 @@ public class ShowCache {
 		byte packetId = eof.packetId;
 		MycatServer server = MycatServer.getContextServer();
 		CacheService cacheService = server.getCacheService();
+		DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
 		for (Map.Entry<String, CachePool> entry : cacheService.getAllCachePools().entrySet()) {
 			String cacheName = entry.getKey();
 			CachePool cachePool = entry.getValue();
@@ -94,12 +98,12 @@ public class ShowCache {
 				LayeredCachePool layeredPool = (LayeredCachePool)cachePool;
 				for (Map.Entry<String, CacheStatic> staticsEntry : layeredPool.getAllCacheStatic().entrySet()) {
 					RowDataPacket row = getRow(cacheName+'.'+staticsEntry.getKey(),
-							staticsEntry.getValue(), c.getCharset());
+							staticsEntry.getValue(), c.getCharset(), df);
 					row.packetId = ++packetId;
 					buffer = row.write(buffer, c,true);
 				}
 			} else {
-				RowDataPacket row = getRow(cacheName, cachePool.getCacheStatic(), c.getCharset());
+				RowDataPacket row = getRow(cacheName, cachePool.getCacheStatic(), c.getCharset(), df);
 				row.packetId = ++packetId;
 				buffer = row.write(buffer, c,true);
 			}
@@ -114,8 +118,17 @@ public class ShowCache {
 		c.write(buffer);
 	}
 
-	private static RowDataPacket getRow(String poolName,
-			CacheStatic cacheStatic, String charset) {
+	private static RowDataPacket getRow(String poolName, CacheStatic cacheStatic,
+										String charset, DateFormat dateFormat) {
+
+		String at = null, pt = null;
+		if (cacheStatic.getLastAccesTime() > 0) {
+			at = dateFormat.format(new Date(cacheStatic.getLastAccesTime()));
+		}
+		if (cacheStatic.getLastPutTime() > 0) {
+			pt = dateFormat.format(new Date(cacheStatic.getLastPutTime()));
+		}
+
 		RowDataPacket row = new RowDataPacket(FIELD_COUNT);
 		row.add(StringUtil.encode(poolName, charset));
 		// max size
@@ -124,8 +137,9 @@ public class ShowCache {
 		row.add(LongUtil.toBytes(cacheStatic.getAccessTimes()));
 		row.add(LongUtil.toBytes(cacheStatic.getHitTimes()));
 		row.add(LongUtil.toBytes(cacheStatic.getPutTimes()));
-		row.add(LongUtil.toBytes(cacheStatic.getLastAccesTime()));
-		row.add(LongUtil.toBytes(cacheStatic.getLastPutTime()));
+		row.add(StringUtil.encode(at, charset));
+		row.add(StringUtil.encode(pt, charset));
+
 		return row;
 	}
 

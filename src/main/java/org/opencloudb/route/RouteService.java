@@ -51,14 +51,14 @@ public class RouteService {
 	private final String NEW_MYCAT_HINT = "/*#mycat:"; 	// 新的注解格式:/* !mycat: type = value */ sql，oldMycatHint的格式不兼容直连mysql
     private final String HINT_SPLIT = "=";
 
-	public RouteService(CacheService cachService) {
-		sqlRouteCache = cachService.getCachePool("SQLRouteCache");
-		tableId2DataNodeCache = (LayeredCachePool) cachService
+	public RouteService(CacheService cacheService) {
+		this.sqlRouteCache = cacheService.getCachePool("SQLRouteCache");
+		this.tableId2DataNodeCache = (LayeredCachePool) cacheService
 				.getCachePool("TableID2DataNodeCache");
 	}
 
 	public LayeredCachePool getTableId2DataNodeCache() {
-		return tableId2DataNodeCache;
+		return this.tableId2DataNodeCache;
 	}
 
 	public RouteResultset route(SystemConfig sysconf, SchemaConfig schema,
