@@ -31,14 +31,24 @@ import org.mapdb.HTreeMap;
 import org.opencloudb.cache.CachePool;
 import org.opencloudb.cache.CachePoolFactory;
 
+import static java.lang.Integer.*;
+import static java.lang.Double.*;
+import static java.lang.System.*;
+
 public class MapDBCachePooFactory extends CachePoolFactory {
+
+	static final String PROP_PREFIX = "org.opencloudb.cache.mapdb.";
+
+	static final int CACHE_SIZE = getInteger(PROP_PREFIX+"cacheSize", 102400);
+	// Default 64MB
+	static final double SIZE_LIMIT = parseDouble(getProperty(PROP_PREFIX+"sizeLimit", "0.064"));
 
 	private final DB db = DBMaker.newTempFileDB()
 			.asyncWriteEnable()
 			.transactionDisable()
 			.commitFileSyncDisable()
-			.cacheSize(102400)
-			.sizeLimit(0.064)
+			.cacheSize(CACHE_SIZE)
+			.sizeLimit(SIZE_LIMIT)
 			.cacheLRUEnable()
 			.make();
 
