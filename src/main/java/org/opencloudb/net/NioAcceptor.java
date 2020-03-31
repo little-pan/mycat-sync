@@ -42,7 +42,7 @@ import org.slf4j.*;
 /**
  * @author mycat
  */
-public final class NioAcceptor extends Thread  implements SocketAcceptor, AutoCloseable {
+public final class NioAcceptor extends Thread implements SocketAcceptor, AutoCloseable {
 
 	private static final Logger log = LoggerFactory.getLogger(NioAcceptor.class);
 
@@ -60,7 +60,13 @@ public final class NioAcceptor extends Thread  implements SocketAcceptor, AutoCl
 
 	public NioAcceptor(String name, String bindIp, int port, FrontendConnectionFactory factory,
 					   NioProcessorPool processorPool) throws IOException {
+		this(name, bindIp, port, factory, processorPool, DAEMON);
+	}
+
+	public NioAcceptor(String name, String bindIp, int port, FrontendConnectionFactory factory,
+					   NioProcessorPool processorPool, boolean daemon) throws IOException {
 		super.setName(name);
+		super.setDaemon(daemon);
 		this.server = MycatServer.getContextServer();
 		if (this.server == null) {
 			throw new IllegalStateException("Context server is null");

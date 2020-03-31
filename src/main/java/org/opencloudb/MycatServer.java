@@ -121,7 +121,7 @@ public class MycatServer {
 	    setContextServer(this);
 	    try {
             String home = SystemConfig.getHomePath();
-            log.info("{}-{} starts in '{}'", NAME, ProcessUtil.getPid(), home);
+            log.info("{}-{} bootstrap in '{}'", NAME, ProcessUtil.getPid(), home);
         } finally {
             removeContextServer();
         }

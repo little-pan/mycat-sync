@@ -162,6 +162,7 @@ public final class NioProcessor extends AbstractProcessor {
 
 	final void startup() {
 		this.processThread = new Thread(this, this.name);
+		this.processThread.setDaemon(NioAcceptor.DAEMON);
 		this.processThread.start();
 	}
 

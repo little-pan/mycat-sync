@@ -84,6 +84,11 @@ public class MyCATSequnceProcessor {
 	}
 	
 	class ExecuteThread extends Thread {
+		{
+			setName("MyCAT-seq");
+			setDaemon(true);
+		}
+
 		public void run() {
 			while (running) {
 				try {
