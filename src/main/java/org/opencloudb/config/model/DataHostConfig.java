@@ -36,6 +36,7 @@ import org.opencloudb.backend.PhysicalDBPool;
  *
  */
 public class DataHostConfig {
+
 	public static final int NOT_SWITCH_DS = -1;
 	public static final int DEFAULT_SWITCH_DS = 1;
 	public static final int SYN_STATUS_SWITCH_DS = 2;
@@ -62,12 +63,11 @@ public class DataHostConfig {
 	private final int switchType;
 	private String filters = "mergeStat";
 	private long logTime = 300000;
-	private boolean tempReadHostAvailable = false;  //如果写服务挂掉, 临时读服务是否继续可用
+	private boolean tempReadHostAvailable;  //如果写服务挂掉, 临时读服务是否继续可用
 
 	public DataHostConfig(String name, String dbType, String dbDriver,
 			DBHostConfig[] writeHosts, Map<Integer, DBHostConfig[]> readHosts,
                           int switchType,int slaveThreshold, boolean tempReadHostAvailable) {
-		super();
 		this.name = name;
 		this.dbType = dbType;
 		this.dbDriver = dbDriver;

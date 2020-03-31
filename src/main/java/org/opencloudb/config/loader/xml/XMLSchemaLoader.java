@@ -44,7 +44,6 @@ import org.w3c.dom.NodeList;
 /**
  * @author mycat
  */
-@SuppressWarnings("unchecked")
 public class XMLSchemaLoader implements SchemaLoader {
 	
 	private final static String DEFAULT_DTD = "schema.dtd";
@@ -75,17 +74,17 @@ public class XMLSchemaLoader implements SchemaLoader {
 
 	@Override
 	public Map<String, DataHostConfig> getDataHosts() {
-		return (Map<String, DataHostConfig>) (dataHosts.isEmpty() ? Collections.emptyMap() : dataHosts);
+		return this.dataHosts;
 	}
 
 	@Override
 	public Map<String, DataNodeConfig> getDataNodes() {
-		return (Map<String, DataNodeConfig>) (dataNodes.isEmpty() ? Collections.emptyMap() : dataNodes);
+		return this.dataNodes;
 	}
 
 	@Override
 	public Map<String, SchemaConfig> getSchemas() {
-		return (Map<String, SchemaConfig>) (schemas.isEmpty() ? Collections.emptyMap() : schemas);
+		return this.schemas;
 	}
 
 	private void load(String dtdFile, String xmlFile) {
@@ -124,7 +123,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 			// check dataNode already exists or not
 			String defaultDbType = null;
 			if (dataNode != null && !dataNode.isEmpty()) {
-				List<String> dataNodeLst = new ArrayList<String>(1);
+				List<String> dataNodeLst = new ArrayList<>(1);
 				dataNodeLst.add(dataNode);
 				checkDataNodeExists(dataNodeLst);
 				String dataHost = dataNodes.get(dataNode).getDataHost();
@@ -189,13 +188,10 @@ public class XMLSchemaLoader implements SchemaLoader {
 	 * @return
 	 */
 	private String doTableNameSuffix(String tableNameElement, String tableNameSuffixElement) {
-		
 		String newTableName = tableNameElement;
-		
 		String[] params = tableNameSuffixElement.split(",");			
 		String suffixFormat = params[0].toUpperCase();		
 		if ( suffixFormat.equals("YYYYMM") ) {
-			
 			//读取参数
 			int yyyy = Integer.parseInt( params[1] );
 			int mm = Integer.parseInt( params[2] );					
@@ -210,7 +206,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 			cal.set(Calendar.DATE, 0 );
 			
 			//表名改写
-			StringBuffer tableNameBuffer = new StringBuffer();
+			StringBuilder tableNameBuffer = new StringBuilder();
 			for(int mmIdx = 0; mmIdx <= mmEndIdx; mmIdx++) {						
 				tableNameBuffer.append( tableNameElement );
 				tableNameBuffer.append( yyyyMMSDF.format(cal.getTime()) );							
@@ -223,7 +219,6 @@ public class XMLSchemaLoader implements SchemaLoader {
 			newTableName = tableNameBuffer.toString();
 
 		} else if ( suffixFormat.equals("YYYYMMDD") ) {
-			
 			//读取参数
 			int yyyy = Integer.parseInt( params[1] );
 			int mm = Integer.parseInt( params[2] );
@@ -239,7 +234,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 			cal.set(Calendar.DATE, dd );
 			
 			//表名改写
-			StringBuffer tableNameBuffer = new StringBuffer();
+			StringBuilder tableNameBuffer = new StringBuilder();
 			for(int ddIdx = 0; ddIdx <= ddEndIdx; ddIdx++) {					
 				tableNameBuffer.append( tableNameElement );
 				tableNameBuffer.append( yyyyMMddSDF.format(cal.getTime()) );
@@ -257,9 +252,6 @@ public class XMLSchemaLoader implements SchemaLoader {
 	
 
 	private Map<String, TableConfig> loadTables(Element node) {
-		
-		// Map<String, TableConfig> tables = new HashMap<String, TableConfig>();
-		
 		// 支持表名中包含引号[`] BEN GONG
 		Map<String, TableConfig> tables = new TableConfigMap();
 		
@@ -270,8 +262,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 
 			//TODO:路由, 增加对动态日期表的支持
 			String tableNameSuffixElement = tableElement.getAttribute("nameSuffix").toUpperCase();
-			if ( !"".equals( tableNameSuffixElement ) ) {				
-				
+			if ( !"".equals( tableNameSuffixElement ) ) {
 				if( tableNameElement.split(",").length > 1 ) {
 					throw new ConfigException("nameSuffix " + tableNameSuffixElement + ", require name parameter cannot multiple breaks!");
 				}
@@ -309,10 +300,6 @@ public class XMLSchemaLoader implements SchemaLoader {
 				ruleRequired = Boolean.parseBoolean(tableElement.getAttribute("ruleRequired"));
 			}
 
-			if (tableNames == null) {
-				throw new ConfigException("table name is not found!");
-			}
-			
 			String distPrex = "distribute(";
 			boolean distTableDns = dataNode.startsWith(distPrex);
 			if (distTableDns) {
@@ -365,7 +352,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 			newDataNodeMap.put(host, hostDns);
 		}
 		
-		ArrayList<String> result = new ArrayList<String>(dataNodes.size());
+		ArrayList<String> result = new ArrayList<>(dataNodes.size());
 		boolean hasData = true;
 		while (hasData) {
 			hasData = false;
@@ -457,7 +444,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 			return;
 		}
 		for (String node : nodes) {
-			if (!dataNodes.containsKey(node)) {
+			if (!this.dataNodes.containsKey(node)) {
 				throw new ConfigException("dataNode '" + node + "' is not found!");
 			}
 		}
@@ -472,7 +459,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 			String databaseStr = element.getAttribute("database");
 			String host = element.getAttribute("dataHost");
 			if (empty(dnNamePre) || empty(databaseStr) || empty(host)) {
-				throw new ConfigException("dataNode " + dnNamePre + " define error ,attribute can't be empty");
+				throw new ConfigException("dataNode " + dnNamePre + " defined error, attribute can't be empty");
 			}
 			String[] dnNames = org.opencloudb.util.SplitUtil.split(dnNamePre, ',', '$', '-');
 			String[] databases = org.opencloudb.util.SplitUtil.split(databaseStr, ',', '$', '-');
@@ -483,7 +470,6 @@ public class XMLSchemaLoader implements SchemaLoader {
 								+ " define error ,dnNames.length must be=databases.length*hostStrings.length");
 			}
 			if (dnNames.length > 1) {
-				
 				List<String[]> mhdList = mergerHostDatabase(hostStrings, databases);
 				for (int k = 0; k < dnNames.length; k++) {
 					String[] hd = mhdList.get(k);
@@ -492,11 +478,9 @@ public class XMLSchemaLoader implements SchemaLoader {
 					String hostName = hd[0];
 					createDataNode(dnName, databaseName, hostName);
 				}
-
 			} else {
 				createDataNode(dnNamePre, databaseStr, host);
 			}
-
 		}
 	}
 
@@ -545,14 +529,12 @@ public class XMLSchemaLoader implements SchemaLoader {
 		String weightStr = node.getAttribute("weight");
 		int weight = "".equals(weightStr) ? PhysicalDBPool.WEIGHT : Integer.parseInt(weightStr) ;
 		
-		String ip = null;
-		int port = 0;
+		String ip;
+		int port;
 		if (empty(nodeHost) || empty(nodeUrl) || empty(user)) {
 			throw new ConfigException(
-					"dataHost "
-							+ dataHost
-							+ " define error,some attributes of this element is empty: "
-							+ nodeHost);
+					"dataHost '" + dataHost
+							+ "' defined error, some attributes of this element is empty: " + nodeHost);
 		}
 		if ("native".equalsIgnoreCase(dbDriver)) {
 			int colonIndex = nodeUrl.indexOf(':');
@@ -563,7 +545,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 			try {
 				url = new URI(nodeUrl.substring(5));
 			} catch (Exception e) {
-				throw new ConfigException("invalid jdbc url " + nodeUrl + " of " + dataHost);
+				throw new ConfigException("Invalid jdbc url '" + nodeUrl + "' of " + dataHost);
 			}
 			ip = url.getHost();
 			port = url.getPort();
@@ -586,7 +568,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 			final Element element = (Element) list.item(i);
 			String name = element.getAttribute("name");
 			
-			if (dataHosts.containsKey(name)) {
+			if (this.dataHosts.containsKey(name)) {
 				throw new ConfigException("dataHost name " + name + "duplicated!");
 			}
 			
@@ -629,16 +611,18 @@ public class XMLSchemaLoader implements SchemaLoader {
 			
 			NodeList writeNodes = element.getElementsByTagName("writeHost");
 			DBHostConfig[] writeDbConfs = new DBHostConfig[writeNodes.getLength()];
-			Map<Integer, DBHostConfig[]> readHostsMap = new HashMap<Integer, DBHostConfig[]>(2);
+			Map<Integer, DBHostConfig[]> readHostsMap = new HashMap<>(2);
 			for (int w = 0; w < writeDbConfs.length; w++) {
 				Element writeNode = (Element) writeNodes.item(w);
-				writeDbConfs[w] = createDBHostConf(name, writeNode, dbType, dbDriver, maxCon, minCon,filters,logTime);
+				writeDbConfs[w] = createDBHostConf(name, writeNode,
+						dbType, dbDriver, maxCon, minCon,filters,logTime);
 				NodeList readNodes = writeNode.getElementsByTagName("readHost");
 				if (readNodes.getLength() != 0) {
 					DBHostConfig[] readDbConfs = new DBHostConfig[readNodes.getLength()];
 					for (int r = 0; r < readDbConfs.length; r++) {
 						Element readNode = (Element) readNodes.item(r);
-						readDbConfs[r] = createDBHostConf(name, readNode, dbType, dbDriver, maxCon, minCon,filters, logTime);
+						readDbConfs[r] = createDBHostConf(name, readNode,
+								dbType, dbDriver, maxCon, minCon,filters, logTime);
 					}
 					readHostsMap.put(w, readDbConfs);
 				}
@@ -655,7 +639,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 			hostConf.setFilters(filters);
 			hostConf.setLogTime(logTime);
 
-			dataHosts.put(hostConf.getName(), hostConf);
+			this.dataHosts.put(hostConf.getName(), hostConf);
 		}
 	}
 

@@ -43,6 +43,7 @@ import org.slf4j.*;
  * @author mycat
  */
 public final class NioAcceptor extends Thread  implements SocketAcceptor, AutoCloseable {
+
 	private static final Logger log = LoggerFactory.getLogger(NioAcceptor.class);
 
 	private final MycatServer server;

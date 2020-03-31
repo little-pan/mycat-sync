@@ -75,13 +75,31 @@ public class NioProcessorPool implements AutoCloseable {
 		return n;
 	}
 
-	public NioProcessor getNextProcessor() {
-        int i = this.nextProcessor.getAndIncrement();
-        if (i >= processors.length) {
-			this.nextProcessor.set(i = 0);
-        }
+	/** Acquire next an available processor.
+	 *
+	 * @return Available processor
+	 * @throws IllegalStateException No processor available
+	 */
+	public NioProcessor getNextProcessor() throws IllegalStateException {
+		int i = this.nextProcessor.getAndIncrement();
 
-        return this.processors[i];
+		if (i >= this.processors.length) {
+			this.nextProcessor.set(i = 0);
+		}
+        return getNextProcessor(i, 0);
+	}
+
+	private NioProcessor getNextProcessor(final int i, final int n) throws IllegalStateException {
+		if (n >= this.processors.length) {
+			throw new IllegalStateException("No processor available");
+		}
+
+		NioProcessor p = this.processors[i % this.processors.length];
+		if (p.isOpen()) {
+			return p;
+		} else {
+			return getNextProcessor(i + 1, n + 1);
+		}
 	}
 
 	@Override

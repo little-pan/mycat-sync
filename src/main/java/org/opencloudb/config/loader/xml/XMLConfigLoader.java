@@ -40,14 +40,14 @@ import org.opencloudb.config.model.UserConfig;
  */
 public class XMLConfigLoader implements ConfigLoader {
 
-    /** unmodifiable */
+    /** Unmodifiable */
     private final Map<String, DataHostConfig> dataHosts;
-    /** unmodifiable */
+    /** Unmodifiable */
     private final Map<String, DataNodeConfig> dataNodes;
-    /** unmodifiable */
+    /** Unmodifiable */
     private final Map<String, SchemaConfig> schemas;
     private final SystemConfig system;
-    /** unmodifiable */
+    /** Unmodifiable */
     private final Map<String, UserConfig> users;
     private final QuarantineConfig quarantine;
     private final ClusterConfig cluster;
