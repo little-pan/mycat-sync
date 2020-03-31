@@ -44,56 +44,22 @@ import org.slf4j.*;
  * @author wuzhih /modify by coder_czp/2015/11/2
  * 
  */
-public class DataMergeService implements Runnable {
+public class DataMergeService {
 
 	private static Logger log = LoggerFactory.getLogger(DataMergeService.class);
 
-	static final int BATCH_SIZE = Integer.getInteger("org.opencloudb.mpp.batchSize", 1000);
-
-	// 保存包和节点的关系
-	static class PackWrapper {
-		public final byte[] data;
-		public final String node;
-
-		public PackWrapper(String node, byte[] data) {
-			this.node = node;
-			this.data = data;
-		}
-
-		private PackWrapper() {
-			this(null, null);
-		}
-	}
-
-	static final PackWrapper END_FLAG_PACK = new PackWrapper();
-
-	private final int batchSize;
-	private int batchRows;
 	private int fieldCount;
 	private RouteResultset rrs;
 	private RowSorter sorter;
 	private RowDataPacketGrouper grouper;
 	private MultiNodeQueryHandler multiQueryHandler;
-	private List<RowDataPacket> result = new ArrayList<>();
-	private Queue<PackWrapper> packs = new LinkedList<>();
+	private List<RowDataPacket> result = new LinkedList<>();
 	// canDiscard: node -> true (subsequent rows can be discarded when only have "ORDER BY")
 	private Map<String, Boolean> canDiscard = new HashMap<>();
 
 	public DataMergeService(MultiNodeQueryHandler handler, RouteResultset rrs) {
-		this(handler, rrs, BATCH_SIZE);
-	}
-
-	public DataMergeService(MultiNodeQueryHandler handler, RouteResultset rrs, int batchSize) {
-		if (batchSize <= 0) {
-			throw new IllegalArgumentException("'batchSize' is smaller than 1: " + batchSize);
-		}
 		this.rrs = rrs;
 		this.multiQueryHandler = handler;
-		this.batchSize = batchSize;
-	}
-
-	public boolean canRun() {
-		return this.batchRows >= this.batchSize;
 	}
 
 	public RouteResultset getRrs() {
@@ -101,7 +67,22 @@ public class DataMergeService implements Runnable {
 	}
 
 	public void outputMergeResult(ServerSession session, byte[] eof) {
-		packs.add(END_FLAG_PACK);
+		ServerConnection source = session.getSource();
+		int warningCount = 0;
+		List<RowDataPacket> packets;
+		byte[] array;
+
+		EOFPacket eofp = new EOFPacket();
+		ByteBuffer eofb = ByteBuffer.allocate(9);
+		BufferUtil.writeUB3(eofb, eofp.calcPacketSize());
+		eofb.put(eofp.packetId);
+		eofb.put(eofp.fieldCount);
+		BufferUtil.writeUB2(eofb, warningCount);
+		BufferUtil.writeUB2(eofb, eofp.status);
+		array = eofb.array();
+		packets = getResults(array);
+
+		this.multiQueryHandler.outputMergeResult(source, array, packets);
 	}
 
 	public void onRowMetaData(Map<String, ColMeta> columnToIndex, int fieldCount) {
@@ -175,7 +156,7 @@ public class DataMergeService implements Runnable {
 	}
 
 	/**
-	 * Process new record (mysql binary data), if data can output to client return true
+	 * Process new record (mysql binary data), if sequent data can be discarded return true
 	 * 
 	 * @param dataNode
 	 *            DN's name (data from this dataNode)
@@ -195,15 +176,22 @@ public class DataMergeService implements Runnable {
 			return true;
 		}
 
-		PackWrapper data = new PackWrapper(dataNode, rowData);
-		this.packs.add(data);
-		++this.batchRows;
+		RowDataPacket row = new RowDataPacket(this.fieldCount);
+		row.read(rowData);
+		if (this.grouper != null) {
+			this.grouper.addRow(row);
+		} else if (this.sorter != null) {
+			if (!this.sorter.addRow(row)) {
+				this.canDiscard.put(dataNode, true);
+			}
+		} else {
+			this.result.add(row);
+		}
 
 		return false;
 	}
 
-	private static int[] toColumnIndex(String[] columns,
-			Map<String, ColMeta> toIndexMap) {
+	private static int[] toColumnIndex(String[] columns, Map<String, ColMeta> toIndexMap) {
 		int[] result = new int[columns.length];
 		ColMeta curColMeta;
 		for (int i = 0; i < columns.length; i++) {
@@ -223,53 +211,8 @@ public class DataMergeService implements Runnable {
 	 */
 	public void clear() {
 		this.result.clear();
-		this.packs.clear();
 		this.grouper = null;
 		this.sorter = null;
-	}
-
-	@Override
-	public void run() {
-		log.debug("Merge-start: batchRows {}, batchSize {}", this.batchRows, this.batchSize);
-		for (; !Thread.interrupted(); ) {
-			PackWrapper pack = this.packs.poll();
-			if (pack == null) {
-				// Wait next row arrived for next batch operation..
-				log.debug("Merge-pause: wait more rows arrived for next batch operation");
-				this.batchRows = 0;
-				return;
-			}
-			if (pack == END_FLAG_PACK) {
-				log.debug("Merge-over: batchRows {}, batchSize {}", this.batchRows, this.batchSize);
-				break;
-			}
-			RowDataPacket row = new RowDataPacket(fieldCount);
-			row.read(pack.data);
-			if (this.grouper != null) {
-				this.grouper.addRow(row);
-			} else if (this.sorter != null) {
-				if (!this.sorter.addRow(row)) {
-					this.canDiscard.put(pack.node, true);
-				}
-			} else {
-				this.result.add(row);
-			}
-			--this.batchRows;
-		}
-
-		ServerConnection source = this.multiQueryHandler.getSession().getSource();
-		int warningCount = 0;
-		EOFPacket eofp = new EOFPacket();
-		ByteBuffer eof = ByteBuffer.allocate(9);
-		BufferUtil.writeUB3(eof, eofp.calcPacketSize());
-		eof.put(eofp.packetId);
-		eof.put(eofp.fieldCount);
-		BufferUtil.writeUB2(eof, warningCount);
-		BufferUtil.writeUB2(eof, eofp.status);
-		byte[] array = eof.array();
-		List<RowDataPacket> packets = getResults(array);
-
-		this.multiQueryHandler.outputMergeResult(source, array, packets);
 	}
 
 	/**

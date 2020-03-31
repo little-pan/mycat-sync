@@ -222,16 +222,15 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 				if (this.autocommit) {// clear all connections
 					this.session.releaseConnections();
 				}
-				if (this.isFail() || session.closed()) {
+				if (isFail() || this.session.closed()) {
 					tryErrorFinished(true);
 					return;
 				}
 			}
 			if (this.dataMergeSvr != null) {
 				try {
-					this.dataMergeSvr.outputMergeResult(this.session, eof);
 					log.debug("Multi-nq: signal output merge result");
-					this.dataMergeSvr.run();
+					this.dataMergeSvr.outputMergeResult(this.session, eof);
 				} catch (Exception | OutOfMemoryError e) {
 					handleDataProcessFatal(e);
 				}
@@ -403,11 +402,6 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 			if (this.dataMergeSvr != null) {
 				if (this.dataMergeSvr.onNewRecord(dataNode, row)) {
 					this.isClosedByDiscard = true;
-					log.debug("Multi-nq: signal closed by discard");
-					this.dataMergeSvr.run();
-				} else if (this.dataMergeSvr.canRun()) {
-					log.debug("Multi-nq: signal batch rows reached");
-					this.dataMergeSvr.run();
 				}
 			} else {
 				// cache primaryKey-> dataNode
