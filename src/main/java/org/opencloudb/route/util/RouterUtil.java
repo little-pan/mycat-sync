@@ -433,26 +433,27 @@ public class RouterUtil {
 	                                          String origSQL, ServerConnection sc) {
 		// check if origSQL is with global sequence
 		// @micmiu it is just a simple judgement
-		if (origSQL.indexOf(" MYCATSEQ_") != -1) {
-			processSQL(sc,schema,origSQL,sqlType);
+		if (origSQL.contains(" MYCATSEQ_")) {
+			processSQL(sc, schema, origSQL, sqlType);
 			return true;
 		}
+
 		return false;
 	}
 
-	public static void processSQL(ServerConnection sc,SchemaConfig schema,String sql,int sqlType){
+	public static void processSQL(ServerConnection sc, SchemaConfig schema, String sql, int sqlType) {
 		MycatServer server = MycatServer.getContextServer();
-		server.getSequnceProcessor().addNewSql(new SessionSQLPair(sc.getSession(), schema, sql, sqlType));
+		server.getSequnceProcessor().executeSQL(new SessionSQLPair(sc.getSession(), schema, sql, sqlType));
 	}
 
 	public static boolean processInsert(SchemaConfig schema, int sqlType,
 	                                    String origSQL, ServerConnection sc) throws SQLNonTransientException {
 		String tableName = StringUtil.getTableName(origSQL).toUpperCase();
 		TableConfig tableConfig = schema.getTables().get(tableName);
-		boolean processedInsert=false;
+		boolean processedInsert = false;
 		if (null != tableConfig && tableConfig.isAutoIncrement()) {
 			String primaryKey = tableConfig.getPrimaryKey();
-			processedInsert=processInsert(sc,schema,sqlType,origSQL,tableName,primaryKey);
+			processedInsert = processInsert(sc, schema, sqlType, origSQL, tableName, primaryKey);
 		}
 		return processedInsert;
 	}
@@ -460,7 +461,7 @@ public class RouterUtil {
 	private static boolean isPKInFields(String origSQL,String primaryKey,int firstLeftBracketIndex,int firstRightBracketIndex){
 		
 		if (primaryKey == null) {
-			throw new RuntimeException("please make sure the primaryKey's config is not null in schemal.xml");
+			throw new RuntimeException("please make sure the primaryKey's config is not null in schema.xml");
 		}
 		
 		boolean isPrimaryKeyInFields = false;
@@ -485,7 +486,8 @@ public class RouterUtil {
 	}
 
 	public static boolean processInsert(ServerConnection sc,SchemaConfig schema,
-			int sqlType,String origSQL,String tableName,String primaryKey) throws SQLNonTransientException {
+										int sqlType,String origSQL,String tableName,String primaryKey)
+			throws SQLNonTransientException {
 
 		int firstLeftBracketIndex = origSQL.indexOf("(");
 		int firstRightBracketIndex = origSQL.indexOf(")");
@@ -493,25 +495,26 @@ public class RouterUtil {
 		int valuesIndex = upperSql.indexOf("VALUES");
 		int selectIndex = upperSql.indexOf("SELECT");
 		int fromIndex = upperSql.indexOf("FROM");
-		if(firstLeftBracketIndex < 0) {//insert into table1 select * from table2
-			String msg = "invalid sql:" + origSQL;
+		if(firstLeftBracketIndex < 0) {// insert into table1 select * from table2
+			String msg = "Invalid sql: " + origSQL;
 			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 
-		if(selectIndex > 0 &&fromIndex>0&&selectIndex>firstRightBracketIndex&&valuesIndex<0) {
-			String msg = "multi insert not provided" ;
+		if(selectIndex > 0 && fromIndex > 0 && selectIndex > firstRightBracketIndex && valuesIndex < 0) {
+			String msg = "Multi insert not provided" ;
 			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 
 		if(valuesIndex + "VALUES".length() <= firstLeftBracketIndex) {
-			throw new SQLSyntaxErrorException("insert must provide ColumnList");
+			throw new SQLSyntaxErrorException("Insert must provide ColumnList");
 		}
 
-		boolean processedInsert=!isPKInFields(origSQL,primaryKey,firstLeftBracketIndex,firstRightBracketIndex);
+		boolean processedInsert = !isPKInFields(origSQL,primaryKey,firstLeftBracketIndex,firstRightBracketIndex);
 		if(processedInsert){
-			processInsert(sc,schema,sqlType,origSQL,tableName,primaryKey,firstLeftBracketIndex+1,origSQL.indexOf('(',firstRightBracketIndex)+1);
+			processInsert(sc, schema, sqlType, origSQL, tableName, primaryKey,
+					firstLeftBracketIndex+1, origSQL.indexOf('(', firstRightBracketIndex)+1);
 		}
 		return processedInsert;
 	}

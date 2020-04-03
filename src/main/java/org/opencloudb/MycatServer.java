@@ -43,7 +43,7 @@ import org.opencloudb.config.util.ConfigException;
 import org.opencloudb.interceptor.SQLInterceptor;
 import org.opencloudb.manager.ManagerConnectionFactory;
 import org.opencloudb.net.*;
-import org.opencloudb.route.MyCATSequnceProcessor;
+import org.opencloudb.route.MyCATSequenceProcessor;
 import org.opencloudb.route.RouteService;
 import org.opencloudb.server.ServerConnectionFactory;
 import org.opencloudb.statistic.SQLRecorder;
@@ -65,7 +65,7 @@ public class MycatServer {
 	private final RouteService routerService;
 	private final CacheService cacheService;
 	private Properties dnIndexProperties;
-	private final MyCATSequnceProcessor sequnceProcessor = new MyCATSequnceProcessor();
+	private final MyCATSequenceProcessor sequnceProcessor = new MyCATSequenceProcessor();
 	private final DynaClassLoader catletClassLoader;
 	private final SQLInterceptor sqlInterceptor;
 	private BufferPool bufferPool;
@@ -459,7 +459,7 @@ public class MycatServer {
         return catletClassLoader;
     }
 
-    public MyCATSequnceProcessor getSequnceProcessor() {
+    public MyCATSequenceProcessor getSequnceProcessor() {
         return sequnceProcessor;
     }
 

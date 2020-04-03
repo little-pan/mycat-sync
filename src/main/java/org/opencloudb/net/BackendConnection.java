@@ -104,13 +104,9 @@ public abstract class BackendConnection extends AbstractConnection implements Cl
 	public void release() {
 		// Deregister from current processor, so that this connection can run
 		// in other processor synchronously at next time
-		if (this.processor != NioProcessor.ensureRunInProcessor()) {
-			throw new IllegalStateException("Fatal: release the connection in another processor or thread");
-		}
-		this.processor = null;
-		this.processKey.attach(null);
-		this.processKey.cancel();
+		this.processor.cancel(this.processKey);
 		this.processKey = null;
+		this.processor = null;
 	}
 
 	@Override

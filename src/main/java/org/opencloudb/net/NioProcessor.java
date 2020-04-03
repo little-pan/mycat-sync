@@ -109,19 +109,24 @@ public final class NioProcessor extends AbstractProcessor {
 		return this.server;
 	}
 
-	public void execute(Runnable task) {
+	public boolean execute(Runnable task) {
 		if (currentProcessor() == this) {
 			task.run();
+			return true;
 		} else {
-			executeLater(task);
+			return executeLater(task);
 		}
 	}
 
-	public void executeLater(Runnable task) {
+	public boolean executeLater(Runnable task) {
+		if (!this.isOpen()) {
+			return false;
+		}
 		this.taskQueue.offer(task);
 		this.queueSize.incrementAndGet();
 		this.taskCount++;
 		this.selector.wakeup();
+		return true;
 	}
 
 	public static void runInProcessor(Runnable task) {
@@ -394,7 +399,26 @@ public final class NioProcessor extends AbstractProcessor {
 		execute(postTask);
 	}
 
-	class AcceptTask implements Runnable {
+    public void cancel(SelectionKey processKey) {
+		if (processKey == null || !this.isOpen()) {
+			return;
+		}
+		if (this != currentProcessor()) {
+			throw new IllegalStateException("Current thread not this processor thread");
+		}
+		if (this.selector != processKey.selector()) {
+			throw new IllegalArgumentException("The selector of given processKey not this selector");
+		}
+		processKey.attach(null);
+		processKey.cancel();
+		try {
+			this.selector.selectNow();
+		} catch (IOException e) {
+			throw new IllegalStateException("Execute selectNow() failed", e);
+		}
+	}
+
+    class AcceptTask implements Runnable {
 
 		final AbstractConnection con;
 

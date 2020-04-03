@@ -2,8 +2,10 @@ package org.opencloudb.sequence.handler;
 
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.util.ConfigException;
+import org.opencloudb.util.Callback;
 import org.opencloudb.util.IoUtil;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
@@ -13,34 +15,51 @@ public class IncrSequenceTimeHandler implements SequenceHandler {
 	private static final String SEQUENCE_DB_PROPS = "sequence_time_conf.properties";
 	private static final IncrSequenceTimeHandler instance = new IncrSequenceTimeHandler();
 
-	private static IdWorker worker = new IdWorker(1,1);
-
-
 	public static IncrSequenceTimeHandler getInstance() {
 		return IncrSequenceTimeHandler.instance;
 	}
 
-	public IncrSequenceTimeHandler() {
-		load();
+	private final String propsFile;
+	private final boolean inConfigPath;
+
+	private IdWorker worker;
+
+	private IncrSequenceTimeHandler() {
+		this.propsFile = SEQUENCE_DB_PROPS;
+		this.inConfigPath = true;
 	}
 
-	public void load(){
+	public IncrSequenceTimeHandler(String propsFile) {
+		this(propsFile, false);
+	}
+
+	public IncrSequenceTimeHandler(String propsFile, boolean load) {
+		this.propsFile = propsFile;
+		this.inConfigPath = false;
+		if (load) {
+			load();
+		}
+	}
+
+	public IncrSequenceTimeHandler load() {
 		// load sequence properties
-		Properties props = loadProps(SEQUENCE_DB_PROPS);
+		Properties props = loadProps(this.propsFile, this.inConfigPath);
 		long workid = Long.parseLong(props.getProperty("WORKID"));
 		long dataCenterId = Long.parseLong(props.getProperty("DATAACENTERID"));
 
-		worker = new IdWorker(workid,dataCenterId);
+		this.worker = new IdWorker(workid, dataCenterId);
+		return this;
 	}
 
-	private Properties loadProps(String propsFile){
+	private Properties loadProps(String propsFile, boolean configPath){
 		Properties props = new Properties();
-		InputStream in = SystemConfig.getConfigFileStream(propsFile);
-
-		if (in == null) {
-			throw new ConfigException("Time sequence properties file not found: " + propsFile);
-		}
+		InputStream in = null;
 		try {
+			if (configPath) {
+				in = SystemConfig.getConfigFileStream(propsFile);
+			} else {
+				in = new FileInputStream(propsFile);
+			}
 			props.load(in);
 		} catch (IOException e) {
 			throw new ConfigException("Fatal: load file '" + propsFile + "'", e);
@@ -52,8 +71,13 @@ public class IncrSequenceTimeHandler implements SequenceHandler {
 	}
 
 	@Override
-	public long nextId(String prefixName) {
-		return worker.nextId();
+	public void nextId(String prefixName, Callback<Long> seqCallback) {
+		if (this.worker == null) {
+			throw new IllegalStateException("Not loaded");
+		}
+
+		long seq = this.worker.nextId();
+		seqCallback.call(seq, null);
 	}
 
 	/**
@@ -102,11 +126,8 @@ public class IncrSequenceTimeHandler implements SequenceHandler {
 		public synchronized long nextId() {
 			long timestamp = timeGen();
 			if (timestamp < lastTimestamp) {
-			try {
-				throw new Exception("Clock moved backwards.  Refusing to generate id for "+ (lastTimestamp - timestamp) + " milliseconds");
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
+				throw new IllegalStateException("Clock moved backwards. Refusing to generate id for "
+						+ (lastTimestamp - timestamp) + " milliseconds");
 			}
 
 			if (lastTimestamp == timestamp) {

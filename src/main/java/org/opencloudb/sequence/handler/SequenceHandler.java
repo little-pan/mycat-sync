@@ -23,6 +23,8 @@
  */
 package org.opencloudb.sequence.handler;
 
+import org.opencloudb.util.Callback;
+
 /**
  * 
  * @author <a href="http://www.micmiu.com">Michael</a>
@@ -32,6 +34,6 @@ package org.opencloudb.sequence.handler;
  */
 public interface SequenceHandler {
 
-	long nextId(String prefixName);
+	void nextId(String prefixName, Callback<Long> seqCallback);
 
 }

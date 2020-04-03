@@ -23,6 +23,7 @@
  */
 package org.opencloudb.sequence.handler;
 
+import org.opencloudb.util.Callback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,27 +90,33 @@ public class SnowflakeIdSequenceHandler implements SequenceHandler {
 	}
 
 	@Override
-	public synchronized long nextId(String prefixName) {
-		long timestamp = this.timeGen();
-		if (timestamp < this.lastTimestamp) {
-			log.error("clock is moving backwards.  Rejecting requests until {}.", lastTimestamp);
-			String s = String.format("Clock moved backwards.  Refusing to generate id for %d milliseconds",
-					(this.lastTimestamp - timestamp));
-			throw new RuntimeException(s);
-		}
-		if (this.lastTimestamp == timestamp) {
-			this.sequence = this.sequence + 1 & this.sequenceMask;
-			if (this.sequence == 0) {
-				timestamp = this.tilNextMillis(this.lastTimestamp);
+	public void nextId(String prefixName, Callback<Long> seqCallback) {
+		final long seq;
+
+		synchronized (this) {
+			long timestamp = this.timeGen();
+			if (timestamp < this.lastTimestamp) {
+				log.error("clock is moving backwards. Rejecting requests until {}.", this.lastTimestamp);
+				String s = String.format("Clock moved backwards.  Refusing to generate id for %d milliseconds",
+						(this.lastTimestamp - timestamp));
+				throw new IllegalStateException(s);
 			}
-		} else {
-			this.sequence = 0;
+			if (this.lastTimestamp == timestamp) {
+				this.sequence = this.sequence + 1 & this.sequenceMask;
+				if (this.sequence == 0) {
+					timestamp = this.tilNextMillis(this.lastTimestamp);
+				}
+			} else {
+				this.sequence = 0;
+			}
+
+			this.lastTimestamp = timestamp;
+			seq = timestamp - this.twepoch << this.timestampLeftShift
+					| this.datacenterId << this.datacenterIdShift
+					| this.workerId << this.workerIdShift | this.sequence;
 		}
 
-		this.lastTimestamp = timestamp;
-		return timestamp - this.twepoch << this.timestampLeftShift
-				| this.datacenterId << this.datacenterIdShift
-				| this.workerId << this.workerIdShift | this.sequence;
+		seqCallback.call(seq, null);
 	}
 
 	private long tilNextMillis(long lastTimestamp) {
@@ -122,12 +129,6 @@ public class SnowflakeIdSequenceHandler implements SequenceHandler {
 
 	private long timeGen() {
 		return System.currentTimeMillis();
-	}
-
-	public static void main(String[] args) {
-		SnowflakeIdSequenceHandler gen = new SnowflakeIdSequenceHandler(16);
-		System.out.println("nextId = " + gen.nextId(null));
-
 	}
 
 }
