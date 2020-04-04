@@ -122,7 +122,6 @@ public abstract class AbstractResponseHandler implements ResponseHandler {
 
     /**
      * Handle the connection close event when backend connection closed.
-     * Note: this method may be called by timer executor.
      */
     @Override
     public void connectionClose(BackendConnection conn, String reason) {

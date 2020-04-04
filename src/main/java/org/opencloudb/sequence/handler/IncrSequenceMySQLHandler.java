@@ -22,6 +22,7 @@ import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.server.parser.ServerParse;
 import org.opencloudb.util.Callback;
+import org.opencloudb.util.ExceptionUtil;
 import org.opencloudb.util.IoUtil;
 import org.slf4j.*;
 
@@ -149,6 +150,7 @@ class SequenceVal {
 	private final Queue<WaitingItem> waitQueue = new LinkedBlockingQueue<>();
 	private final AtomicBoolean fetching = new AtomicBoolean();
 	private Callback<Long> fetchCallback;
+	public BackendConnection fetchConn;
 	public String lastError;
 	public String dbReturnVal;
 
@@ -170,6 +172,10 @@ class SequenceVal {
 		} while (!this.curVal.compareAndSet(next - 1, next));
 
 		return next;
+	}
+
+	boolean isFetching() {
+		return this.fetching.get();
 	}
 
 	void fetch(NioProcessor processor, final Callback<Long> seqCallback) {
@@ -194,6 +200,7 @@ class SequenceVal {
 		try {
 			fetcher = this.seqHandler.mysqlSeqFetcher;
 			this.fetchCallback = seqCallback;
+			this.fetchConn = null;
 			this.lastError = null;
 			this.dbReturnVal = null;
 			fetcher.execute(this);
@@ -251,11 +258,12 @@ class SequenceVal {
 		try {
 			// Callback itself
 			if (this.lastError != null && this.fetchCallback != null) {
-				Exception cause = new ConfigException(this.lastError);
+				Exception cause = new Exception(this.lastError);
 				this.fetchCallback.call(null, cause);
 			}
 		} finally {
 			this.fetchCallback = null;
+			this.fetchConn = null;
 			this.lastError = null;
 			this.fetching.set(false);
 		}
@@ -301,33 +309,34 @@ class FetchMySQLSequenceHandler extends AbstractResponseHandler {
 	}
 
 	@Override
-	public void connectionAcquired(BackendConnection conn) {
-		conn.setResponseHandler(this);
+	public void connectionAcquired(BackendConnection c) {
+		SequenceVal seqVal = (SequenceVal)c.getAttachment();
+		c.setResponseHandler(this);
 		try {
-			SequenceVal seqVal = (SequenceVal)conn.getAttachment();
-			conn.query(seqVal.sql);
+			seqVal.fetchConn = c;
+			c.query(seqVal.sql);
 		} catch (Throwable cause) {
-			executeException(conn, cause);
+			executeException(c, cause);
 		}
 	}
 
 	@Override
-	public void connectionError(Throwable e, BackendConnection conn) {
+	public void connectionError(Throwable e, BackendConnection c) {
 		log.debug("Connection error", e);
-		executeException(conn, e);
+		executeException(c, e);
 	}
 
 	@Override
-	public void okResponse(byte[] ok, BackendConnection conn) {
-		if (conn.syncAndExecute()) {
+	public void okResponse(byte[] ok, BackendConnection c) {
+		if (c.syncAndExecute()) {
 			log.debug("Sync and execute: ok");
-			conn.release();
+			c.release();
 		}
 	}
 
 	@Override
-	public void errorResponse(byte[] data, BackendConnection conn) {
-		SequenceVal seqVal = ((SequenceVal) conn.getAttachment());
+	public void errorResponse(byte[] data, BackendConnection c) {
+		SequenceVal seqVal = (SequenceVal) c.getAttachment();
 		try {
 			ErrorPacket err = new ErrorPacket();
 			err.read(data);
@@ -335,7 +344,7 @@ class FetchMySQLSequenceHandler extends AbstractResponseHandler {
 			seqVal.lastError = errMsg;
 			log.warn("Error response: errno {}, errmsg '{}'", err.errno, errMsg);
 		} finally {
-			conn.release();
+			c.release();
 		}
 	}
 
@@ -367,7 +376,7 @@ class FetchMySQLSequenceHandler extends AbstractResponseHandler {
 	public void rowEofResponse(byte[] eof, BackendConnection c) {
 		boolean released = false;
 		try {
-			SequenceVal seqVal = ((SequenceVal) c.getAttachment());
+			SequenceVal seqVal = (SequenceVal) c.getAttachment();
 			c.release();
 			released = true;
 			seqVal.fetchSuccess();
@@ -378,12 +387,23 @@ class FetchMySQLSequenceHandler extends AbstractResponseHandler {
 		}
 	}
 
+	@Override
+	public void connectionClose(BackendConnection c, String reason) {
+		SequenceVal seqVal = (SequenceVal) c.getAttachment();
+
+		// Finish fetching.. if closed and fetching
+		if (seqVal.isFetching() && seqVal.fetchConn == c) {
+			seqVal.lastError = reason;
+			seqVal.fetchComplete();
+		}
+	}
+
 	private void executeException(BackendConnection c, Throwable e) {
 		String errMgs = "Fetch sequence error";
 		boolean closed = false;
 		try {
-			SequenceVal seqVal = ((SequenceVal) c.getAttachment());
-			errMgs += ": " + e.toString();
+			SequenceVal seqVal = (SequenceVal) c.getAttachment();
+			errMgs += ": " + ExceptionUtil.getClientMessage(e);
 			c.close(errMgs);
 			closed = true;
 			seqVal.lastError = errMgs;
