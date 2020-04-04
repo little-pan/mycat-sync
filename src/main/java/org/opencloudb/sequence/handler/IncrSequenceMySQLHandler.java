@@ -5,6 +5,8 @@ import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.opencloudb.MycatConfig;
@@ -113,12 +115,12 @@ public class IncrSequenceMySQLHandler implements SequenceHandler {
 	}
 
 	void getNextValidSeqVal(SequenceVal seqVal, Callback<Long> seqCallback) {
-		final long nextVal = seqVal.nextValue();
-		if (seqVal.isNextValValid(nextVal)) {
+		long nextVal = seqVal.nextValue();
+
+		if (nextVal != -1L) {
 			seqCallback.call(nextVal, null);
 			return;
 		}
-
 		getSeqValueFromDB(seqVal, seqCallback);
 	}
 
@@ -144,11 +146,11 @@ class SequenceVal {
 	public final AtomicLong curVal = new AtomicLong();
 	public volatile long maxSegValue;
 
-	private final Queue<WaitingItem> waitingQueue = new LinkedList<>();
+	private final Queue<WaitingItem> waitQueue = new LinkedBlockingQueue<>();
+	private final AtomicBoolean fetching = new AtomicBoolean();
 	private Callback<Long> fetchCallback;
-	private boolean fetching;
 	public String lastError;
-	public String dbReturnVal = null;
+	public String dbReturnVal;
 
 	public SequenceVal(String seqName, String dataNode, IncrSequenceMySQLHandler seqHandler) {
 		this.seqName = seqName;
@@ -157,40 +159,42 @@ class SequenceVal {
 		this.seqHandler = seqHandler;
 	}
 
-	public boolean isNextValValid(long nextVal) {
-		return (nextVal < this.maxSegValue);
-	}
-
 	public long nextValue() {
-		return this.curVal.incrementAndGet();
+		long next;
+
+		do {
+			next = this.curVal.get() + 1;
+			if (next >= this.maxSegValue) {
+				return -1L;
+			}
+		} while (!this.curVal.compareAndSet(next - 1, next));
+
+		return next;
 	}
 
 	void fetch(NioProcessor processor, final Callback<Long> seqCallback) {
 		final SequenceVal self = this;
 
-		synchronized (this) {
-			if (this.fetching) {
-				log.debug("State: waiting sequence '{}' fetched", this.seqName);
-				Runnable seqTask = new Runnable() {
-					@Override
-					public void run() {
-						seqHandler.getNextValidSeqVal(self, seqCallback);
-					}
-				};
-				WaitingItem item = new WaitingItem(processor, seqCallback, seqTask);
-				this.waitingQueue.offer(item);
-				return;
-			}
-			log.debug("State: fetching sequence '{}'", this.seqName);
-			this.fetching = true;
+		if (!this.fetching.compareAndSet(false, true)) {
+			log.debug("State: waiting sequence '{}' fetched", this.seqName);
+			Runnable seqTask = new Runnable() {
+				@Override
+				public void run() {
+					seqHandler.getNextValidSeqVal(self, seqCallback);
+				}
+			};
+			WaitingItem item = new WaitingItem(processor, seqCallback, seqTask);
+			this.waitQueue.offer(item);
+			return;
 		}
+		log.debug("State: fetching sequence '{}'", this.seqName);
 
 		FetchMySQLSequenceHandler fetcher;
 		boolean failed = true;
 		try {
 			fetcher = this.seqHandler.mysqlSeqFetcher;
-			this.lastError = null;
 			this.fetchCallback = seqCallback;
+			this.lastError = null;
 			this.dbReturnVal = null;
 			fetcher.execute(this);
 			failed = false;
@@ -212,11 +216,16 @@ class SequenceVal {
 				called = true;
 				this.fetchCallback.call(null, cause);
 			} else {
-				final String[] items = this.dbReturnVal.split(",");
+				String[] items = this.dbReturnVal.split(",");
 				final long curVal = Long.parseLong(items[0]);
 				final int span = Integer.parseInt(items[1]);
-				if (span <= 0) {
-					String s = "Sequence '"+this.seqName+"' increment less than 1 in db table";
+				if (curVal < 0 || span <= 0) {
+					final String s;
+					if (curVal < 0) {
+						s = "Sequence '"+this.seqName+"' current_value less than 0 in db table";
+					} else {
+						s = "Sequence '"+this.seqName+"' increment less than 1 in db table";
+					}
 					Exception cause = new ConfigException(s);
 					called = true;
 					this.fetchCallback.call(null, cause);
@@ -236,32 +245,29 @@ class SequenceVal {
 	}
 
 	void fetchComplete() {
-		log.debug("State: fetch sequence '{}' complete, last error '{}'",
+		log.debug("State: fetch sequence '{}' complete, last error - {}",
 				this.seqName, this.lastError);
 
-		synchronized (this) {
-			try {
-				// Wakeup those waiting sequence requests
-				for (;;) {
-					WaitingItem item = this.waitingQueue.poll();
-					if (item == null) {
-						break;
-					}
-					// Use "executeLater()" instead of "execute()" for avoiding
-					// the endless loop issue
-					item.processor.executeLater(item.seqTask);
-				}
-				// Callback itself
-				if (this.lastError != null && this.fetchCallback != null) {
-					Exception cause = new ConfigException(this.lastError);
-					this.fetchCallback.call(null, cause);
-				}
-			} finally {
-				this.lastError = null;
-				this.fetchCallback = null;
-				this.fetching = false;
+		try {
+			// Callback itself
+			if (this.lastError != null && this.fetchCallback != null) {
+				Exception cause = new ConfigException(this.lastError);
+				this.fetchCallback.call(null, cause);
 			}
-		} // sync
+		} finally {
+			this.fetchCallback = null;
+			this.lastError = null;
+			this.fetching.set(false);
+		}
+
+		// Wakeup those waiting sequence requests
+		for (; !this.fetching.get(); ) {
+			WaitingItem item = this.waitQueue.poll();
+			if (item == null) {
+				break;
+			}
+			item.processor.execute(item.seqTask);
+		}
 	}
 
 	static class WaitingItem {
