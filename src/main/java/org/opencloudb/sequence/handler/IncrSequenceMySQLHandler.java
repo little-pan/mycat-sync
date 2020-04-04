@@ -112,9 +112,9 @@ public class IncrSequenceMySQLHandler implements SequenceHandler {
 	}
 
 	void getNextValidSeqVal(SequenceVal seqVal, Callback<Long> seqCallback) {
-		final Long nexVal = seqVal.nextValue();
-		if (seqVal.isNextValValid(nexVal)) {
-			seqCallback.call(nexVal, null);
+		final long nextVal = seqVal.nextValue();
+		if (seqVal.isNextValValid(nextVal)) {
+			seqCallback.call(nextVal, null);
 			return;
 		}
 
@@ -156,8 +156,8 @@ class SequenceVal {
 		this.seqHandler = seqHandler;
 	}
 
-	public boolean isNextValValid(Long nexVal) {
-		return (nexVal < this.maxSegValue);
+	public boolean isNextValValid(long nextVal) {
+		return (nextVal < this.maxSegValue);
 	}
 
 	public long nextValue() {
@@ -246,7 +246,9 @@ class SequenceVal {
 					if (item == null) {
 						break;
 					}
-					item.processor.execute(item.seqTask);
+					// Use executeLater() instead of execute() for avoiding
+					// the endless loop issue
+					item.processor.executeLater(item.seqTask);
 				}
 				// Callback itself
 				if (this.lastError != null && this.fetchCallback != null) {

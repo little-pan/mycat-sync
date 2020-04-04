@@ -24,6 +24,7 @@
 package org.opencloudb.mysql.nio;
 
 import org.opencloudb.MycatServer;
+import org.opencloudb.backend.PhysicalDataSource;
 import org.opencloudb.config.Capabilities;
 import org.opencloudb.config.Isolations;
 import org.opencloudb.exception.UnknownTxIsolationException;
@@ -493,7 +494,10 @@ public class MySQLConnection extends BackendConnection {
 		this.statusSync = null;
 		this.modifiedSQLExecuted = false;
 		setResponseHandler(null);
-		getPool().releaseChannel(this);
+
+		// Last release this connection
+		PhysicalDataSource pool = getPool();
+		pool.releaseChannel(this);
 	}
 
 	@Override

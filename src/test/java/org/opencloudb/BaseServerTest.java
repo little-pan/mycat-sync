@@ -23,13 +23,19 @@
  */
 package org.opencloudb;
 
+import java.io.PrintStream;
 import java.sql.Connection;
+import java.util.Date;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 
 public abstract class BaseServerTest {
 
-    protected static final String USER_DIR = System.getProperty("user.dir");
+    static final String USER_DIR = System.getProperty("user.dir");
+    static final int DEBUG = 1, INFO = 2, ERROR = 3;
+    static final int LOG_LEVEL = Integer.getInteger("org.opencloudb.test.logLevel", DEBUG);
 
     protected static String JDBC_USER = "root";
     protected static String JDBC_PASSWORD = "123456";
@@ -39,16 +45,25 @@ public abstract class BaseServerTest {
 
     static {
         // First boot MyCat server
-        System.setProperty("MYCAT_HOME", USER_DIR);
-        System.setProperty("org.opencloudb.server.daemon", "true");
+        trySetProperty("MYCAT_HOME", USER_DIR);
+        trySetProperty("org.opencloudb.server.daemon", "true");
         String[] args = new String[]{};
         MycatStartup.main(args);
     }
 
     public void test() throws Exception {
         prepare();
-        doTest();
-        cleanup();
+
+        try {
+            final long a = System.currentTimeMillis();
+            String testCase = getClass().getSimpleName();
+            info(">> %s", testCase);
+            doTest();
+            final long b = System.currentTimeMillis();
+            info("<< %s: time %sms", testCase, b - a);
+        } finally {
+            cleanup();
+        }
     }
 
     protected void prepare() {}
@@ -61,7 +76,41 @@ public abstract class BaseServerTest {
         try {
             return DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD);
         } catch (SQLException e) {
-            throw new AssertionError("Can't JDBC connection", e);
+            throw new AssertionError("Can't get jdbc connection", e);
+        }
+    }
+
+    public static void info(String format, Object... args) {
+        if (INFO >= LOG_LEVEL) {
+            log(System.out, "[INFO ]", format, args);
+        }
+    }
+
+    public static void debug(String format, Object... args) {
+        if (DEBUG  >= LOG_LEVEL) {
+            log(System.out, "[DEBUG]", format, args);
+        }
+    }
+
+    public static void error(String format, Object... args) {
+        if (ERROR >= LOG_LEVEL) {
+            log(System.err, "[ERROR]", format, args);
+        }
+    }
+
+    protected static void log(PrintStream out, String level, String format, Object... args) {
+        DateFormat df = new SimpleDateFormat("HH:mm:ss.SSS");
+        String threadName = Thread.currentThread().getName();
+        String time = df.format(new Date());
+        String message = String.format(format, args);
+        // time + level + thread-name + message
+        message = String.format("%s%s[%s] %s", time, level, threadName, message);
+        out.println(message);
+    }
+
+    public static void trySetProperty(String name, String value) {
+        if (System.getProperty(name) == null) {
+            System.setProperty(name, value);
         }
     }
 
@@ -86,9 +135,21 @@ public abstract class BaseServerTest {
         }
     }
 
+    public static void assertNull(Object a) {
+        if (a != null) {
+            throw new AssertionError("Not null: " + a);
+        }
+    }
+
     public static void assertNull(Object a, String message) {
         if (a != null) {
             throw new AssertionError(message);
+        }
+    }
+
+    public static void assertNotNull(Object a) {
+        if (a == null) {
+            throw new AssertionError("Null");
         }
     }
 

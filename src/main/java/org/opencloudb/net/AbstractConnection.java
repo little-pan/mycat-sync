@@ -127,7 +127,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 		}
 		try {
 			int got = this.channel.read(buf);
-			this.onReadData(got);
+			onReadData(got);
 		} catch (IOException cause) {
 			wrapIoException(cause);
 		}
@@ -230,46 +230,52 @@ public abstract class AbstractConnection implements ClosableConnection {
 		for (;;) {
 			length = getPacketLength(buffer, offset);
 			if (length == -1) {
-				if (!buffer.hasRemaining()) {
-					checkReadBuffer(buffer, offset, position);
-				}
+				// Partial packet header has been read, or buffer full
+				arrangeReadBuffer(buffer, offset, position);
 				break;
 			}
 			if (position >= offset + length) {
 				buffer.position(offset);
 				byte[] data = new byte[length];
 				buffer.get(data, 0, length);
-				handle(data);
-
+				// Note: it's possible that another thread enters this method when this connection released into pool
+				// in handle() method and handle() complete or not. We must set buffer state first, then handle data!
+				// It's safe for this connection to call the handle() method last.
+				boolean noMore;
 				offset += length;
-				if (position == offset) {
-					if (this.readBufferOffset != 0) {
-                        this.readBufferOffset = 0;
-					}
+				if (noMore = (position == offset)) {
+					this.readBufferOffset = 0;
 					buffer.clear();
-					break;
 				} else {
-                    this.readBufferOffset = offset;
+					this.readBufferOffset = offset;
 					buffer.position(position);
-					continue;
 				}
+				handle(data);
+				if (noMore) {
+					break;
+				}
+				// next packet
 			} else {
-				if (!buffer.hasRemaining()) {
-					 checkReadBuffer(buffer, offset, position);
-				}
+				arrangeReadBuffer(buffer, offset, position);
 				break;
 			}
 		}
 	}
 
-	private ByteBuffer checkReadBuffer(ByteBuffer buffer, int offset, int position) {
+	private ByteBuffer arrangeReadBuffer(ByteBuffer buffer, int offset, int limit) {
+		if (buffer.hasRemaining()) {
+			return buffer;
+		}
+
+		// Handle full buffer: buffer.limit() == limit
 		if (offset == 0) {
-			if (buffer.capacity() >= maxPacketSize) {
-				throw new IllegalArgumentException("Packet size over the limit.");
+			if (limit >= this.maxPacketSize) {
+				String s = "Packet size over the max limit " + this.maxPacketSize;
+				wrapIoException(new IOException(s));
 			}
 			int size = buffer.capacity() << 1;
-			size = Math.min(size, maxPacketSize);
-			ByteBuffer newBuffer = allocate(size);
+			size = Math.min(size, this.maxPacketSize);
+			final ByteBuffer newBuffer = allocate(size);
 			buffer.position(offset);
 			newBuffer.put(buffer);
 			this.readBuffer = newBuffer;
@@ -278,7 +284,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 		} else {
 			buffer.position(offset);
 			buffer.compact();
-			readBufferOffset = 0;
+			this.readBufferOffset = 0;
 			return buffer;
 		}
 	}

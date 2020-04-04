@@ -30,7 +30,7 @@
 	<dataNode name="dn2" dataHost="localhost1" database="db2" />
 	<dataNode name="dn3" dataHost="localhost1" database="db3" />
 
-	<dataHost name="localhost1" maxCon="50" minCon="0" balance="0" writeType="0"
+	<dataHost name="localhost1" maxCon="250" minCon="0" balance="0" writeType="0"
 			  dbType="mysql" dbDriver="native" switchType="1"  slaveThreshold="100">
 		<heartbeat>select 1</heartbeat>
 		<!-- can have multi write hosts -->

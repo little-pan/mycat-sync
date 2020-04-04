@@ -36,19 +36,16 @@ public class AllServerTest extends BaseServerTest {
 
     @Override
     public void doTest() throws Exception {
-        final long s = System.currentTimeMillis();
-        int n = 0;
-        for (BaseServerTest test: this.tests) {
-            final long a = System.currentTimeMillis();
-            String testName = test.getClass().getSimpleName();
-            System.out.println(String.format(">> %s", testName));
-            test.test();
-            final long b = System.currentTimeMillis();
-            System.out.println(String.format("<< %s: time %sms", testName, b - a));
-            ++n;
+        int n = 0, total = this.tests.size();
+        try {
+            for (BaseServerTest test : this.tests) {
+                test.test();
+                ++n;
+            }
+        } finally {
+            String testCase = getClass().getSimpleName();
+            info("%s: tested cases %s, total cases %s", testCase, n, total);
         }
-        final long e = System.currentTimeMillis();
-        System.out.println(String.format("AllServerTest: test cases %s, time %sms", n, e - s));
     }
 
     @Override

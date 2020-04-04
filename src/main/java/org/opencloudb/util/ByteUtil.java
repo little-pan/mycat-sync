@@ -41,10 +41,10 @@ public class ByteUtil {
 		else if(b2 == null || b2.length == 0)
 			return 1;
 		boolean isNegetive = b1[0] == 45 || b2[0] == 45;
-		if (isNegetive == false && b1.length != b2.length) {
+		if (!isNegetive && b1.length != b2.length) {
 			return b1.length - b2.length;
 		}
-		int len = b1.length > b2.length ? b2.length : b1.length;
+		int len = Math.min(b1.length, b2.length);
 		int result = 0;
 		int index = -1;
 		for (int i = 0; i < len; i++) {
@@ -82,7 +82,7 @@ public class ByteUtil {
 		if (b1.length > 0 && b2.length <= 0) {
 			return b1;
 		}
-		int len = b1.length > b2.length ? b1.length : b2.length;
+		int len = Math.max(b1.length, b2.length);
 		for (int i = 0; i < len; i++) {
 			if (b1[i] != b2[i])
 				if (order == 1)
@@ -159,18 +159,10 @@ public class ByteUtil {
 
 	public static int getInt(byte[] bytes) {
 		return Integer.parseInt(new String(bytes));
-		// return (0xff & bytes[0]) | (0xff00 & (bytes[1] << 8)) | (0xff0000 &
-		// (bytes[2] << 16)) | (0xff000000 & (bytes[3] << 24));
 	}
 
 	public static long getLong(byte[] bytes) {
 		return Long.parseLong(new String(bytes));
-		// return(0xffL & (long)bytes[0]) | (0xff00L & ((long)bytes[1] << 8)) |
-		// (0xff0000L & ((long)bytes[2] << 16)) | (0xff000000L & ((long)bytes[3]
-		// << 24))
-		// | (0xff00000000L & ((long)bytes[4] << 32)) | (0xff0000000000L &
-		// ((long)bytes[5] << 40)) | (0xff000000000000L & ((long)bytes[6] <<
-		// 48)) | (0xff00000000000000L & ((long)bytes[7] << 56));
 	}
 
 	public static double getDouble(byte[] bytes) {
@@ -192,11 +184,12 @@ public class ByteUtil {
 	public static String getTimestmap(byte[] bytes) {
 		return new String(bytes);
 	}
-	
-	// 支持 byte dump
-	//---------------------------------------------------------------------
+
+	public static String dump(byte[] data) {
+		return dump(data,0, data.length);
+	}
+
 	public static String dump(byte[] data, int offset, int length) {
-		
 		StringBuilder sb = new StringBuilder();
 		sb.append(" byte dump log ");
 		sb.append(System.lineSeparator());
@@ -220,7 +213,7 @@ public class ByteUtil {
 	}
 
 	public static char print(byte b) {
-		return (b < 32 || b > 127) ? '.' : (char) b;
+		return b < 32 ? '.' : (char) b;
 	}
 
 }

@@ -24,6 +24,7 @@
 package org.opencloudb.mysql.nio;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.opencloudb.mysql.ByteUtil;
@@ -50,18 +51,22 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 	private static final int RESULT_STATUS_FIELD_EOF = 2;
 
 	private final MySQLConnection source;
-	private volatile int resultStatus;
-	private volatile byte[] header;
-	private volatile List<byte[]> fields;
+	private int resultStatus;
+	private byte[] header;
+	private List<byte[]> fields;
+
+	private byte[] lastData;
+	private List<Integer> statusTraces = new ArrayList<>();
 
 	/**
 	 * life cycle: one SQL execution
 	 */
-	private volatile ResponseHandler responseHandler;
+	private ResponseHandler responseHandler;
 
 	public MySQLConnectionHandler(MySQLConnection source) {
 		this.source = source;
 		this.resultStatus = RESULT_STATUS_INIT;
+		this.statusTraces.add(this.resultStatus);
 	}
 
 	public void connectionError(Throwable e) {
@@ -80,68 +85,87 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 	@Override
 	protected void offerDataError() {
 		resultStatus = RESULT_STATUS_INIT;
-		throw new RuntimeException("offer data error!");
+		throw new RuntimeException("Offer data error!");
 	}
 
 	@Override
 	protected void handleData(byte[] data) {
-		switch (resultStatus) {
+		switch (this.resultStatus) {
 		case RESULT_STATUS_INIT:
 			switch (data[4]) {
 			case OkPacket.FIELD_COUNT:
+				this.lastData = data;
 				handleOkPacket(data);
 				break;
 			case ErrorPacket.FIELD_COUNT:
+				this.lastData = data;
 				handleErrorPacket(data);
 				break;
 			case RequestFilePacket.FIELD_COUNT:
+				this.lastData = data;
 				handleRequestPacket(data);
 				break;
 			default:
-				resultStatus = RESULT_STATUS_HEADER;
-				header = data;
-				fields = new ArrayList<byte[]>((int) ByteUtil.readLength(data,
-						4));
+				this.resultStatus = RESULT_STATUS_HEADER;
+				this.statusTraces.add(this.resultStatus);
+				this.header = data;
+				boolean failed = true;
+				try {
+					this.fields = new ArrayList<>((int) ByteUtil.readLength(data, 4));
+					failed = false;
+				} finally {
+					if (failed) {
+						System.err.println("Backend " + this.source
+								+ ", data: " + org.opencloudb.util.ByteUtil.dump(data) + " - " + data
+								+ ", lastData: " + org.opencloudb.util.ByteUtil.dump(this.lastData) + " - "+ this.lastData);
+					}
+				}
 			}
 			break;
 		case RESULT_STATUS_HEADER:
 			switch (data[4]) {
 			case ErrorPacket.FIELD_COUNT:
-				resultStatus = RESULT_STATUS_INIT;
+				this.lastData = data;
+				this.resultStatus = RESULT_STATUS_INIT;
+				this.statusTraces.add(this.resultStatus);
 				handleErrorPacket(data);
 				break;
 			case EOFPacket.FIELD_COUNT:
-				resultStatus = RESULT_STATUS_FIELD_EOF;
+				this.lastData = data;
+				this.resultStatus = RESULT_STATUS_FIELD_EOF;
+				this.statusTraces.add(this.resultStatus);
 				handleFieldEofPacket(data);
 				break;
 			default:
-				fields.add(data);
+				this.lastData = data;
+				this.fields.add(data);
 			}
 			break;
 		case RESULT_STATUS_FIELD_EOF:
 			switch (data[4]) {
 			case ErrorPacket.FIELD_COUNT:
-				resultStatus = RESULT_STATUS_INIT;
+				this.lastData = data;
+				this.resultStatus = RESULT_STATUS_INIT;
+				this.statusTraces.add(this.resultStatus);
 				handleErrorPacket(data);
 				break;
 			case EOFPacket.FIELD_COUNT:
-				resultStatus = RESULT_STATUS_INIT;
+				this.lastData = data;
+				this.resultStatus = RESULT_STATUS_INIT;
+				this.statusTraces.add(this.resultStatus);
 				handleRowEofPacket(data);
 				break;
 			default:
+				this.lastData = data;
 				handleRowPacket(data);
 			}
 			break;
 		default:
-			throw new RuntimeException("unknown status!");
+			throw new RuntimeException("Unknown status!");
 		}
 	}
 
 	public void setResponseHandler(ResponseHandler responseHandler) {
-		// logger.info("set response handler "+responseHandler);
-		// if (this.responseHandler != null && responseHandler != null) {
-		// throw new RuntimeException("reset agani!");
-		// }
 		this.responseHandler = responseHandler;
 	}
 
@@ -149,9 +173,9 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 	 * OK数据包处理
 	 */
 	private void handleOkPacket(byte[] data) {
-		ResponseHandler respHand = responseHandler;
+		ResponseHandler respHand = this.responseHandler;
 		if (respHand != null) {
-			respHand.okResponse(data, source);
+			respHand.okResponse(data, this.source);
 		}
 	}
 
@@ -159,9 +183,9 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 	 * ERROR数据包处理
 	 */
 	private void handleErrorPacket(byte[] data) {
-		ResponseHandler respHand = responseHandler;
+		ResponseHandler respHand = this.responseHandler;
 		if (respHand != null) {
-			respHand.errorResponse(data, source);
+			respHand.errorResponse(data, this.source);
 		} else {
 			closeNoHandler();
 		}
@@ -186,6 +210,7 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 		ResponseHandler respHand = this.responseHandler;
 		if (respHand != null) {
 			respHand.fieldEofResponse(this.header, this.fields, data, this.source);
+			this.fields = null;
 		} else {
 			closeNoHandler();
 		}

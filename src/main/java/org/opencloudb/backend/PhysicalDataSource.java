@@ -370,13 +370,17 @@ public abstract class PhysicalDataSource {
 			};
 			NioProcessor.runInProcessor(executeTask);
         } else {
-            int activeCons = getActiveCount(); // 当前最大活动连接
-            if(activeCons + 1 > this.size) { // 下一个连接大于最大连接数
-                log.debug("Max activeConnections size can not be max than max connections");
-                Throwable cause = new IOException("the max activeConnections size can not be max than max connections");
+			// Check connections constraint: active <= max
+            int activeCons = getActiveCount();
+            if (activeCons + 1 > this.size) {
+            	// Next active connections bigger than max connections limit
+            	String s = "Max connections limit exceeded in backend pool '" + this.name + "'";
+				Throwable cause = new IOException(s);
+				log.debug(s);
                 handler.connectionError(cause, null);
-            }else{            // create connection
-                log.debug("No idle connection in pool, create new connection for '{}' of schema '{}'", this.name, schema);
+            } else {
+                log.debug("No idle connection, create a new for schema '{}' in pool '{}'",
+						schema, this.name);
                 createNewConnection(rrs, handler, attachment, schema);
             }
         }

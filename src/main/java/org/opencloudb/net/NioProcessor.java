@@ -274,7 +274,8 @@ public final class NioProcessor extends AbstractProcessor {
 
 		Set<SelectionKey> keys = selector.selectedKeys();
 		try {
-			for (final SelectionKey key: keys) {
+			List<SelectionKey> it = new ArrayList<>(keys); // fix CME issue
+			for (final SelectionKey key: it) {
 				Object att = key.attachment();
 				if (att == null || !key.isValid()) {
 					key.cancel();
