@@ -36,6 +36,7 @@ public abstract class BaseServerTest {
     static final String USER_DIR = System.getProperty("user.dir");
     static final int DEBUG = 1, INFO = 2, ERROR = 3;
     static final int LOG_LEVEL = Integer.getInteger("org.opencloudb.test.logLevel", DEBUG);
+    static final int ROUNDS = Integer.getInteger("org.opencloudb.test.rounds", 2);
 
     protected static String JDBC_USER = "root";
     protected static String JDBC_PASSWORD = "123456";
@@ -52,17 +53,18 @@ public abstract class BaseServerTest {
     }
 
     public void test() throws Exception {
-        prepare();
-
-        try {
-            final long a = System.currentTimeMillis();
-            String testCase = getClass().getSimpleName();
-            info(">> %s", testCase);
-            doTest();
-            final long b = System.currentTimeMillis();
-            info("<< %s: time %sms", testCase, b - a);
-        } finally {
-            cleanup();
+        for (int i = 0; i < ROUNDS; ++i) {
+            prepare();
+            try {
+                final long a = System.currentTimeMillis();
+                String testCase = getClass().getSimpleName();
+                info("r-%d >> %s", i, testCase);
+                doTest();
+                final long b = System.currentTimeMillis();
+                info("r-%d << %s: time %sms", i, testCase, b - a);
+            } finally {
+                cleanup();
+            }
         }
     }
 

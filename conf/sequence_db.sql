@@ -13,9 +13,13 @@ CREATE TABLE MYCAT_SEQUENCE (
   PRIMARY KEY(name)
 )ENGINE=InnoDB;
 
--- Init one sequence
+-- Init some sequences
 INSERT INTO MYCAT_SEQUENCE(name, current_value, increment)
 VALUES ('COMPANY', 10000, 100);
+INSERT INTO MYCAT_SEQUENCE(name, current_value, increment)
+VALUES ('GLOBAL', 1, 50);
+-- Here only for test
+-- INSERT INTO MYCAT_SEQUENCE(name, current_value, increment) VALUES ('CUSTOMER', 1, 0);
 
 -- Related function
 -- Fetch current sequence value(current value, increment)

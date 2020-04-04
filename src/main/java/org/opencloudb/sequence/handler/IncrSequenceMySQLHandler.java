@@ -104,7 +104,8 @@ public class IncrSequenceMySQLHandler implements SequenceHandler {
 		final SequenceVal seqVal = this.seqValueMap.get(seqName);
 
 		if (seqVal == null) {
-			Throwable cause = new ConfigException("Can't find definition for sequence '" + seqName +"'");
+			String errmsg = "Sequence '" + seqName +"' doesn't exist in " + SEQUENCE_DB_PROPS;
+			Exception cause = new ConfigException(errmsg);
 			seqCallback.call(null, cause);
 			return;
 		}
@@ -207,7 +208,7 @@ class SequenceVal {
 		boolean called = false;
 		try {
 			if (IncrSequenceMySQLHandler.errSeqResult.equals(this.dbReturnVal)) {
-				Exception cause = new ConfigException("Sequence '"+this.seqName+"' not found in db table");
+				Exception cause = new ConfigException("Sequence '"+this.seqName+"' doesn't exist in db table");
 				called = true;
 				this.fetchCallback.call(null, cause);
 			} else {
@@ -246,7 +247,7 @@ class SequenceVal {
 					if (item == null) {
 						break;
 					}
-					// Use executeLater() instead of execute() for avoiding
+					// Use "executeLater()" instead of "execute()" for avoiding
 					// the endless loop issue
 					item.processor.executeLater(item.seqTask);
 				}
@@ -260,7 +261,7 @@ class SequenceVal {
 				this.fetchCallback = null;
 				this.fetching = false;
 			}
-		}
+		} // sync
 	}
 
 	static class WaitingItem {

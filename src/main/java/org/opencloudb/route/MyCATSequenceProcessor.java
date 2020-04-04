@@ -5,6 +5,7 @@ import org.opencloudb.config.ErrorCode;
 import org.opencloudb.parser.druid.DruidSequenceHandler;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.util.Callback;
+import org.opencloudb.util.ExceptionUtil;
 import org.slf4j.*;
 
 public class MyCATSequenceProcessor {
@@ -34,8 +35,9 @@ public class MyCATSequenceProcessor {
 					log.debug("execute sql with sequence '{}'", executeSql);
 					source.routeEndExecuteSQL(executeSql, pair.type, pair.schema);
 				} else {
-					log.error("MyCATSequenceProcessor executes 'next value' error", cause);
-					source.writeErrMessage(ErrorCode.ER_YES,"MyCat sequence error: " + cause);
+					log.warn("Executes 'next value' error", cause);
+					String s = ExceptionUtil.getClientMessage(cause);
+					source.writeErrMessage(ErrorCode.ER_YES, s);
 				}
 			}
 		};

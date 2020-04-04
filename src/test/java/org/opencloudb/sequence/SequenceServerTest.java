@@ -27,6 +27,7 @@ import org.opencloudb.BaseServerTest;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -51,7 +52,31 @@ public class SequenceServerTest extends BaseServerTest {
         testNextValue(102, true);
         testNextValue(10000, true);
 
-        ConcurrentMap<Long, Long> dupMap = new ConcurrentHashMap<>();
+        testNextValue(1, false, "GLOBAL");
+        testNextValue(1, false, "global");
+        testNextValue(1, false, "Global");
+
+        // Test abnormal conditions
+        try {
+            testNextValue(1, false, "g");
+        } catch (SQLException e) {
+            debug("Test undefined sequence in conf: %s", e);
+            assertTrue(1003 == e.getErrorCode(), e + "");
+        }
+        try {
+            testNextValue(2, true, "hotel");
+        } catch (SQLException e) {
+            debug("Test undefined sequence in db: %s", e);
+            assertTrue(1003 == e.getErrorCode(), e + "");
+        }
+        try {
+            testNextValue(3, true, "customer");
+        } catch (SQLException e) {
+            debug("Test sequence increment illegal in db: %s", e);
+            assertTrue(1003 == e.getErrorCode(), e + "");
+        }
+
+        ConcurrentMap<String, Long> dupMap = new ConcurrentHashMap<>();
         testNextValue(2, dupMap, 2);
         testNextValue(10, dupMap, 2);
         testNextValue(100, dupMap, 9);
@@ -59,10 +84,21 @@ public class SequenceServerTest extends BaseServerTest {
         testNextValue(201, dupMap, 20);
         testNextValue(100, dupMap, 100);
         testNextValue(150, dupMap, 250);
+
+        testMultiSeqNextValue(1, dupMap, 2, "GLOBAL", "company");
+        testMultiSeqNextValue(2, dupMap, 5, "COMPANY", "global");
+        testMultiSeqNextValue(10, dupMap, 10, "global", "COMPANY");
+        testMultiSeqNextValue(20, dupMap, 50, "global", "company");
+        testMultiSeqNextValue(100, dupMap, 100, "global", "company");
+        testMultiSeqNextValue(100, dupMap, 250, "global", "company");
     }
 
     private void testNextValue(int n, final boolean tx) throws Exception {
-        String sql = "select NEXT VALUE FOR MYCATSEQ_COMPANY";
+        testNextValue(n, tx, "COMPANY");
+    }
+
+    private void testNextValue(int n, final boolean tx, String seqName) throws Exception {
+        String sql = "select NEXT VALUE FOR MYCATSEQ_"+seqName;
         try (Connection c = getConnection()) {
             Statement stmt = c.createStatement();
             long a = -1, b;
@@ -75,7 +111,8 @@ public class SequenceServerTest extends BaseServerTest {
                 rs.close();
 
                 if (a != -1) {
-                    assertTrue(a + 1 == b, "Next value error: a  = " + a + ", b = " + b);
+                    assertTrue(a + 1 == b,
+                            "Next value error: a  = " + a + ", b = " + b + " in seq " + seqName);
                 }
                 a = b;
                 if (tx) c.commit();
@@ -83,7 +120,7 @@ public class SequenceServerTest extends BaseServerTest {
         }
     }
 
-    private void testNextValue(final int n, final ConcurrentMap<Long, Long> dupMap,
+    private void testNextValue(final int n, final ConcurrentMap<String, Long> dupMap,
                                int threadCount) throws Exception {
         Thread[] threads = new Thread[threadCount];
         for (int i = 0; i < threadCount; ++i) {
@@ -107,8 +144,37 @@ public class SequenceServerTest extends BaseServerTest {
         }
     }
 
-    private void testNextValue(int n, ConcurrentMap<Long, Long> dupMap) throws Exception {
-        String sql = "select NEXT VALUE FOR MYCATSEQ_COMPANY";
+    private void testNextValue(int n, ConcurrentMap<String, Long> dupMap) throws Exception {
+        testNextValue(n, dupMap, "COMPANY");
+    }
+
+    private void testMultiSeqNextValue(final int n, final ConcurrentMap<String, Long> dupMap,
+                               int threadCount, String... seqList) throws Exception {
+        Thread[] threads = new Thread[threadCount];
+        for (int i = 0; i < threadCount; ++i) {
+            final String seqName = seqList[i % seqList.length];
+            Thread t = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        testNextValue(n, dupMap, seqName);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }, "Thread-"+i);
+            threads[i] = t;
+            t.setDaemon(true);
+            t.start();
+        }
+
+        for (Thread t: threads) {
+            t.join();
+        }
+    }
+
+    private void testNextValue(int n, ConcurrentMap<String, Long> dupMap, String seqName) throws Exception {
+        String sql = "select NEXT VALUE FOR MYCATSEQ_" + seqName;
         try (Connection c = getConnection()) {
             Statement stmt = c.createStatement();
             for (int i = 0; i < n; ++i) {
@@ -118,7 +184,8 @@ public class SequenceServerTest extends BaseServerTest {
                 assertFalse(rs.next(), "More resultSet");
                 rs.close();
 
-                assertNull(dupMap.putIfAbsent(id, id), "Duplicated seq: " + id);
+                Long old = dupMap.putIfAbsent(seqName+id, id);
+                assertNull(old, "Duplicated seq: " + seqName+id);
             }
         }
     }

@@ -24,7 +24,6 @@
 package org.opencloudb.mysql.nio;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import org.opencloudb.mysql.ByteUtil;
@@ -44,7 +43,7 @@ import org.slf4j.*;
  */
 public class MySQLConnectionHandler extends BackendAsyncHandler {
 
-	private static final Logger log = LoggerFactory.getLogger(MySQLConnectionHandler.class);
+	static final Logger log = LoggerFactory.getLogger(MySQLConnectionHandler.class);
 
 	private static final int RESULT_STATUS_INIT = 0;
 	private static final int RESULT_STATUS_HEADER = 1;
@@ -55,9 +54,6 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 	private byte[] header;
 	private List<byte[]> fields;
 
-	private byte[] lastData;
-	private List<Integer> statusTraces = new ArrayList<>();
-
 	/**
 	 * life cycle: one SQL execution
 	 */
@@ -66,15 +62,14 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 	public MySQLConnectionHandler(MySQLConnection source) {
 		this.source = source;
 		this.resultStatus = RESULT_STATUS_INIT;
-		this.statusTraces.add(this.resultStatus);
 	}
 
 	public void connectionError(Throwable e) {
-		this.responseHandler.connectionError(e, source);
+		this.responseHandler.connectionError(e, this.source);
 	}
 
 	public MySQLConnection getSource() {
-		return source;
+		return this.source;
 	}
 
 	@Override
@@ -84,7 +79,7 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 
 	@Override
 	protected void offerDataError() {
-		resultStatus = RESULT_STATUS_INIT;
+		this.resultStatus = RESULT_STATUS_INIT;
 		throw new RuntimeException("Offer data error!");
 	}
 
@@ -94,74 +89,54 @@ public class MySQLConnectionHandler extends BackendAsyncHandler {
 		case RESULT_STATUS_INIT:
 			switch (data[4]) {
 			case OkPacket.FIELD_COUNT:
-				this.lastData = data;
 				handleOkPacket(data);
 				break;
 			case ErrorPacket.FIELD_COUNT:
-				this.lastData = data;
 				handleErrorPacket(data);
 				break;
 			case RequestFilePacket.FIELD_COUNT:
-				this.lastData = data;
 				handleRequestPacket(data);
 				break;
 			default:
 				this.resultStatus = RESULT_STATUS_HEADER;
-				this.statusTraces.add(this.resultStatus);
 				this.header = data;
-				boolean failed = true;
-				try {
-					this.fields = new ArrayList<>((int) ByteUtil.readLength(data, 4));
-					failed = false;
-				} finally {
-					if (failed) {
-						System.err.println("Backend " + this.source
-								+ ", data: " + org.opencloudb.util.ByteUtil.dump(data) + " - " + data
-								+ ", lastData: " + org.opencloudb.util.ByteUtil.dump(this.lastData) + " - "+ this.lastData);
-					}
-				}
+				int fieldCount = (int) ByteUtil.readLength(data, 4);
+				this.fields = new ArrayList<>(fieldCount);
+				break;
 			}
 			break;
 		case RESULT_STATUS_HEADER:
 			switch (data[4]) {
 			case ErrorPacket.FIELD_COUNT:
-				this.lastData = data;
 				this.resultStatus = RESULT_STATUS_INIT;
-				this.statusTraces.add(this.resultStatus);
 				handleErrorPacket(data);
 				break;
 			case EOFPacket.FIELD_COUNT:
-				this.lastData = data;
 				this.resultStatus = RESULT_STATUS_FIELD_EOF;
-				this.statusTraces.add(this.resultStatus);
 				handleFieldEofPacket(data);
 				break;
 			default:
-				this.lastData = data;
 				this.fields.add(data);
+				break;
 			}
 			break;
 		case RESULT_STATUS_FIELD_EOF:
 			switch (data[4]) {
 			case ErrorPacket.FIELD_COUNT:
-				this.lastData = data;
 				this.resultStatus = RESULT_STATUS_INIT;
-				this.statusTraces.add(this.resultStatus);
 				handleErrorPacket(data);
 				break;
 			case EOFPacket.FIELD_COUNT:
-				this.lastData = data;
 				this.resultStatus = RESULT_STATUS_INIT;
-				this.statusTraces.add(this.resultStatus);
 				handleRowEofPacket(data);
 				break;
 			default:
-				this.lastData = data;
 				handleRowPacket(data);
+				break;
 			}
 			break;
 		default:
-			throw new RuntimeException("Unknown status!");
+			throw new IllegalStateException("Unknown status!");
 		}
 	}
 
