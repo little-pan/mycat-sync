@@ -25,10 +25,7 @@ package org.opencloudb.sequence;
 
 import org.opencloudb.BaseServerTest;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -55,6 +52,13 @@ public class SequenceServerTest extends BaseServerTest {
         testNextValue(1, false, "GLOBAL");
         testNextValue(1, false, "global");
         testNextValue(1, false, "Global");
+
+        testAutoIncrInsert(1);
+        testAutoIncrInsert(2);
+        testAutoIncrInsert(10);
+        testAutoIncrBatchInsert(1);
+        testAutoIncrBatchInsert(5);
+        testAutoIncrBatchInsert(10);
 
         // Test abnormal conditions
         try {
@@ -91,6 +95,68 @@ public class SequenceServerTest extends BaseServerTest {
         testMultiSeqNextValue(20, dupMap, 50, "global", "company");
         testMultiSeqNextValue(100, dupMap, 100, "global", "company");
         testMultiSeqNextValue(100, dupMap, 250, "global", "company");
+    }
+
+    private void testAutoIncrInsert(int rows) throws SQLException {
+        try (Connection c = getConnection()) {
+            long companyId = 1;
+            String sql = "insert into employee(company_id, empno, name)values(?, ?, ?)";
+
+            // prepare
+            Statement stmt = c.createStatement();
+            stmt.executeUpdate("delete from employee");
+            ResultSet rs = stmt.executeQuery("select next value for mycatseq_employee");
+            assertTrue(rs.next(), "No sequence");
+            final long lastId = rs.getLong(1);
+            rs.close();
+
+            // Do insert
+            PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            for (int i = 0; i < rows; ++i) {
+                ps.setLong(1, companyId);
+                ps.setString(2, "00" + (i + 1));
+                ps.setString(3, "员工-" + (i + 1));
+                final int n = ps.executeUpdate();
+                rs = ps.getGeneratedKeys();
+                assertTrue(rs.next(), "No generated keys");
+                final long id = rs.getLong(1);
+                assertTrue(lastId + i + 1 == id, "Auto increment ID error: " + id);
+                rs.close();
+                ps.clearParameters();
+                assertTrue(n == 1, "Update count error: " + n);
+            }
+            ps.close();
+        }
+    }
+
+    private void testAutoIncrBatchInsert(int rows) throws SQLException {
+        try (Connection c = getConnection()) {
+            long companyId = 1;
+            String sql = "insert into employee(company_id, empno, name)values(?, ?, ?)";
+
+            // prepare
+            Statement stmt = c.createStatement();
+            stmt.executeUpdate("delete from employee");
+            ResultSet rs;
+
+            // Do insert
+            PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            for (int i = 0; i < rows; ++i) {
+                ps.setLong(1, companyId);
+                ps.setString(2, "00" + (i + 1));
+                ps.setString(3, "员工-" + (i + 1));
+                ps.addBatch();
+            }
+            int[] a = ps.executeBatch();
+            assertTrue(a.length == rows, "Batch insertion result rows error: " + a.length);
+            ps.close();
+
+            rs = stmt.executeQuery("select count(*) from employee");
+            assertTrue(rs.next(), "Batch insertion no data in table");
+            int resRows = rs.getInt(1);
+            assertTrue(rows == resRows, "Count rows error after batch insertion: " + resRows);
+            rs.close();
+        }
     }
 
     private void testNextValue(int n, final boolean tx) throws Exception {

@@ -1,6 +1,6 @@
 -- test schema since 2020-03-24
 --
--- h2
+-- mysql
 create table company (
     id bigint not null primary key,
     name varchar(20) not null,
@@ -11,7 +11,7 @@ create table company (
 -- insert into company(id, name, create_date)values(1, 'c1', '2020-03-24'), (2, '公司2', '2020-02-25');
 
 create table employee (
-    id bigint not null primary key,
+    id bigint not null primary key auto_increment,
     company_id bigint not null,
     empno varchar(10) not null,
     name varchar(50) not null,
@@ -22,5 +22,5 @@ create table employee (
     unique u_employee_empno(company_id, empno),
     foreign key(company_id) references company(id)
 );
-insert into employee(id, company_id, empno, name)values(1, 1, '001', 'Peter'), (2, 1, '002', 'Tom');
-insert into employee(id, company_id, empno, name)values(3, 2, '001', 'Kite'),  (4, 2, '002', 'John');
+-- insert into employee(id, company_id, empno, name)values(1, 1, '001', 'Peter'), (2, 1, '002', 'Tom');
+-- insert into employee(id, company_id, empno, name)values(3, 2, '001', 'Kite'),  (4, 2, '002', 'John');

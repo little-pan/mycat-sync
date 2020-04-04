@@ -36,9 +36,11 @@ import java.util.*;
  * @author wang.dw
  *
  */
-public class RouterUtil {
+public final class RouterUtil {
 	
-	private static final Logger log = LoggerFactory.getLogger(RouterUtil.class);
+	static final Logger log = LoggerFactory.getLogger(RouterUtil.class);
+
+	private RouterUtil() {}
 
 	/**
 	 * 移除执行语句中的数据库名
@@ -49,7 +51,6 @@ public class RouterUtil {
 	 * 
 	 * @author mycat
 	 */
-
 	public static String removeSchema(String stmt, String schema) {
 		final String upStmt = stmt.toUpperCase();
 		final String upSchema = schema.toUpperCase() + ".";
@@ -58,9 +59,8 @@ public class RouterUtil {
 		boolean flag = false;
 		indx = upStmt.indexOf(upSchema, strtPos);
 		if (indx < 0) {
-			StringBuilder sb = new StringBuilder("`").append(
-					schema.toUpperCase()).append("`.");
-			indx = upStmt.indexOf(sb.toString(), strtPos);
+			String s = schema.toUpperCase();
+			indx = upStmt.indexOf("`" + s + "`.", strtPos);
 			flag = true;
 			if (indx < 0) {
 				return stmt;
@@ -111,7 +111,8 @@ public class RouterUtil {
 	 * @return RouteResultset
 	 * @author aStoneGod
 	 */
-	public static RouteResultset routeToDDLNode(RouteResultset rrs, int sqlType, String stmt,SchemaConfig schema) throws SQLSyntaxErrorException {
+	public static RouteResultset routeToDDLNode(RouteResultset rrs, int sqlType, String stmt,SchemaConfig schema)
+			throws SQLSyntaxErrorException {
 		//检查表是否在配置文件中
 		stmt = getFixedSql(stmt);
 		String tablename = "";		
@@ -157,7 +158,7 @@ public class RouterUtil {
 			return rrs;
 		}
 		// both tablename and defaultnode null
-		log.error("table not in schema '{}'", tablename);
+		log.warn("Table not in schema '{}'", tablename);
 		throw new SQLSyntaxErrorException("op table not in schema '"+tablename+"'");
 	}
 
@@ -433,7 +434,7 @@ public class RouterUtil {
 	                                          String origSQL, ServerConnection sc) {
 		// check if origSQL is with global sequence
 		// @micmiu it is just a simple judgement
-		if (origSQL.contains(" MYCATSEQ_")) {
+		if (origSQL.toUpperCase().contains(" MYCATSEQ_")) {
 			processSQL(sc, schema, origSQL, sqlType);
 			return true;
 		}
@@ -458,10 +459,10 @@ public class RouterUtil {
 		return processedInsert;
 	}
 
-	private static boolean isPKInFields(String origSQL,String primaryKey,int firstLeftBracketIndex,int firstRightBracketIndex){
-		
+	private static boolean isPKInFields(String origSQL, String primaryKey,
+										int firstLeftBracketIndex, int firstRightBracketIndex){
 		if (primaryKey == null) {
-			throw new RuntimeException("please make sure the primaryKey's config is not null in schema.xml");
+			throw new RuntimeException("Please make sure the primaryKey's config not null in schema.xml");
 		}
 		
 		boolean isPrimaryKeyInFields = false;
@@ -511,10 +512,11 @@ public class RouterUtil {
 			throw new SQLSyntaxErrorException("Insert must provide ColumnList");
 		}
 
-		boolean processedInsert = !isPKInFields(origSQL,primaryKey,firstLeftBracketIndex,firstRightBracketIndex);
+		boolean processedInsert = !isPKInFields(origSQL, primaryKey, firstLeftBracketIndex, firstRightBracketIndex);
 		if(processedInsert){
-			processInsert(sc, schema, sqlType, origSQL, tableName, primaryKey,
-					firstLeftBracketIndex+1, origSQL.indexOf('(', firstRightBracketIndex)+1);
+			int flbIndex = firstLeftBracketIndex + 1;
+			int llbIndex = origSQL.indexOf('(', firstRightBracketIndex) + 1;
+			processInsert(sc, schema, sqlType, origSQL, tableName, primaryKey, flbIndex, llbIndex);
 		}
 		return processedInsert;
 	}
