@@ -24,7 +24,18 @@
 package org.opencloudb.net.handler;
 
 /**
- * load data infile
+ * Load data infile. The basic syntax,
+ * <p>
+ * load data [low_priority] [local] infile 'file_name txt' [replace | ignore]
+ * into table tbl_name
+ * [fields
+ * [terminated by 't']
+ * [OPTIONALLY] enclosed by '']
+ * [escaped by'\' ]]
+ * [lines terminated by 'n']
+ * [ignore number lines]
+ * [(col_name,   )]
+ * </p>
  * 
  * @author magicdoom
  */

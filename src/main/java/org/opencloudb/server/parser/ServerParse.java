@@ -58,7 +58,9 @@ public final class ServerParse {
 	public static final int DESCRIBE = 21;
     public static final int LOAD_DATA_INFILE_SQL = 99;
     public static final int DDL = 100;
-    private static final  Pattern pattern = Pattern.compile("(load)+\\s+(data)+\\s+\\w*\\s*(infile)+",Pattern.CASE_INSENSITIVE);
+
+    private static final String LOAD_DATA_REGEX = "(load)+\\s+(data)+\\s+\\w*\\s*(infile)+";
+    private static final Pattern LOAD_DATA_PATTERN = Pattern.compile(LOAD_DATA_REGEX, Pattern.CASE_INSENSITIVE);
 
 	public static int parse(String stmt) {
 		int lenth = stmt.length();
@@ -182,7 +184,6 @@ public final class ServerParse {
 		return OTHER;
 	}
 
-
 	static int loadDataCheck(String stmt, int offset) {
 		if (stmt.length() > offset + 3) {
 			char c1 = stmt.charAt(++offset);
@@ -190,13 +191,14 @@ public final class ServerParse {
 			char c3 = stmt.charAt(++offset);
 			if ((c1 == 'O' || c1 == 'o') && (c2 == 'A' || c2 == 'a')
 					&& (c3 == 'D' || c3 == 'd')) {
-				Matcher matcher = pattern.matcher(stmt);
+				Matcher matcher = LOAD_DATA_PATTERN.matcher(stmt);
 				return matcher.find() ? LOAD_DATA_INFILE_SQL : OTHER;
 			}
 		}
 
 		return OTHER;
 	}
+
 	//truncate
 	private static int tCheck(String stmt, int offset) {
 		if (stmt.length() > offset + 7) {

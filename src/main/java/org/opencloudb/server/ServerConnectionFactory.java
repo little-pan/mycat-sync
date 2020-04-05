@@ -26,6 +26,7 @@ package org.opencloudb.server;
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
 
+import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatPrivileges;
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.model.SystemConfig;
@@ -42,15 +43,17 @@ public class ServerConnectionFactory extends FrontendConnectionFactory {
     protected FrontendConnection getConnection(SocketChannel channel) throws IOException {
         MycatServer server = MycatServer.getContextServer();
         SystemConfig sys = server.getConfig().getSystem();
-        ServerConnection c = new ServerConnection(channel);
-        server.getConfig().setSocketParams(c, true);
-        c.setPrivileges(MycatPrivileges.instance());
-        c.setQueryHandler(new ServerQueryHandler(c));
-        c.setLoadDataInfileHandler(new ServerLoadDataInfileHandler(c));
-        c.setTxIsolation(sys.getTxIsolation());
-        c.setSession(new ServerSession(c));
+        ServerConnection source = new ServerConnection(channel);
+        MycatConfig conf = server.getConfig();
 
-        return c;
+        conf.setSocketParams(source, true);
+        source.setPrivileges(MycatPrivileges.instance());
+        source.setQueryHandler(new ServerQueryHandler(source));
+        source.setLoadDataInfileHandler(new ServerLoadDataInfileHandler(source));
+        source.setTxIsolation(sys.getTxIsolation());
+        source.setSession(new ServerSession(source));
+
+        return source;
     }
 
 }

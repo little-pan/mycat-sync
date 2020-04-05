@@ -98,16 +98,14 @@ public class ServerSession implements Session {
         log.debug("rrs '{}' in source {}", rrs, this.source);
 
 		// 检查路由结果是否为空
-		RouteResultsetNode[] nodes = rrs.getNodes();
-		if (nodes == null || nodes.length == 0 || nodes[0].getName() == null
-				|| nodes[0].getName().equals("")) {
-			this.source.writeErrMessage(ErrorCode.ER_NO_DB_ERROR,
-					"No dataNode found, please check tables defined in schema: "
-							+ this.source.getSchema());
+		if (rrs.isEmpty()) {
+			String s = this.source.getSchema();
+			s = "No dataNode found, please check tables defined in schema '"+ s +"'";
+			this.source.writeErrMessage(ErrorCode.ER_NO_DB_ERROR, s);
 			return;
 		}
 
-		if (nodes.length == 1) {
+		if (rrs.size() == 1) {
 			this.singleNodeHandler = new SingleNodeHandler(rrs, this);
 			this.singleNodeHandler.execute();
 		} else {

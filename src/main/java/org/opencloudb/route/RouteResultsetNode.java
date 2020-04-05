@@ -138,19 +138,22 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 
 	@Override
 	public int hashCode() {
-		return name.hashCode();
+		return this.name.hashCode();
 	}
 
 	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
+	public boolean equals(Object o) {
+		if (this == o) {
 			return true;
-		if (obj instanceof RouteResultsetNode) {
-			RouteResultsetNode rrn = (RouteResultsetNode) obj;
+		}
+
+		if (o instanceof RouteResultsetNode) {
+			RouteResultsetNode rrn = (RouteResultsetNode) o;
 			if (equals(name, rrn.getName())) {
 				return true;
 			}
 		}
+
 		return false;
 	}
 

@@ -190,12 +190,13 @@ public class ByteUtil {
 	}
 
 	public static String dump(byte[] data, int offset, int length) {
-		StringBuilder sb = new StringBuilder();
-		sb.append(" byte dump log ");
-		sb.append(System.lineSeparator());
-		sb.append(" offset ").append( offset );
-		sb.append(" length ").append( length );
-		sb.append(System.lineSeparator());
+		StringBuilder sb = new StringBuilder()
+				.append(System.lineSeparator())
+				.append("Dump byte array log ")
+				.append(System.lineSeparator())
+				.append(" offset ").append(offset).append(" length ").append(length)
+				.append(System.lineSeparator());
+
 		int lines = (length - 1) / 16 + 1;
 		for (int i = 0, pos = 0; i < lines; i++, pos += 16) {
 			sb.append(String.format("0x%04X ", i * 16));
@@ -208,7 +209,8 @@ public class ByteUtil {
 			}
 			sb.append(System.lineSeparator());
 		}
-		sb.append(length).append(" bytes").append(System.lineSeparator());
+		sb.append(" ").append(length).append(" bytes").append(System.lineSeparator());
+
 		return sb.toString();
 	}
 

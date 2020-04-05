@@ -23,7 +23,7 @@
  */
 package org.opencloudb.net;
 
-/** The frontend unchecked exception..
+/** The frontend unchecked exception.
  *
  * @author little-pan
  * @since 2020-03-24

@@ -30,6 +30,8 @@ import org.opencloudb.net.Handler;
 import org.opencloudb.net.NioProcessor;
 import org.opencloudb.net.mysql.MySQLPacket;
 import org.opencloudb.statistic.CommandCount;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 前端命令处理器
@@ -37,6 +39,8 @@ import org.opencloudb.statistic.CommandCount;
  * @author mycat
  */
 public class FrontendCommandHandler implements Handler {
+
+    static final Logger log = LoggerFactory.getLogger(FrontendCommandHandler.class);
 
     protected final FrontendConnection source;
     protected final CommandCount commands;
@@ -48,21 +52,22 @@ public class FrontendCommandHandler implements Handler {
     }
 
     @Override
-    public void handle(byte[] data)
-    {
-        if(source.getLoadDataInfileHandler() != null
-                && source.getLoadDataInfileHandler().isStartLoadData())
-        {
-            MySQLMessage mm = new MySQLMessage(data);
-            int  packetLength = mm.readUB3();
-            if(packetLength+4==data.length)
-            {
-                source.loadDataInfileData(data);
+    public void handle(byte[] data) {
+        LoadDataInfileHandler ldiHandler = this.source.getLoadDataInfileHandler();
+
+        if(ldiHandler != null && ldiHandler.isStartLoadData()) {
+            // Called here after requested client's file and client sent file data
+            final MySQLMessage mm = new MySQLMessage(data);
+            int length = mm.readUB3();
+            int id = mm.read(3);
+            log.debug("Infile data packet reached: id {}, length {}", id, length);
+            if(length + 4 == data.length) {
+                this.source.loadDataInfileData(data);
             }
             return;
         }
-        switch (data[4])
-        {
+
+        switch (data[4]) {
             case MySQLPacket.COM_INIT_DB:
                 commands.doInitDB();
                 source.initDB(data);
@@ -100,10 +105,10 @@ public class FrontendCommandHandler implements Handler {
                 source.heartbeat(data);
                 break;
             default:
-                     commands.doOther();
-                     source.writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR,
-                             "Unknown command");
-
+                commands.doOther();
+                String s = "Unknown command";
+                source.writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, s);
+                break;
         }
     }
 

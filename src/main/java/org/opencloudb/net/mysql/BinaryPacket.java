@@ -36,6 +36,7 @@ import org.opencloudb.net.BackendConnection;
  * @author mycat
  */
 public class BinaryPacket extends MySQLPacket {
+
     public static final byte OK = 1;
     public static final byte ERROR = 2;
     public static final byte HEADER = 3;
@@ -47,11 +48,11 @@ public class BinaryPacket extends MySQLPacket {
     public byte[] data;
 
     public void read(InputStream in) throws IOException {
-        packetLength = StreamUtil.readUB3(in);
-        packetId = StreamUtil.read(in);
-        byte[] ab = new byte[packetLength];
+        this.packetLength = StreamUtil.readUB3(in);
+        this.packetId = StreamUtil.read(in);
+        byte[] ab = new byte[this.packetLength];
         StreamUtil.read(in, ab, 0, ab.length);
-        data = ab;
+        this.data = ab;
     }
 
     @Override

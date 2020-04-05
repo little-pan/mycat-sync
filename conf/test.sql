@@ -24,3 +24,13 @@ create table employee (
 );
 -- insert into employee(id, company_id, empno, name)values(1, 1, '001', 'Peter'), (2, 1, '002', 'Tom');
 -- insert into employee(id, company_id, empno, name)values(3, 2, '001', 'Kite'),  (4, 2, '002', 'John');
+
+-- default dataNode table
+create table if not exists hotel (
+    id bigint not null auto_increment,
+    name varchar(20) not null,
+    address varchar(250),
+    tel varchar(20),
+    rooms int default 50 not null,
+    primary key(id)
+);

@@ -23,8 +23,7 @@
  */
 package org.opencloudb;
 
-import org.apache.zookeeper.data.Stat;
-
+import java.io.File;
 import java.io.PrintStream;
 import java.sql.*;
 import java.util.Date;
@@ -33,7 +32,9 @@ import java.text.SimpleDateFormat;
 
 public abstract class BaseServerTest {
 
-    static final String USER_DIR = System.getProperty("user.dir");
+    protected static final String USER_DIR = System.getProperty("user.dir");
+    protected static final String RES_DIR = new File(USER_DIR, "conf") + "";
+
     static final int DEBUG = 1, INFO = 2, ERROR = 3;
     static final int LOG_LEVEL = Integer.getInteger("org.opencloudb.test.logLevel", DEBUG);
     static final int ROUNDS = Integer.getInteger("org.opencloudb.test.rounds", 2);
@@ -68,11 +69,23 @@ public abstract class BaseServerTest {
         }
     }
 
-    protected void prepare() {}
+    protected void prepare() {
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+
+            createTableHotel(stmt);
+        } catch (SQLException e) {
+            throw new AssertionError(e);
+        }
+    }
 
     protected void cleanup() {}
 
     protected abstract void doTest() throws Exception;
+
+    protected static File getResFile(String filename) {
+        return new File(RES_DIR, filename);
+    }
 
     protected static Connection getConnection() {
         try {
@@ -80,6 +93,18 @@ public abstract class BaseServerTest {
         } catch (SQLException e) {
             throw new AssertionError("Can't get jdbc connection", e);
         }
+    }
+
+    protected static int createTableHotel(Statement stmt) throws SQLException {
+        String sql = "create table if not exists hotel (" +
+                "    id bigint not null auto_increment," +
+                "    name varchar(20) not null," +
+                "    address varchar(250)," +
+                "    tel varchar(20)," +
+                "    rooms int default 50 not null," +
+                "    primary key(id)" +
+                ");";
+        return stmt.executeUpdate(sql);
     }
 
     protected static int deleteTable(Statement stmt, String table) throws SQLException {
@@ -202,6 +227,14 @@ public abstract class BaseServerTest {
         if (a == null) {
             throw new AssertionError(message);
         }
+    }
+
+    public static void fail(String message) {
+        throw new AssertionError(message);
+    }
+
+    public static void fail() {
+        throw new AssertionError();
     }
 
 }

@@ -24,6 +24,7 @@
 package org.opencloudb;
 
 import org.opencloudb.sequence.SequenceServerTest;
+import org.opencloudb.server.handler.LoadDataInfileHandlerServerTest;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,6 +53,7 @@ public class AllServerTest extends BaseServerTest {
     protected void prepare() {
         super.prepare();
         // Add all here
+        add(new LoadDataInfileHandlerServerTest()).
         add(new SequenceServerTest());
     }
 

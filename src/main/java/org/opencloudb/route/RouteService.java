@@ -102,15 +102,15 @@ public class RouteService {
                     String realSQL = stmt.substring(endPos + "*/".length()).trim();
 
                     HintHandler hintHandler = HintHandlerFactory.getHintHandler(hintType);
-                    if( hintHandler != null ) {    
-
+                    if( hintHandler != null ) {
                     	if ( hintHandler instanceof  HintSQLHandler) {                    		
                           	/**
                         	 * 修复 注解SQL的 sqlType 与 实际SQL的 sqlType 不一致问题， 如： hint=SELECT，real=INSERT
                         	 * fixed by zhuam
                         	 */
                     		int hintSqlType = ServerParse.parse( hintSql ) & 0xff;     
-                    		rrs = hintHandler.route(sysconf, schema, hintSqlType, realSQL, charset, sc, tableId2DataNodeCache, hintSql);
+                    		rrs = hintHandler.route(sysconf, schema, hintSqlType, realSQL, charset,
+									sc, tableId2DataNodeCache, hintSql);
                     		
                     	} else {                    		
                     		rrs = hintHandler.route(sysconf, schema, sqlType, realSQL, charset,

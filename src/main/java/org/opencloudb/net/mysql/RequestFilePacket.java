@@ -29,46 +29,41 @@ import org.opencloudb.net.FrontendConnection;
 import java.nio.ByteBuffer;
 
 /**
- * load data local infile 向客户端请求发送文件用
+ * Handle the statement of 'load data local infile', used to
+ * request client's file.
  */
-public class RequestFilePacket extends MySQLPacket
-{
+public class RequestFilePacket extends MySQLPacket {
+
     public static final byte FIELD_COUNT = (byte) 251;
+
     public byte command = FIELD_COUNT;
     public byte[] fileName;
 
-
     @Override
-    public ByteBuffer write(ByteBuffer buffer, FrontendConnection c, boolean writeSocketIfFull)
-    {
+    public ByteBuffer write(ByteBuffer buffer, FrontendConnection c, boolean writeSocketIfFull) {
         int size = calcPacketSize();
-        buffer = c.checkWriteBuffer(buffer, c.getPacketHeaderSize() + size, writeSocketIfFull);
+        int length = c.getPacketHeaderSize() + size;
+
+        buffer = c.checkWriteBuffer(buffer, length, writeSocketIfFull);
         BufferUtil.writeUB3(buffer, size);
-        buffer.put(packetId);
-        buffer.put(command);
-        if (fileName != null)
-        {
-
-            buffer.put(fileName);
-
+        buffer.put(this.packetId);
+        buffer.put(this.command);
+        if (this.fileName != null) {
+            buffer.put(this.fileName);
         }
-
         c.write(buffer);
 
         return buffer;
     }
 
     @Override
-    public int calcPacketSize()
-    {
-        return fileName == null ? 1 : 1 + fileName.length;
+    public int calcPacketSize() {
+        return (this.fileName == null ? 1 : 1 + this.fileName.length);
     }
 
     @Override
-    protected String getPacketInfo()
-    {
+    protected String getPacketInfo() {
         return "MySQL Request File Packet";
     }
-
 
 }

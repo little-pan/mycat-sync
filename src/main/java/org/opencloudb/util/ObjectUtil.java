@@ -31,6 +31,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 
@@ -229,7 +230,6 @@ public final class ObjectUtil {
         }
     }
 
-
     public static void copyProperties(Object fromObj, Object toObj) {
         Class<?> fromClass = fromObj.getClass();
         Class<?> toClass = toObj.getClass();
@@ -239,19 +239,20 @@ public final class ObjectUtil {
             BeanInfo toBean = Introspector.getBeanInfo(toClass);
 
             PropertyDescriptor[] toPd = toBean.getPropertyDescriptors();
-            List<PropertyDescriptor> fromPd = Arrays.asList(fromBean
-                    .getPropertyDescriptors());
+            List<PropertyDescriptor> fromPd = Arrays.asList(fromBean.getPropertyDescriptors());
 
-            for (PropertyDescriptor propertyDescriptor : toPd) {
-                propertyDescriptor.getDisplayName();
-                PropertyDescriptor pd = fromPd.get(fromPd.indexOf(propertyDescriptor));
-                if (pd.getDisplayName().equals(propertyDescriptor.getDisplayName())
+            for (PropertyDescriptor des : toPd) {
+                des.getDisplayName();
+                PropertyDescriptor pd = fromPd.get(fromPd.indexOf(des));
+                if (pd.getDisplayName().equals(des.getDisplayName())
                         && !pd.getDisplayName().equals("class")) {
-                    if(propertyDescriptor.getWriteMethod() != null)
-                        propertyDescriptor.getWriteMethod()
-                                .invoke(toObj, pd.getReadMethod().invoke(fromObj, (Object)null));
+                    Method setProp = des.getWriteMethod();
+                    if(setProp != null) {
+                        Method getProp = pd.getReadMethod();
+                        Object prop = getProp.invoke(fromObj);
+                        setProp.invoke(toObj, prop);
+                    }
                 }
-
             }
         } catch (Exception e) {
             throw new RuntimeException(e);

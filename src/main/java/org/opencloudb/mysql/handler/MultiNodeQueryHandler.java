@@ -30,6 +30,7 @@ import org.opencloudb.cache.LayeredCachePool;
 import org.opencloudb.mpp.ColMeta;
 import org.opencloudb.mpp.DataMergeService;
 import org.opencloudb.mpp.MergeCol;
+import org.opencloudb.mysql.LoadDataUtil;
 import org.opencloudb.net.BackendConnection;
 import org.opencloudb.net.mysql.*;
 import org.opencloudb.route.RouteResultset;
@@ -179,7 +180,7 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 					if (this.rrs.isLoadData()) {
 						byte lastPackId = source.getLoadDataInfileHandler().getLastPackId();
 						ok.packetId = ++lastPackId;// OK_PACKET
-						ok.message = ("Records: " + affectedRows + "  Deleted: 0  Skipped: 0  Warnings: 0")
+						ok.message = ("Records: " + affectedRows + ", Deleted: 0, Skipped: 0, Warnings: 0")
 								.getBytes(); // 此处信息只是为了控制台给人看的
 						source.getLoadDataInfileHandler().clear();
 					} else {
@@ -430,7 +431,7 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 
 	@Override
 	public void requestDataResponse(byte[] data, BackendConnection conn) {
-		throw new UnsupportedOperationException();
+		LoadDataUtil.requestFileDataResponse(data, conn);
 	}
 
 }

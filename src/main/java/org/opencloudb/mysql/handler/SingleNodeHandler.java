@@ -30,6 +30,7 @@ import java.util.Set;
 import com.google.common.base.Strings;
 import org.opencloudb.MycatConfig;
 import org.opencloudb.MycatServer;
+import org.opencloudb.mysql.LoadDataUtil;
 import org.opencloudb.net.BackendConnection;
 import org.opencloudb.backend.PhysicalDBNode;
 import org.opencloudb.config.ErrorCode;
@@ -50,6 +51,8 @@ import org.opencloudb.server.response.ShowTables;
 import org.opencloudb.stat.QueryResult;
 import org.opencloudb.stat.QueryResultDispatcher;
 
+import org.opencloudb.util.ByteUtil;
+import org.opencloudb.util.ExceptionUtil;
 import org.opencloudb.util.StringUtil;
 import org.slf4j.*;
 
@@ -214,7 +217,7 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 			ok.read(data);
 			if (this.rrs.isLoadData()) {
 				byte lastPackId = source.getLoadDataInfileHandler().getLastPackId();
-				ok.packetId = ++lastPackId;// OK_PACKET
+				ok.packetId = ++lastPackId; // OK_PACKET
 				source.getLoadDataInfileHandler().clear();
 			} else {
 				ok.packetId = ++this.packetId;// OK_PACKET
@@ -322,12 +325,13 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 	}
 
 	private void executeException(BackendConnection c, Exception e) {
+		String charset = session.getSource().getCharset();
+		String errmsg = ExceptionUtil.getClientMessage(e);
 		ErrorPacket err = new ErrorPacket();
 		err.packetId = ++packetId;
 		err.errno = ErrorCode.ERR_FOUND_EXCEPION;
-		err.message = StringUtil.encode(e.toString(), session.getSource().getCharset());
-
-		this.backConnectionErr(err, c);
+		err.message = StringUtil.encode(errmsg, charset);
+		backConnectionErr(err, c);
 	}
 
 	private void backConnectionErr(ErrorPacket errPkg, BackendConnection conn) {
@@ -338,10 +342,11 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 		String errHost = source.getHost();
 		int errPort = source.getLocalPort();
 
-		String errmsg = " errno:" + errPkg.errno + " " + new String(errPkg.message);
+		String errmsg = "Error: errno " + errPkg.errno
+				+ ", errmsg '" + new String(errPkg.message) + "'";
 		log.warn("Execute sql error: '{}', frontend host: '{}:{}/{}', con: {}",
 				errmsg, errHost, errPort, errUser, conn);
-		session.releaseConnectionIfSafe(conn);
+		this.session.releaseConnectionIfSafe(conn);
 
 		source.setTxInterrupt(errmsg);
 		errPkg.write(source);
@@ -366,7 +371,10 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 	@Override
 	public void requestDataResponse(byte[] data, BackendConnection conn) {
-		throw new UnsupportedOperationException();
+		if (log.isDebugEnabled()) {
+			log.debug("request data response: {}", ByteUtil.dump(data));
+		}
+		LoadDataUtil.requestFileDataResponse(data, conn);
 	}
 
 	@Override

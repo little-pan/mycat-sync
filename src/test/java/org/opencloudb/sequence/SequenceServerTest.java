@@ -219,6 +219,8 @@ public class SequenceServerTest extends BaseServerTest {
 
     @Override
     protected void prepare() {
+        super.prepare();
+
         Connection c = null;
         try {
             Statement stmt;

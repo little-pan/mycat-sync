@@ -253,7 +253,6 @@ public final class RouteResultset implements Serializable {
 
     public LinkedHashMap<String, Integer> getOrderByCols() {
         return (sqlMerge != null) ? sqlMerge.getOrderByCols() : null;
-
     }
 
     public String getStatement() {
@@ -265,16 +264,21 @@ public final class RouteResultset implements Serializable {
     }
 
     public void setNodes(RouteResultsetNode[] nodes) {
-        if(nodes!=null)
-        {
+        if(nodes!=null) {
            int nodeSize=nodes.length;
-            for (RouteResultsetNode node : nodes)
-            {
+            for (RouteResultsetNode node : nodes) {
                 node.setTotalNodeSize(nodeSize);
             }
-
         }
         this.nodes = nodes;
+    }
+
+    public boolean isEmpty() {
+        return (this.nodes == null || this.nodes.length == 0);
+    }
+
+    public int size() {
+        return (isEmpty()? 0: this.nodes.length);
     }
 
     /**

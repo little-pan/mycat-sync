@@ -35,6 +35,7 @@ import org.opencloudb.net.mysql.HandshakePacket;
 import org.opencloudb.net.mysql.MySQLPacket;
 import org.opencloudb.net.mysql.OkPacket;
 import org.opencloudb.util.CompressUtil;
+import org.opencloudb.util.ExceptionUtil;
 import org.opencloudb.util.RandomUtil;
 import org.slf4j.*;
 
@@ -52,7 +53,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public abstract class FrontendConnection extends AbstractConnection {
 	
-	private static final Logger log = LoggerFactory.getLogger(FrontendConnection.class);
+	static final Logger log = LoggerFactory.getLogger(FrontendConnection.class);
 
 	protected long id;
 	protected String host;
@@ -126,19 +127,20 @@ public abstract class FrontendConnection extends AbstractConnection {
 	}
 
 	public void rawHandle(final byte[] data) {
-		//load data infile  客户端会发空包 长度为4
+		// load data infile EOF
 		if (data.length == 4 && data[0] == 0 && data[1] == 0 && data[2] == 0) {
-			// load in data空包
 			loadDataInfileEnd(data[3]);
 			return;
 		}
-		//修改quit的判断,当load data infile 分隔符为\001 时可能会出现误判断的bug.
-		if (data.length>4 && data[0] == 1 && data[1] == 0 && data[2]== 0 && data[3] == 0
-				&& data[4] == MySQLPacket.COM_QUIT) {
+
+		// 修改quit的判断, 当load data infile分隔符为\001 时可能会出现误判断的bug.
+		if (data.length > 4 && data[0] == 1 && data[1] == 0 && data[2]== 0
+				&& data[3] == 0 && data[4] == MySQLPacket.COM_QUIT) {
 			this.processor.getCommands().doQuit();
 			this.close("quit cmd");
 			return;
 		}
+
 		this.handler.handle(data);
 	}
 
@@ -179,36 +181,43 @@ public abstract class FrontendConnection extends AbstractConnection {
 				this.loadDataInfileHandler.start(sql);
 			} catch (Exception e) {
 				log.error("Load data error", e);
-				writeErrMessage(ErrorCode.ERR_HANDLE_DATA, e.getMessage());
+				String errmsg = ExceptionUtil.getClientMessage(e);
+				writeErrMessage(ErrorCode.ERR_HANDLE_DATA, errmsg);
 			}
 		} else {
-			writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, "load data infile sql is not unsupported!");
+			String errmsg = "Load data infile sql is not supported!";
+			writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, errmsg);
 		}
 	}
 
 	public void loadDataInfileData(byte[] data) {
-		if (loadDataInfileHandler != null) {
+		if (this.loadDataInfileHandler != null) {
 			try {
-				loadDataInfileHandler.handle(data);
+				this.loadDataInfileHandler.handle(data);
 			} catch (Exception e) {
 				log.error("Load data error", e);
-				writeErrMessage(ErrorCode.ERR_HANDLE_DATA, e.getMessage());
+				String errmsg = ExceptionUtil.getClientMessage(e);
+				writeErrMessage(ErrorCode.ERR_HANDLE_DATA, errmsg);
 			}
 		} else {
-			writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, "load data infile  data is not  unsupported!");
+			String errmsg = "Load data infile sql is not supported!";
+			writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, errmsg);
 		}
 	}
 
 	public void loadDataInfileEnd(byte packID) {
-		if (loadDataInfileHandler != null) {
+		log.debug("'load data local infile' end: packet id {}", packID);
+		if (this.loadDataInfileHandler != null) {
 			try {
-				loadDataInfileHandler.end(packID);
+				this.loadDataInfileHandler.end(packID);
 			} catch (Exception e) {
 				log.error("Load data error", e);
-				writeErrMessage(ErrorCode.ERR_HANDLE_DATA, e.getMessage());
+				String errmsg = ExceptionUtil.getClientMessage(e);
+				writeErrMessage(ErrorCode.ERR_HANDLE_DATA, errmsg);
 			}
 		} else {
-			writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, "load data infile end is not  unsupported!");
+			String errmsg = "Load data infile sql is not supported!";
+			writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, errmsg);
 		}
 	}
 	

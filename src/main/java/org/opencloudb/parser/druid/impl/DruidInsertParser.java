@@ -44,6 +44,7 @@ public class DruidInsertParser extends DefaultDruidParser {
 	@Override
 	public void statementParse(SchemaConfig schema, RouteResultset rrs, SQLStatement stmt)
 			throws SQLNonTransientException {
+
 		MySqlInsertStatement insert = (MySqlInsertStatement)stmt;
 		String tableName = StringUtil.removeBackquote(insert.getTableName().getSimpleName()).toUpperCase();
 
@@ -60,27 +61,26 @@ public class DruidInsertParser extends DefaultDruidParser {
 					+ tableName + " schema:" + schema.getName();
 			log.warn(msg);
 			throw new SQLNonTransientException(msg);
-		} else {
-			// childTable的insert直接在解析过程中完成路由
-			if (tc.isChildTable()) {
-				parserChildTable(schema, rrs, tableName, insert);
-				return;
+		}
+
+		// childTable的insert直接在解析过程中完成路由
+		if (tc.isChildTable()) {
+			parserChildTable(schema, rrs, tableName, insert);
+			return;
+		}
+
+		String partitionColumn = tc.getPartitionColumn();
+		if(partitionColumn != null) {//分片表
+			//拆分表必须给出column list,否则无法寻找分片字段的值
+			if(insert.getColumns() == null || insert.getColumns().size() == 0) {
+				throw new SQLSyntaxErrorException("partition table, insert must provide ColumnList");
 			}
-			
-			String partitionColumn = tc.getPartitionColumn();
-			
-			if(partitionColumn != null) {//分片表
-				//拆分表必须给出column list,否则无法寻找分片字段的值
-				if(insert.getColumns() == null || insert.getColumns().size() == 0) {
-					throw new SQLSyntaxErrorException("partition table, insert must provide ColumnList");
-				}
-				
-				//批量insert
-				if(isMultiInsert(insert)) {
-					parserBatchInsert(schema, rrs, partitionColumn, tableName, insert);
-				} else {
-					parserSingleInsert(schema, rrs, partitionColumn, tableName, insert);
-				}
+
+			//批量insert
+			if(isMultiInsert(insert)) {
+				parserBatchInsert(schema, rrs, partitionColumn, tableName, insert);
+			} else {
+				parserSingleInsert(schema, rrs, partitionColumn, tableName, insert);
 			}
 		}
 	}

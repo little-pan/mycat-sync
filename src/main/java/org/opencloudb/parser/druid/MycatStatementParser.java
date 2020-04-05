@@ -39,49 +39,39 @@ public class MycatStatementParser extends MySqlStatementParser
         return new SQLSelectStatement(selectParser.select(), JdbcConstants.MYSQL);
     }
 
-
-    //此处注释掉，以修正后端jdbc方式时，delete语句解析出错的情况
-    //
-//    public SQLSelectParser createSQLSelectParser()
-//    {
-//        return new MycatSelectParser(this.selectExprParser);
-//    }
-
     @Override
-    protected MySqlLoadDataInFileStatement parseLoadDataInFile()
-    {
+    protected MySqlLoadDataInFileStatement parseLoadDataInFile() {
         acceptIdentifier("DATA");
 
         LoadDataStatement stmt = new LoadDataStatement();
-
         if (identifierEquals(LOW_PRIORITY)) {
             stmt.setLowPriority(true);
-            lexer.nextToken();
+            this.lexer.nextToken();
         }
 
         if (identifierEquals("CONCURRENT")) {
             stmt.setConcurrent(true);
-            lexer.nextToken();
+            this.lexer.nextToken();
         }
 
         if (identifierEquals(LOCAL)) {
             stmt.setLocal(true);
-            lexer.nextToken();
+            this.lexer.nextToken();
         }
 
         acceptIdentifier("INFILE");
 
-        SQLLiteralExpr fileName = (SQLLiteralExpr) exprParser.expr();
+        SQLLiteralExpr fileName = (SQLLiteralExpr)this.exprParser.expr();
         stmt.setFileName(fileName);
 
-        if (lexer.token() == Token.REPLACE) {
+        if (this.lexer.token() == Token.REPLACE) {
             stmt.setReplicate(true);
-            lexer.nextToken();
+            this.lexer.nextToken();
         }
 
         if (identifierEquals(IGNORE)) {
             stmt.setIgnore(true);
-            lexer.nextToken();
+            this.lexer.nextToken();
         }
 
         accept(Token.INTO);

@@ -5,9 +5,10 @@ import java.util.List;
 /**
  * Created by magicdoom on 2015/3/30.
  */
-public class LoadData
-{
+public class LoadData {
+
     public static final String loadDataHint="/*loaddata*/";
+
     private boolean isLocal;
     private List<String> data;
     private String fileName;
@@ -96,4 +97,5 @@ public class LoadData
     {
         this.enclose = enclose;
     }
+
 }
