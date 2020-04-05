@@ -24,6 +24,7 @@
 package org.opencloudb.sequence;
 
 import org.opencloudb.BaseServerTest;
+import org.opencloudb.util.IoUtil;
 
 import java.sql.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -53,12 +54,24 @@ public class SequenceServerTest extends BaseServerTest {
         testNextValue(1, false, "global");
         testNextValue(1, false, "Global");
 
-        testAutoIncrInsert(1);
-        testAutoIncrInsert(2);
-        testAutoIncrInsert(10);
-        testAutoIncrBatchInsert(1);
-        testAutoIncrBatchInsert(5);
-        testAutoIncrBatchInsert(10);
+        testAutoIncrInsert(1, false, false);
+        testAutoIncrInsert(2, false, false);
+        testAutoIncrInsert(10, false, false);
+        testAutoIncrInsert(1, true, false);
+        testAutoIncrInsert(2, true, false);
+        testAutoIncrInsert(10, true, false);
+        testAutoIncrInsert(1, true, true);
+        testAutoIncrInsert(2, true, true);
+        testAutoIncrInsert(10, true, true);
+        testAutoIncrBatchInsert(1, false, false);
+        testAutoIncrBatchInsert(5, false, false);
+        testAutoIncrBatchInsert(10, false, false);
+        testAutoIncrBatchInsert(1, true, false);
+        testAutoIncrBatchInsert(5, true, false);
+        testAutoIncrBatchInsert(10, true, false);
+        testAutoIncrBatchInsert(1, true, true);
+        testAutoIncrBatchInsert(5, true, true);
+        testAutoIncrBatchInsert(10, true, true);
 
         // Test abnormal conditions
         try {
@@ -80,6 +93,26 @@ public class SequenceServerTest extends BaseServerTest {
             assertTrue(1003 == e.getErrorCode(), e + "");
         }
 
+        // Concurrent test
+        testAutoIncrInsert(1, false, false, 2);
+        testAutoIncrInsert(2, false, false, 5);
+        testAutoIncrInsert(10, false, false, 9);
+        testAutoIncrInsert(1, true, false, 2);
+        testAutoIncrInsert(2, true, false, 5);
+        testAutoIncrInsert(10, true, false, 9);
+        testAutoIncrInsert(1, true, true, 2);
+        testAutoIncrInsert(2, true, true, 5);
+        testAutoIncrInsert(10, true, true, 9);
+        testAutoIncrBatchInsert(1, false, false, 2);
+        testAutoIncrBatchInsert(5, false, false, 5);
+        testAutoIncrBatchInsert(10, false, false, 50);
+        testAutoIncrBatchInsert(1, true, false, 2);
+        testAutoIncrBatchInsert(5, true, false, 5);
+        testAutoIncrBatchInsert(10, true, false, 50);
+        testAutoIncrBatchInsert(1, true, true, 2);
+        testAutoIncrBatchInsert(5, true, true, 5);
+        testAutoIncrBatchInsert(10, true, true, 50);
+
         ConcurrentMap<String, Long> dupMap = new ConcurrentHashMap<>();
         testNextValue(2, dupMap, 2);
         testNextValue(10, dupMap, 2);
@@ -97,49 +130,187 @@ public class SequenceServerTest extends BaseServerTest {
         testMultiSeqNextValue(100, dupMap, 250, "global", "company");
     }
 
-    private void testAutoIncrInsert(int rows) throws SQLException {
-        try (Connection c = getConnection()) {
-            long companyId = 1;
-            String sql = "insert into employee(company_id, empno, name)values(?, ?, ?)";
+    private void testAutoIncrInsert(int rows, boolean tx, boolean commit) throws SQLException {
+        debug("testAutoIncrInsert: rows %d, tx %s, commit %s, single thread",
+                rows, tx, commit);
 
-            // prepare
+        prepare();
+        doTestAutoIncrInsert(rows, tx, commit, 1, true);
+        checkTxResult(tx, commit, 1, rows);
+    }
+
+    private void testAutoIncrInsert(final int rows, final boolean tx, final boolean commit,
+                                    final int threadCount) throws Exception {
+        debug("testAutoIncrInsert: rows %d, tx %s, commit %s, threadCount %d",
+                rows, tx, commit, threadCount);
+        prepare();
+
+        Thread[] threads = new Thread[threadCount];
+        for (int i = 0; i < threadCount; ++i) {
+            final long companyId = i + 1;
+            Thread t = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    doTestAutoIncrInsert(rows, tx, commit, companyId, threadCount == 1);
+                }
+            }, "testAutoIncrInsert-" + i);
+            t.setDaemon(true);
+            threads[i] = t;
+            t.start();
+        }
+
+        for (Thread t: threads) {
+            t.join();
+        }
+
+        checkTxResult(tx, commit, threadCount,rows * threadCount);
+    }
+
+    private void doTestAutoIncrInsert(int rows, boolean tx, boolean commit, long companyId, boolean noConcur) {
+        try (Connection c = getConnection()) {
             Statement stmt = c.createStatement();
-            stmt.executeUpdate("delete from employee");
+            int n;
+
+            if (tx) c.setAutoCommit(false);
+            insertCompany(stmt, companyId, "Company-"+companyId);
+            final int beginRows = countTable(stmt, "employee");
+
             ResultSet rs = stmt.executeQuery("select next value for mycatseq_employee");
             assertTrue(rs.next(), "No sequence");
             final long lastId = rs.getLong(1);
             rs.close();
 
             // Do insert
+            String sql = "insert into employee(company_id, empno, name)values(?, ?, ?)";
             PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             for (int i = 0; i < rows; ++i) {
                 ps.setLong(1, companyId);
                 ps.setString(2, "00" + (i + 1));
                 ps.setString(3, "员工-" + (i + 1));
-                final int n = ps.executeUpdate();
+                n = ps.executeUpdate();
                 rs = ps.getGeneratedKeys();
                 assertTrue(rs.next(), "No generated keys");
-                final long id = rs.getLong(1);
-                assertTrue(lastId + i + 1 == id, "Auto increment ID error: " + id);
+                if (noConcur) {
+                    long id = rs.getLong(1);
+                    assertTrue(lastId + i + 1 == id, "Auto increment ID error: " + id);
+                }
                 rs.close();
                 ps.clearParameters();
                 assertTrue(n == 1, "Update count error: " + n);
             }
             ps.close();
+
+            if (tx) {
+                n = countTable(stmt, "employee");
+                assertTrue(n == beginRows + rows, "Insertion result error: result rows " + n);
+            }
+
+            if (tx) {
+                if (commit) {
+                    c.commit();
+                } else {
+                    c.rollback();
+                }
+            }
+        } catch (SQLException e) {
+            throw new AssertionError(e);
         }
     }
 
-    private void testAutoIncrBatchInsert(int rows) throws SQLException {
-        try (Connection c = getConnection()) {
-            long companyId = 1;
-            String sql = "insert into employee(company_id, empno, name)values(?, ?, ?)";
+    @Override
+    protected void prepare() {
+        Connection c = null;
+        try {
+            Statement stmt;
+            c = getConnection();
 
-            // prepare
+            stmt = c.createStatement();
+            deleteTable(stmt, "employee");
+            deleteTable(stmt, "company");
+
+            stmt.close();
+        } catch (SQLException e) {
+            throw new AssertionError("Prepare fatal", e);
+        } finally {
+            IoUtil.close(c);
+        }
+    }
+
+    private void checkTxResult(boolean tx, boolean commit, int comRows, int empRows) throws SQLException {
+        debug("checkTxResult: tx %s, commit %s, comRows %d, empRows %d",
+                tx, commit, comRows, empRows);
+        if (!tx) {
+            return;
+        }
+
+        try (Connection c = getConnection()) {
             Statement stmt = c.createStatement();
-            stmt.executeUpdate("delete from employee");
+
+            int n;
+            if (commit) {
+                n = countTable(stmt, "company");
+                assertTrue(n == comRows, "Insertion commit error: company rows " + n);
+
+                n = countTable(stmt, "employee");
+                assertTrue(n == empRows, "Insertion commit error: employee rows " + n);
+            } else {
+                n = countTable(stmt, "company");
+                assertTrue(n == 0, "Insertion rollback error: company rows " + n);
+
+                n = countTable(stmt, "employee");
+                assertTrue(n == 0, "Insertion rollback error: employee rows " + n);
+            }
+        }
+    }
+
+    private void testAutoIncrBatchInsert(int rows, boolean tx, boolean commit) throws SQLException {
+        debug("testAutoIncrBatchInsert: rows %d, tx %s, commit %s, single thread",
+                rows, tx, commit);
+
+        prepare();
+        doTestAutoIncrBatchInsert(rows, tx, commit, 1);
+        checkTxResult(tx, commit, 1, rows);
+    }
+
+    private void testAutoIncrBatchInsert(final int rows, final boolean tx, final boolean commit, final int threadCount)
+            throws Exception {
+        debug("testAutoIncrBatchInsert: rows %d, tx %s, commit %s, threadCount %d",
+                rows, tx, commit, threadCount);
+
+        prepare();
+
+        Thread[] threads = new Thread[threadCount];
+        for (int i = 0; i < threadCount; ++i) {
+            final long companyId = i + 1;
+            Thread t = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    doTestAutoIncrBatchInsert(rows, tx, commit, companyId);
+                }
+            }, "testAutoIncrBatchInsert-"+i);
+            threads[i] = t;
+            t.setDaemon(true);
+            t.start();
+        }
+
+        for (Thread t: threads) {
+            t.join();
+        }
+
+        checkTxResult(tx, commit, threadCount, rows * threadCount);
+    }
+
+    private void doTestAutoIncrBatchInsert(int rows, boolean tx, boolean commit, long companyId) {
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
             ResultSet rs;
 
+            if (tx) c.setAutoCommit(false);
+            insertCompany(stmt, companyId, "c-"+companyId);
+            final int beginRows = countTable(stmt, "employee");
+
             // Do insert
+            String sql = "insert into employee(company_id, empno, name)values(?, ?, ?)";
             PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             for (int i = 0; i < rows; ++i) {
                 ps.setLong(1, companyId);
@@ -148,14 +319,27 @@ public class SequenceServerTest extends BaseServerTest {
                 ps.addBatch();
             }
             int[] a = ps.executeBatch();
-            assertTrue(a.length == rows, "Batch insertion result rows error: " + a.length);
+            int n = a.length;
+            assertTrue(n == rows, "Batch insertion result rows error: " + n);
             ps.close();
 
             rs = stmt.executeQuery("select count(*) from employee");
             assertTrue(rs.next(), "Batch insertion no data in table");
-            int resRows = rs.getInt(1);
-            assertTrue(rows == resRows, "Count rows error after batch insertion: " + resRows);
+            if (tx) {
+                n = rs.getInt(1);
+                assertTrue(n == beginRows + rows, "Count rows error after batch insertion: " + n);
+            }
             rs.close();
+
+            if (tx) {
+                if (commit) {
+                    c.commit();
+                } else {
+                    c.rollback();
+                }
+            }
+        } catch (SQLException e) {
+            throw new AssertionError(e);
         }
     }
 

@@ -23,8 +23,10 @@
  */
 package org.opencloudb;
 
+import org.opencloudb.config.Versions;
 import org.opencloudb.config.ZkConfig;
 import org.opencloudb.config.model.SystemConfig;
+import org.opencloudb.util.ProcessUtil;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -48,12 +50,14 @@ public final class MycatStartup {
             }
 
             // init
+            String lineSeq = System.getProperty("line.separator");
+            int pid = ProcessUtil.getPid();
             MycatServer server = new MycatServer();
             server.beforeStart();
             // startup
             server.startup();
-            System.out.println(format("%s startup success. See logs in '%s/logs/mycat.log'",
-                    MycatServer.NAME, home));
+            System.out.println(format("%s startup success: pid %d, version %s. %sSee logs in '%s/logs/mycat.log'",
+                    MycatServer.NAME, pid, Versions.SERVER_VERSIONS, lineSeq, home));
         } catch (Throwable e) {
             printError(e);
             System.exit(-1);

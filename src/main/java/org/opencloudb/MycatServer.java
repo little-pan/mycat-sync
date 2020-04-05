@@ -58,7 +58,7 @@ public class MycatServer {
 
 	static final Logger log = LoggerFactory.getLogger(MycatServer.class);
 
-	public static final String NAME = "MyCat";
+	public static final String NAME = "Mycat";
 	private static final long TIME_UPDATE_PERIOD = 20L;
     private static final ThreadLocal<MycatServer> CONTEXT_SERVER = new ThreadLocal<>();
 
@@ -121,7 +121,7 @@ public class MycatServer {
 	    setContextServer(this);
 	    try {
             String home = SystemConfig.getHomePath();
-            log.info("{}-{} bootstrap in '{}'", NAME, ProcessUtil.getPid(), home);
+            log.info("{} pid {} bootstrap in '{}'", NAME, ProcessUtil.getPid(), home);
         } finally {
             removeContextServer();
         }

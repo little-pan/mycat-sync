@@ -23,15 +23,19 @@
  */
 package org.opencloudb.config;
 
+import java.nio.charset.StandardCharsets;
+
 /**
  * @author mycat
  */
 public interface Versions {
 
+    String SERVER_VERSIONS = "5.6.29-mycat-sync-1.5.1-dev-20200405113758";
+
     /**协议版本**/
-    public static final byte PROTOCOL_VERSION = 10;
+    byte PROTOCOL_VERSION = 10;
 
     /**服务器版**/
-    public static final byte[] SERVER_VERSION = "5.6.29-mycat-1.5-GA-20160201172658".getBytes();
+    byte[] SERVER_VERSION = SERVER_VERSIONS.getBytes(StandardCharsets.UTF_8);
 
 }

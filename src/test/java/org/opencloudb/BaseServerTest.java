@@ -23,11 +23,11 @@
  */
 package org.opencloudb;
 
+import org.apache.zookeeper.data.Stat;
+
 import java.io.PrintStream;
-import java.sql.Connection;
+import java.sql.*;
 import java.util.Date;
-import java.sql.DriverManager;
-import java.sql.SQLException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 
@@ -80,6 +80,49 @@ public abstract class BaseServerTest {
         } catch (SQLException e) {
             throw new AssertionError("Can't get jdbc connection", e);
         }
+    }
+
+    protected static int deleteTable(Statement stmt, String table) throws SQLException {
+        return stmt.executeUpdate("delete from " + table);
+    }
+
+    protected static int countTable(Statement stmt, String table, String where) throws SQLException {
+        ResultSet rs = stmt.executeQuery("select count(*) from " + table + (where == null? "": " " + where));
+        rs.next();
+        int n = rs.getInt(1);
+        rs.close();
+        return n;
+    }
+
+    protected static int countTable(Statement stmt, String table) throws SQLException {
+        return countTable(stmt, table, null);
+    }
+
+    protected static int insertCompany(Statement stmt, long id, String name) throws SQLException {
+        if (name == null) {
+            throw new NullPointerException("name is null");
+        }
+
+        DateFormat df = getDateFormat();
+        String sql = format("insert into company(id, name, create_date)values(%d, '%s', '%s')",
+                id, name, df.format(new Date()));
+        return stmt.executeUpdate(sql);
+    }
+
+    protected static DateFormat getDateFormat() {
+        return new SimpleDateFormat("yyyy-MM-dd");
+    }
+
+    protected static DateFormat getTimeFormat() {
+        return new SimpleDateFormat("HH:mm:ss");
+    }
+
+    protected static DateFormat getTimestampFormat() {
+        return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    }
+
+    public static String format(String format, Object... args) {
+        return String.format(format, args);
     }
 
     public static void info(String format, Object... args) {
