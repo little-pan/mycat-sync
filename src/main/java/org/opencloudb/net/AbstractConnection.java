@@ -334,7 +334,7 @@ public abstract class AbstractConnection implements ClosableConnection {
 					return false;
 				} else {
 					this.writeBuffer = null;
-					this.recycle(buffer);
+					recycle(buffer);
 				}
 			}
 			while ((buffer = this.writeQueue.poll()) != null) {

@@ -21,7 +21,7 @@ import java.io.*;
 public class LoadDataUtil {
 
     static final String PROP_YIELD_SIZE = "org.opencloudb.mysql.loadData.yieldSize";
-    static final int YIELD_SIZE = Integer.getInteger(PROP_YIELD_SIZE, 16 << 20);
+    static final int YIELD_SIZE = Integer.getInteger(PROP_YIELD_SIZE, 1 << 20);
 
     public static void requestFileDataResponse(byte[] data, BackendConnection conn) {
         byte packId = data[3];
@@ -114,7 +114,7 @@ public class LoadDataUtil {
                     packet.data = temp;
                     packet.write(this.conn);
 
-                    if (size >= YIELD_SIZE) {
+                    if (size >= YIELD_SIZE && this.conn.getWriteQueueSize() > 0/*Condition: write queuing*/) {
                         log.debug("yield when size reaches {} in this round", size);
                         // Note: load later for easing buffer accumulation in write queue(GC overhead issue),
                         // and doesn't block processor

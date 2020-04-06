@@ -185,6 +185,10 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         this.tempPath = SystemConfig.getHomePath() + File.separator + "temp"
                 + File.separator + this.serverConnection.getId() + File.separator;
         this.tempFile = this.tempPath + "clientTemp.txt";
+        // Note: It's possible that old files existing in temp path. So it's important that
+        // first clearing temp files after init temp directory, otherwise appending into old files
+        // can lead to data duplicated.
+        clearTempFiles();
 
         List<SQLExpr> columns = this.statement.getColumns();
         if(this.tableConfig != null) {
@@ -247,19 +251,24 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
     public void handle(byte[] data) {
         BinaryPacket packet;
 
+        boolean failed = true;
         try {
             if (this.sql == null) {
                 String s = "Unknown command";
                 this.serverConnection.writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, s);
-                clear();
                 return;
             }
 
             ByteArrayInputStream in = new ByteArrayInputStream(data);
             packet = new BinaryPacket();
             packet.read(in);
+            failed = false;
         } catch (IOException e) {
             throw new FrontendException("'load data infile' data error", e);
+        } finally {
+            if (failed) {
+                clear();
+            }
         }
 
         appendToTempFile(packet.data);
@@ -670,18 +679,21 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         this.routeResultset = null;
         this.routeComplete = false;
 
-        // Cleanup file resources
+        clearTempFiles();
+        this.routeResultMap.clear();
+    }
+
+    protected void clearTempFiles() {
         IoUtil.close(this.tempOutFile);
         this.tempOutFile = null;
         if (this.tempFile != null) {
             deleteFile(this.tempFile);
         }
+
         flushNodeFiles();
         if (this.tempPath != null) {
             deleteFile(this.tempPath);
         }
-
-        this.routeResultMap.clear();
     }
 
     @Override
