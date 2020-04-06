@@ -190,9 +190,21 @@ public abstract class BaseServerTest {
         }
     }
 
+    public static void assertTrue(boolean b) {
+        if (!b) {
+            throw new AssertionError("Expect true, but false");
+        }
+    }
+
     public static void assertFalse(boolean b, String message) {
         if (b) {
             throw new AssertionError(message);
+        }
+    }
+
+    public static void assertFalse(boolean b) {
+        if (b) {
+            throw new AssertionError("Expect false, but true");
         }
     }
 
@@ -202,6 +214,15 @@ public abstract class BaseServerTest {
         }
         if (a == null || !a.equals(b)) {
             throw new AssertionError(message);
+        }
+    }
+
+    public static void assertEquals(Object a, Object b) {
+        if (a == b) {
+            return;
+        }
+        if (a == null || !a.equals(b)) {
+            throw new AssertionError("Expect " + a + ", but " + b);
         }
     }
 

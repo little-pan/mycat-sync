@@ -145,6 +145,8 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         }
         this.loadData.setCharset(charset);
         this.loadData.setFileName(this.fileName);
+
+        log.debug("'load data' params: {}", this.loadData);
     }
 
     @Override
@@ -158,10 +160,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         this.statement = (MySqlLoadDataInFileStatement) parser.parseStatement();
         this.fileName = parseFileName(this.statement.getFileName().toString());
 
-        if (log.isDebugEnabled()) {
-            String local = this.statement.isLocal() ? "local" : "";
-            log.debug("load data {} infile {}", local, this.fileName);
-        }
+        log.debug("'load data' sql: {}", this.statement);
         if (this.fileName == null) {
             String s = "File name is null!";
             this.serverConnection.writeErrMessage(ErrorCode.ER_FILE_NOT_FOUND, s);
@@ -202,7 +201,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         String charset = this.loadData.getCharset();
         if (this.statement.isLocal()) {
             this.isStartLoadData = true;
-            log.debug("request client's file {}", this.fileName);
+            log.debug("request client's file '{}'", this.fileName);
             RequestFilePacket filePacket = new RequestFilePacket();
             Charset cs = Charset.forName(charset);
             filePacket.fileName = this.fileName.getBytes(cs);

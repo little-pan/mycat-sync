@@ -30,11 +30,11 @@ package org.opencloudb.net.handler;
  * into table tbl_name
  * [fields
  * [terminated by 't']
- * [OPTIONALLY] enclosed by '']
- * [escaped by'\' ]]
- * [lines terminated by 'n']
+ * [OPTIONALLY] enclosed by '\'']
+ * [escaped by '\' ]]
+ * [lines terminated by '\n']
  * [ignore number lines]
- * [(col_name,   )]
+ * [(col_name, )]
  * </p>
  * 
  * @author magicdoom

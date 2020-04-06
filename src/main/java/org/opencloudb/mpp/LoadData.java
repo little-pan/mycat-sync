@@ -98,4 +98,18 @@ public class LoadData {
         this.enclose = enclose;
     }
 
+    @Override
+    public String toString() {
+       return getClass().getSimpleName() +
+               '[' +
+               "charset" + '=' + this.charset + ',' +
+               "enclose" + '=' + this.enclose + ',' +
+               "escape" + '=' + this.escape + ',' +
+               "fieldSep" + '=' + this.fieldTerminatedBy + ',' +
+               "fileName" + '=' + this.fileName + ',' +
+               "local" + '=' + this.isLocal + ',' +
+               "lineSep" + '=' + this.lineTerminatedBy +
+               ']';
+    }
+
 }
