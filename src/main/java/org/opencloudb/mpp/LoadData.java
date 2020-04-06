@@ -1,7 +1,5 @@
 package org.opencloudb.mpp;
 
-import java.util.List;
-
 /**
  * Created by magicdoom on 2015/3/30.
  */
@@ -10,7 +8,6 @@ public class LoadData {
     public static final String loadDataHint="/*loaddata*/";
 
     private boolean isLocal;
-    private List<String> data;
     private String fileName;
     private  String charset;
     private  String lineTerminatedBy;
@@ -36,16 +33,6 @@ public class LoadData {
     public void setLocal(boolean isLocal)
     {
         this.isLocal = isLocal;
-    }
-
-    public List<String> getData()
-    {
-        return data;
-    }
-
-    public void setData(List<String> data)
-    {
-        this.data = data;
     }
 
     public String getFileName()

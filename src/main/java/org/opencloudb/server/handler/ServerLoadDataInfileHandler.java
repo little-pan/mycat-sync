@@ -29,8 +29,6 @@ import com.alibaba.druid.sql.ast.expr.SQLLiteralExpr;
 import com.alibaba.druid.sql.ast.expr.SQLTextLiteralExpr;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlLoadDataInFileStatement;
 import com.alibaba.druid.sql.parser.SQLStatementParser;
-import com.google.common.collect.Lists;
-import com.google.common.io.Files;
 import com.univocity.parsers.csv.CsvParser;
 import com.univocity.parsers.csv.CsvParserSettings;
 import org.opencloudb.MycatServer;
@@ -65,10 +63,19 @@ import java.nio.charset.Charset;
 import java.sql.SQLNonTransientException;
 import java.util.*;
 
-/**
+/** <p>
  * mysql命令行客户端也需要启用local file权限，加参数--local-infile=1：
  * 1）JDBC则正常，不用设置；
- * 2）'load data' sql中的CHARACTER SET 'gbk'，其中的字符集必须引号括起来，否则druid解析出错。
+ * 2）'load data' sql中的CHARACTER SET 'gbk'，其中的字符集必须引号括起来，否则druid解析出错
+ * </p>
+ *
+ * <p>
+ * All data writen to disk for memory issue and simplicity. Here only sequential read/write,
+ * so it's very high efficient already, no need to be buffered in memory.
+ *
+ * @since 2020-04-06
+ * @author little-pan
+ * </p>
  */
 public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler {
 
@@ -78,26 +85,25 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
 
     private String sql;
     private String fileName;
-    private byte packID = 0;
+    private byte packID;
     private MySqlLoadDataInFileStatement statement;
 
     private Map<String, LoadData> routeResultMap = new HashMap<>();
     private RouteResultset routeResultset;
     private boolean routeComplete;
 
+    private Map<String, OutputStream> nodeOutFiles = new HashMap<>();
     private LoadData loadData;
-    private ByteArrayOutputStream tempByteBuffer;
-    private long tempByteBufferSize = 0;
     private String tempPath;
     private String tempFile;
-    private boolean isHasStoreToFile = false;
+    private OutputStream tempOutFile;
 
     private String tableName;
     private TableConfig tableConfig;
     private int partitionColumnIndex = -1;
     private LayeredCachePool tableId2DataNodeCache;
     private SchemaConfig schema;
-    private boolean isStartLoadData = false;
+    private boolean isStartLoadData;
 
     public int getPackID()
     {
@@ -179,7 +185,6 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         this.tempPath = SystemConfig.getHomePath() + File.separator + "temp"
                 + File.separator + this.serverConnection.getId() + File.separator;
         this.tempFile = this.tempPath + "clientTemp.txt";
-        this.tempByteBuffer = new ByteArrayOutputStream();
 
         List<SQLExpr> columns = this.statement.getColumns();
         if(this.tableConfig != null) {
@@ -231,8 +236,8 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         if (!this.routeComplete) {
             parseFileByLine(this.fileName, charset, lineSeq);
         }
+        flushNodeFiles();
         RouteResultset rrs = buildResultSet(this.routeResultMap);
-        flushDataToFile();
         ServerSession session = this.serverConnection.getSession();
         this.isStartLoadData = false;
         session.execute(rrs, ServerParse.LOAD_DATA_INFILE_SQL);
@@ -257,38 +262,30 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
             throw new FrontendException("'load data infile' data error", e);
         }
 
-        saveByteOrToFile(packet.data, false);
+        appendToTempFile(packet.data);
     }
 
-    private void saveByteOrToFile(byte[] data, boolean isForce) {
-        if (data != null) {
-            this.tempByteBufferSize = this.tempByteBufferSize + data.length;
-            try {
-                this.tempByteBuffer.write(data);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        if ((isForce && this.isHasStoreToFile)
-                || this.tempByteBufferSize > 200 * 1024 * 1024) {
-            // 超过200M存文件
-            FileOutputStream channel = null;
-            try {
+    private void appendToTempFile(byte[] data) {
+        boolean failed = true;
+        try {
+            if (this.tempOutFile == null) {
                 File file = new File(this.tempFile);
-                Files.createParentDirs(file);
-                channel = new FileOutputStream(file, true);
-
-                this.tempByteBuffer.writeTo(channel);
-                this.tempByteBuffer = new ByteArrayOutputStream();
-                this.tempByteBufferSize = 0;
-                this.isHasStoreToFile = true;
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } finally {
-                IoUtil.close(channel);
+                this.tempOutFile = IoUtil.fileOutputStream(file, true);
+            }
+            this.tempOutFile.write(data);
+            failed = false;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            if (failed) {
+                flushTempFile();
             }
         }
+    }
+
+    private void flushTempFile() {
+        IoUtil.close(this.tempOutFile);
+        this.tempOutFile = null;
     }
 
     private RouteResultset routeByShardColumn(String sql, String[] values, int rowIndex) {
@@ -349,7 +346,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
                 SQLNonTransientException cause = new SQLNonTransientException(s);
                 throw new FrontendException("Route failed", cause);
             }
-            RouteResultsetNode rrNode = new RouteResultsetNode(dataNode, sqlType, sql);
+            RouteResultsetNode rrNode = new RouteResultsetNode(dataNode, sqlType, this.sql);
             rrs.setNodes(new RouteResultsetNode[]{rrNode});
         } else if (this.tableConfig.isGlobalTable()) {
             // Case-2 Route to all dataNodes for global table
@@ -359,16 +356,23 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
 
             for (int i = 0; i < n; i++) {
                 String dataNode = dataNodes.get(i);
-                RouteResultsetNode rrNode = new RouteResultsetNode(dataNode, sqlType, sql);
+                RouteResultsetNode rrNode = new RouteResultsetNode(dataNode, sqlType, this.sql);
                 rrsNodes[i] = rrNode;
             }
             rrs.setNodes(rrsNodes);
         }
 
         if (!rrs.isEmpty()) {
+            String file;
+
+            if (this.statement.isLocal()) {
+                file = this.tempFile;
+            } else {
+                file = this.loadData.getFileName();
+            }
             for (RouteResultsetNode rrn: rrs.getNodes()) {
                 String node = rrn.getName();
-                initNodeData(node);
+                initNodeData(node, file);
             }
             this.routeResultset = rrs;
             this.routeComplete = true;
@@ -380,43 +384,27 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
     }
 
     private void parseOneLine(List<SQLExpr> columns, String tableName, String[] values,
-                              boolean toFile, String lineSep, int rowIndex) {
-        RouteResultset rrs;
+                              String lineSep, int rowIndex) {
 
-        if (this.routeComplete) {
-            rrs = this.routeResultset;
-        } else {
-            rrs = routeByShardColumn(this.sql, values, rowIndex);
-            if (rrs.isEmpty()) {
-                String insert = makeSimpleInsert(columns, values, tableName, true);
-                rrs = this.serverConnection.routeSQL(insert, ServerParse.INSERT);
-            }
-            if (rrs == null || rrs.isEmpty()) {
-                // 路由已处理
-                return;
-            }
+        RouteResultset rrs = routeByShardColumn(this.sql, values, rowIndex);
+        if (rrs.isEmpty()) {
+            String insert = makeSimpleInsert(columns, values, tableName, true);
+            rrs = this.serverConnection.routeSQL(insert, ServerParse.INSERT);
+        }
+        if (rrs == null || rrs.isEmpty()) {
+            // 路由已处理
+            return;
         }
 
         for (RouteResultsetNode routeResultsetNode : rrs.getNodes()) {
             String node = routeResultsetNode.getName();
-            LoadData data = initNodeData(node);
-            String joined = joinValues(values, data);
-            if (data.getData() == null) {
-                data.setData(Lists.newArrayList(joined));
-            } else {
-                data.getData().add(joined);
-            }
-
-            if (toFile) {
-                // 避免当导入数据跨多分片时内存溢出的情况
-                if(data.getData().size() > 10000) {
-                    saveDataToFile(data, node);
-                }
-            }
+            LoadData data = initNodeData(node, null);
+            String row = joinValues(values, data) + lineSep;
+            appendToNodeFile(node, data, row);
         }
     }
 
-    private LoadData initNodeData(String node) {
+    private LoadData initNodeData(String node, String fileName) {
         LoadData data = this.routeResultMap.get(node);
 
         if (data == null) {
@@ -426,50 +414,74 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
             data.setFieldTerminatedBy(this.loadData.getFieldTerminatedBy());
             data.setLineTerminatedBy(this.loadData.getLineTerminatedBy());
             data.setEscape(this.loadData.getEscape());
+            data.setFileName(fileName);
             this.routeResultMap.put(node, data);
         }
 
         return data;
     }
 
-    private void flushDataToFile() {
+    private void flushNodeFiles() {
+        IOException lastError = null;
+
         for (Map.Entry<String, LoadData> it : this.routeResultMap.entrySet()) {
-            LoadData value = it.getValue();
-            List<String> data = value.getData();
-            if(value.getFileName() != null && data != null && data.size() > 0) {
-                saveDataToFile(value, it.getKey());
+            String node = it.getKey();
+            IOException error = flushNodeFile(node);
+            if (error != null) {
+                lastError = error;
             }
+        }
+
+        if (lastError != null) {
+            throw new RuntimeException("Flush node data failed", lastError);
         }
     }
 
-    private void saveDataToFile(LoadData data, String node) {
+    private IOException flushNodeFile(String node) {
+        OutputStream outFile = this.nodeOutFiles.get(node);
+
+        if (outFile != null) {
+            try {
+                outFile.flush();
+            } catch (IOException e) {
+                return e;
+            } finally {
+                IoUtil.close(outFile);
+                this.nodeOutFiles.remove(node);
+            }
+        }
+
+        return null;
+    }
+
+    private void appendToNodeFile(String node, LoadData data, String row) {
         if (data.getFileName() == null) {
             String dnPath = this.tempPath + node + ".txt";
             data.setFileName(dnPath);
         }
 
-        File dnFile = new File(data.getFileName());
+        OutputStream outFile = this.nodeOutFiles.get(node);
+        boolean failed = true;
         try {
-            if (!dnFile.exists()) {
-                Files.createParentDirs(dnFile);
+            if (outFile == null) {
+                File dnFile = new File(data.getFileName());
+                outFile = IoUtil.fileOutputStream(dnFile, true);
+                this.nodeOutFiles.put(node, outFile);
             }
-            Charset cs = Charset.forName(loadData.getCharset());
-            String lines = joinLines(data.getData(), data);
-            Files.append(lines, dnFile, cs);
+
+            Charset cs = Charset.forName(this.loadData.getCharset());
+            byte[] rowData = row.getBytes(cs);
+            outFile.write(rowData);
+
+            failed = false;
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
-            data.setData(null);
+            if (failed) {
+                IoUtil.close(outFile);
+                this.nodeOutFiles.remove(node);
+            }
         }
-    }
-
-    private String joinLines(List<String> data, LoadData loadData) {
-        StringBuilder sb = new StringBuilder();
-        String lineSeq = loadData.getLineTerminatedBy();
-        for (String s : data) {
-            sb.append(s).append(lineSeq);
-        }
-        return sb.toString();
     }
 
     private String joinValues(String[] values, LoadData loadData) {
@@ -478,7 +490,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         String rep = loadData.getEscape() + enclose;
         StringBuilder sb = new StringBuilder();
 
-        for (int i = 0, srcLength = values.length; i < srcLength; i++) {
+        for (int i = 0, n = values.length; i < n; i++) {
             String s = values[i] != null? values[i]: "";
 
             if(i > 0) {
@@ -523,10 +535,8 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
             newLoadData.setLocal(true);
             LoadData mapData = routeMap.get(dn);
             if (mapData.getFileName() != null) {
-                // 此处判断是否有保存分库load的临时文件dn1.txt/dn2.txt，不是判断是否有clientTemp.txt
+                // 此处使用分库load的临时文件dn1.txt/dn2.txt，或者clientTemp.txt（全局表、默认节点表）
                 newLoadData.setFileName(mapData.getFileName());
-            } else {
-                newLoadData.setData(mapData.getData());
             }
             rrNode.setLoadData(newLoadData);
 
@@ -593,49 +603,19 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
 
     @Override
     public void end(byte packID) {
+        // load in data EOF
         this.isStartLoadData = false;
         this.packID = packID;
+        flushTempFile();
 
-        // load in data EOF
-        saveByteOrToFile(null, true);
-
-        List<SQLExpr> columns = this.statement.getColumns();
-        String tableName = this.statement.getTableName().getSimpleName();
-        String charset = this.loadData.getCharset();
-        String lineSep = this.loadData.getLineTerminatedBy();
-
-        if (this.isHasStoreToFile) {
+        if (!this.routeComplete) {
+            String charset = this.loadData.getCharset();
+            String lineSep = this.loadData.getLineTerminatedBy();
             log.debug("parse file '{}'", this.tempFile);
             parseFileByLine(this.tempFile, charset, lineSep);
-        } else {
-            Charset cs = Charset.forName(charset);
-            String content = new String(this.tempByteBuffer.toByteArray(), cs);
-            CsvParserSettings settings = new CsvParserSettings();
-            settings.getFormat().setLineSeparator(lineSep);
-            settings.getFormat().setDelimiter(this.loadData.getFieldTerminatedBy().charAt(0));
-            if(this.loadData.getEnclose() != null) {
-                settings.getFormat().setQuote(this.loadData.getEnclose().charAt(0));
-            }
-            if(this.loadData.getEscape() != null) {
-                settings.getFormat().setQuoteEscape(this.loadData.getEscape().charAt(0));
-            }
-            settings.getFormat().setNormalizedNewline(lineSep.charAt(0));
-            CsvParser parser = new CsvParser(settings);
-            try {
-                String[] row;
-                int rowIndex = 0;
-
-                parser.beginParsing(new StringReader(content));
-                while ((row = parser.parseNext()) != null) {
-                    parseOneLine(columns, tableName, row, false, lineSep, ++rowIndex);
-                }
-            } finally {
-                parser.stopParsing();
-            }
+            flushNodeFiles();
         }
-
         RouteResultset rrs = buildResultSet(this.routeResultMap);
-        flushDataToFile();
         ServerSession session = this.serverConnection.getSession();
         session.execute(rrs, ServerParse.LOAD_DATA_INFILE_SQL);
     }
@@ -656,24 +636,22 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         settings.getFormat().setNormalizedNewline(lineSeq.charAt(0));
 
         CsvParser parser = new CsvParser(settings);
-        InputStreamReader reader = null;
-        FileInputStream in = null;
+        InputStream in = null;
         try {
             String[] row;
             int rowIndex = 0;
 
-            in = new FileInputStream(file);
-            reader = new InputStreamReader(in, encode);
+            in = IoUtil.fileInputStream(new File(file));
+            Reader reader = new InputStreamReader(in, encode);
             parser.beginParsing(reader);
             while ((row = parser.parseNext()) != null) {
-                parseOneLine(columns, this.tableName, row, true, lineSeq, ++rowIndex);
+                parseOneLine(columns, this.tableName, row, lineSeq, ++rowIndex);
             }
-        } catch (FileNotFoundException | UnsupportedEncodingException e) {
+            parser.stopParsing();
+        } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
-            parser.stopParsing();
             IoUtil.close(in);
-            IoUtil.close(reader);
         }
     }
 
@@ -682,25 +660,28 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         this.tableId2DataNodeCache = null;
         this.schema = null;
         this.tableConfig = null;
-        this.isHasStoreToFile = false;
         this.packID = 0;
-        this.tempByteBufferSize = 0;
         this.tableName = null;
         this.partitionColumnIndex = -1;
-        if (this.tempFile != null) {
-            deleteFile(this.tempFile);
-        }
-        if (this.tempPath != null) {
-            deleteFile(this.tempPath);
-        }
-        this.tempByteBuffer = null;
         this.loadData = null;
         this.sql = null;
         this.fileName = null;
         this.statement = null;
-        this.routeResultMap.clear();
         this.routeResultset = null;
         this.routeComplete = false;
+
+        // Cleanup file resources
+        IoUtil.close(this.tempOutFile);
+        this.tempOutFile = null;
+        if (this.tempFile != null) {
+            deleteFile(this.tempFile);
+        }
+        flushNodeFiles();
+        if (this.tempPath != null) {
+            deleteFile(this.tempPath);
+        }
+
+        this.routeResultMap.clear();
     }
 
     @Override
