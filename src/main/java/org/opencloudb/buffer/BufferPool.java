@@ -102,7 +102,7 @@ public final class BufferPool {
 		if (buffer == null || DIRECT != buffer.isDirect()) {
 			return false;
 		} else if (buffer.capacity() > this.chunkSize) {
-			log.warn("Cant' recycle a buffer larger than pool chunkSize {}", buffer.capacity());
+			log.debug("Doesn't recycle a buffer larger than pool chunkSize {}", buffer.capacity());
 			return false;
 		}
         this.totalCounts++;

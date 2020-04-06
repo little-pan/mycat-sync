@@ -34,16 +34,19 @@ public abstract class BaseServerTest {
 
     protected static final String USER_DIR = System.getProperty("user.dir");
     protected static final String RES_DIR = new File(USER_DIR, "conf") + "";
+    protected static final String TEMP_DIR = new File(USER_DIR, "temp") + "";
+    protected static final String DATA_DIR = new File(TEMP_DIR, "data") + "";
 
     static final int DEBUG = 1, INFO = 2, ERROR = 3;
     static final int LOG_LEVEL = Integer.getInteger("org.opencloudb.test.logLevel", DEBUG);
     static final int ROUNDS = Integer.getInteger("org.opencloudb.test.rounds", 2);
+    protected static final boolean TEST_PERF = Boolean.getBoolean("org.opencloudb.test.perf");
 
     protected static String JDBC_USER = "root";
     protected static String JDBC_PASSWORD = "123456";
     protected static String JDBC_URL = "jdbc:mysql://localhost:8066/test?" +
             "useUnicode=true&characterEncoding=UTF-8&" +
-            "connectTimeout=3000&socketTimeout=30000";
+            "connectTimeout=3000&socketTimeout="+ (TEST_PERF? 180000: 30000);
 
     static {
         // First boot MyCat server
@@ -73,6 +76,7 @@ public abstract class BaseServerTest {
         try (Connection c = getConnection()) {
             Statement stmt = c.createStatement();
 
+            dropTable(stmt, "hotel");
             createTableHotel(stmt);
         } catch (SQLException e) {
             throw new AssertionError(e);
@@ -107,8 +111,18 @@ public abstract class BaseServerTest {
         return stmt.executeUpdate(sql);
     }
 
+    protected static int dropTable(Statement stmt, String table) throws SQLException {
+        String sql = "drop table if exists " + table;
+        return stmt.executeUpdate(sql);
+    }
+
+
     protected static int deleteTable(Statement stmt, String table) throws SQLException {
         return stmt.executeUpdate("delete from " + table);
+    }
+
+    protected static int truncateTable(Statement stmt, String table) throws SQLException {
+        return stmt.executeUpdate("truncate table " + table);
     }
 
     protected static int countTable(Statement stmt, String table, String where) throws SQLException {

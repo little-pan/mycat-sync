@@ -260,9 +260,9 @@ public final class NioProcessor extends AbstractProcessor {
 			if (task == null) {
 				break;
 			}
-			if (task instanceof AcceptTask) {
-				AcceptTask at = (AcceptTask)task;
-				at.con.close("Processor has been closed");
+			if (task instanceof ResourceTask) {
+				ResourceTask rt = (ResourceTask)task;
+				rt.release("Processor has been closed");
 			}
 		}
 	}
@@ -419,7 +419,7 @@ public final class NioProcessor extends AbstractProcessor {
 		}
 	}
 
-    class AcceptTask implements Runnable {
+    class AcceptTask implements ResourceTask {
 
 		final AbstractConnection con;
 
@@ -438,9 +438,14 @@ public final class NioProcessor extends AbstractProcessor {
 				failed = false;
 			} finally {
 				if (failed) {
-					this.con.close("Fatal: register connection");
+					release("Fatal: register connection");
 				}
 			}
+		}
+
+		@Override
+		public void release(String reason) {
+			this.con.close(reason);
 		}
 
 	}

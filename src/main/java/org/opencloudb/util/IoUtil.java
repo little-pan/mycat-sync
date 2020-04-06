@@ -65,9 +65,10 @@ public final class IoUtil {
             throws IOException {
 
         File parent = file.getParentFile();
-        if (!parent.mkdirs()) {
+        if (!parent.isDirectory() && !parent.mkdirs()) {
             throw new IOException("Create directory failed: " + parent);
         }
+
         OutputStream out = new FileOutputStream(file, append);
         if (buffered) {
             BufferedOutputStream bout;
@@ -91,8 +92,12 @@ public final class IoUtil {
     }
 
     public static InputStream fileInputStream(File file, boolean buffered) throws IOException {
-        InputStream in = new FileInputStream(file);
+        File parent = file.getParentFile();
+        if (!parent.isDirectory() && !parent.mkdirs()) {
+            throw new IOException("Create directory failed: " + parent);
+        }
 
+        InputStream in = new FileInputStream(file);
         if (buffered) {
             BufferedInputStream bin;
             boolean failed = true;

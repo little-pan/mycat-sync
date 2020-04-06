@@ -70,8 +70,8 @@ public class BinaryPacket extends MySQLPacket {
         int size = c.getPacketHeaderSize() + calcPacketSize();
         buffer = c.checkWriteBuffer(buffer, size, false);
         BufferUtil.writeUB3(buffer, calcPacketSize());
-        buffer.put(packetId);
-        buffer.put(data);
+        buffer.put(this.packetId);
+        buffer.put(this.data);
         c.write(buffer);
     }
 

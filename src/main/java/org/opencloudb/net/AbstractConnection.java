@@ -35,6 +35,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.opencloudb.mysql.CharsetUtil;
 import static org.opencloudb.util.CompressUtil.*;
+
+import org.opencloudb.util.Callback;
 import org.opencloudb.util.IoUtil;
 import org.opencloudb.util.TimeUtil;
 import org.slf4j.*;
@@ -67,9 +69,12 @@ public abstract class AbstractConnection implements ClosableConnection {
 	protected int maxPacketSize;
 	protected ByteBuffer readBuffer;
 	protected ByteBuffer writeBuffer;
+
 	// Note: it's thread-safe for processor bind mode
 	private final Queue<ByteBuffer> writeQueue = new LinkedList<>();
 	protected int writeQueueSize;
+	protected Callback<Boolean> writeComplete;
+
 	protected int readBufferOffset;
 	protected long startupTime;
 	protected long lastReadTime;
@@ -136,9 +141,15 @@ public abstract class AbstractConnection implements ClosableConnection {
 	public void onWrite() {
 		boolean completed = flush();
 		if (completed && this.writeQueue.isEmpty()) {
-			if ((this.processKey.interestOps() & SelectionKey.OP_WRITE) != 0) {
-				disableWrite();
+			try {
+				if ((this.processKey.interestOps() & SelectionKey.OP_WRITE) != 0) {
+					disableWrite();
+				}
+			} catch (Error | RuntimeException cause) {
+				onWriteError(cause);
+				throw cause;
 			}
+			onWriteSuccess();
 		} else {
 			if ((this.processKey.interestOps() & SelectionKey.OP_WRITE) == 0) {
 				enableWrite(false);
@@ -299,9 +310,6 @@ public abstract class AbstractConnection implements ClosableConnection {
 		}
 		this.writeQueueSize++;
 
-		// if async write finish event got lock before me ,then writing
-		// flag is set false but not start a write request
-		// so we check again
 		onWrite();
 	}
 
@@ -358,11 +366,38 @@ public abstract class AbstractConnection implements ClosableConnection {
 				}
 			}
 		} catch (IOException cause) {
-			wrapIoException(cause);
+			try {
+				onWriteError(cause);
+			} finally {
+				wrapIoException(cause);
+			}
+		} catch (Error | RuntimeException cause) {
+			onWriteError(cause);
+			throw cause;
 		}
 
 		return true;
     }
+
+    protected void onWriteSuccess() {
+		if (this.writeComplete != null) {
+			try {
+				this.writeComplete.call(true, null);
+			} finally {
+				this.writeComplete = null;
+			}
+		}
+	}
+
+	protected void onWriteError(Throwable cause) {
+		if (this.writeComplete != null) {
+			try {
+				this.writeComplete.call(null, cause);
+			} finally {
+				this.writeComplete = null;
+			}
+		}
+	}
 
     public ByteBuffer checkWriteBuffer(ByteBuffer buffer, int capacity, boolean writeSocketIfFull) {
         if (capacity > buffer.remaining()) {
@@ -667,6 +702,10 @@ public abstract class AbstractConnection implements ClosableConnection {
 
 	public void setHandler(Handler handler) {
 		this.handler = handler;
+	}
+
+	public void writeCompleteCallback(Callback<Boolean> writeComplete) {
+		this.writeComplete = writeComplete;
 	}
 
 }

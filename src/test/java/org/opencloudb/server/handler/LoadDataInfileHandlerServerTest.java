@@ -6,7 +6,9 @@ import org.opencloudb.util.CsvUtil;
 import java.io.File;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -26,6 +28,64 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         testDefaultNodeTable(false, true, false);
         testDefaultNodeTable(true, true, true);
         testDefaultNodeTable(false, true, true);
+
+        // Perf test: 200k rows/s
+        if (TEST_PERF) {
+            // 5s
+            testDefaultNodeTablePerf(true, 1000000);
+            testDefaultNodeTablePerf(false, 1000000);
+            // 25s
+            testDefaultNodeTablePerf(true, 5000000);
+            testDefaultNodeTablePerf(false, 5000000);
+            // 50s
+            testDefaultNodeTablePerf(true, 10000000);
+            testDefaultNodeTablePerf(false, 10000000);
+        }
+    }
+
+    private void testDefaultNodeTablePerf(boolean isLocal, int rows) throws Exception {
+        String table = "hotel";
+        debug("testDefaultNodeTablePerf: table '%s', local %s, rows %s",
+                table, isLocal, rows);
+
+        prepare();
+
+        String name = table + "-perf-" + rows + ".csv";
+        File csvFile = new File(DATA_DIR, name);
+        if (!csvFile.isFile()) {
+            info("'%s' not exists, create it", name);
+            int batchSize = 10000;
+            List<List<?>> hotels = new ArrayList<>(batchSize);
+            for (int i = 0; i < rows; ++i) {
+                List<Object> hotel = new ArrayList<>(4);
+                hotel.add("Hotel-" + i);
+                hotel.add("Address-" + i);
+                hotel.add(10000000000L + i);
+                hotel.add(i % batchSize);
+                hotels.add(hotel);
+
+                if ((i + 1) % batchSize == 0 || i == rows -1) {
+                    CsvUtil.write(csvFile, true, table, hotels);
+                    hotels.clear();
+                }
+            }
+            info("'%s' created", name);
+        }
+
+        info("testDefaultNodeTablePerf: 'load data' start");
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+
+            String local = isLocal? "local": "";
+            String file = csvFile + "";
+            String sql = "load data %s infile '%s' into table %s " +
+                    "fields terminated by ',' enclosed by '\\'' " +
+                    "(name, address, tel, rooms)";
+            sql = format(sql, local, file, table);
+            int n = stmt.executeUpdate(sql);
+            assertTrue(n == rows, "'load data' result rows: " + n);
+        }
+        info("testDefaultNodeTablePerf: 'load data' end");
     }
 
     private void testDefaultNodeTable(boolean isLocal, boolean tx, boolean commit)
@@ -43,11 +103,7 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         final int rows = hotels.size();
         File csvFile = CsvUtil.write(table, hotels);
 
-        // Prepare
-        try (Connection c = getConnection()) {
-            Statement stmt = c.createStatement();
-            deleteTable(stmt, table);
-        }
+        prepare();
 
         try (Connection c = getConnection()) {
             Statement stmt = c.createStatement();
@@ -96,6 +152,19 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
             } else {
                 assertTrue(n == 0, "'load data' rows error after rollback: " + n);
             }
+        }
+    }
+
+    @Override
+    protected void prepare() {
+        super.prepare();
+
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+
+            truncateTable(stmt, "hotel");
+        } catch (SQLException e) {
+            throw new AssertionError(e);
         }
     }
 
