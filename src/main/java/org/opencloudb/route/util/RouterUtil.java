@@ -113,6 +113,7 @@ public final class RouterUtil {
 	 */
 	public static RouteResultset routeToDDLNode(RouteResultset rrs, int sqlType, String stmt,SchemaConfig schema)
 			throws SQLSyntaxErrorException {
+
 		//检查表是否在配置文件中
 		stmt = getFixedSql(stmt);
 		String tablename = "";		
@@ -120,11 +121,15 @@ public final class RouterUtil {
 		if(upStmt.startsWith("CREATE")){
 			if (upStmt.contains("CREATE INDEX ")){
 				tablename = RouterUtil.getTableName(stmt, RouterUtil.getCreateIndexPos(upStmt, 0));
-			}else tablename = RouterUtil.getTableName(stmt, RouterUtil.getCreateTablePos(upStmt, 0));
+			} else {
+				tablename = RouterUtil.getTableName(stmt, RouterUtil.getCreateTablePos(upStmt, 0));
+			}
 		}else if(upStmt.startsWith("DROP")){
 			if (upStmt.contains("DROP INDEX ")){
 				tablename = RouterUtil.getTableName(stmt, RouterUtil.getDropIndexPos(upStmt, 0));
-			}else tablename = RouterUtil.getTableName(stmt, RouterUtil.getDropTablePos(upStmt, 0));
+			} else {
+				tablename = RouterUtil.getTableName(stmt, RouterUtil.getDropTablePos(upStmt, 0));
+			}
 		}else if(upStmt.startsWith("ALTER")){
 			tablename = RouterUtil.getTableName(stmt, RouterUtil.getAlterTablePos(upStmt, 0));
 		}else if (upStmt.startsWith("TRUNCATE")){
@@ -133,7 +138,7 @@ public final class RouterUtil {
 		tablename = tablename.toUpperCase();
 		
 		if (schema.getTables().containsKey(tablename)){
-			if(ServerParse.DDL==sqlType){
+			if(ServerParse.DDL == sqlType){
 				List<String> dataNodes = new ArrayList<>();
 				Map<String, TableConfig> tables = schema.getTables();
 				TableConfig tc;
@@ -151,13 +156,14 @@ public final class RouterUtil {
 				rrs.setNodes(nodes);
 			}
 			return rrs;
-		}else if(schema.getDataNode()!=null){		//默认节点ddl
+		} else if(schema.getDataNode()!=null) { // 默认节点ddl
 			RouteResultsetNode[] nodes = new RouteResultsetNode[1];
 			nodes[0] = new RouteResultsetNode(schema.getDataNode(), sqlType, stmt);
 			rrs.setNodes(nodes);
 			return rrs;
 		}
-		// both tablename and defaultnode null
+
+		// Both tablename and defaultnode null
 		log.warn("Table not in schema '{}'", tablename);
 		throw new SQLSyntaxErrorException("op table not in schema '"+tablename+"'");
 	}
@@ -188,26 +194,35 @@ public final class RouterUtil {
 		if (secInd < 0) {
 			secInd = stmt.length();
 		}
-		int thiInd = stmt.indexOf('(',secInd+1);
+		int thiInd = stmt.indexOf('(',secInd + 1);
 		if (thiInd < 0) {
 			thiInd = stmt.length();
 		}
 		repPos[1] = secInd;
-		String tableName = "";
-		if (stmt.toUpperCase().startsWith("DESC")||stmt.toUpperCase().startsWith("DESCRIBE")){
+
+		String tableName;
+		if (stmt.toUpperCase().startsWith("DESC") || stmt.toUpperCase().startsWith("DESCRIBE")){
 			tableName = stmt.substring(startPos, thiInd).trim();
-		}else {
+		} else {
 			tableName = stmt.substring(secInd, thiInd).trim();
+			// eg.
+			// CREATE TABLE [if not exists] table_name;
+			// DROP TABLE [if exists] table_name;
+			int i = tableName.lastIndexOf(' ');
+			if (i != -1) {
+				tableName = tableName.substring(i + 1);
+			}
 		}
 
-		//ALTER TABLE
+		// ALTER TABLE
 		if (tableName.contains(" ")){
-			tableName = tableName.substring(0,tableName.indexOf(" "));
+			tableName = tableName.substring(0, tableName.indexOf(" "));
 		}
 		int ind2 = tableName.indexOf('.');
 		if (ind2 > 0) {
 			tableName = tableName.substring(ind2 + 1);
 		}
+
 		return tableName;
 	}
 

@@ -77,6 +77,11 @@ public abstract class BaseServerTest {
             Statement stmt = c.createStatement();
 
             dropTable(stmt, "hotel");
+            dropTable(stmt, "employee");
+            dropTable(stmt, "company");
+
+            createTableCompany(stmt);
+            createTableEmployee(stmt);
             createTableHotel(stmt);
         } catch (SQLException e) {
             throw new AssertionError(e);
@@ -107,7 +112,34 @@ public abstract class BaseServerTest {
                 "    tel varchar(20)," +
                 "    rooms int default 50 not null," +
                 "    primary key(id)" +
-                ");";
+                ")";
+        return stmt.executeUpdate(sql);
+    }
+
+    protected static int createTableCompany(Statement stmt) throws SQLException {
+        String sql = "create table if not exists company (" +
+                "    id bigint not null primary key," +
+                "    name varchar(20) not null," +
+                "    address varchar(250)," +
+                "    create_date date not null," +
+                "    unique u_company_name(name)" +
+                ")";
+        return stmt.executeUpdate(sql);
+    }
+
+    protected static int createTableEmployee(Statement stmt) throws SQLException {
+        String sql = "create table if not exists employee (" +
+                "    id bigint not null primary key auto_increment," +
+                "    company_id bigint not null," +
+                "    empno varchar(10) not null," +
+                "    name varchar(50) not null," +
+                "    salary integer default 5000 not null," +
+                "    gender char(1) default 'M' not null," +
+                "    entry_date date," +
+                "    leave_date date," +
+                "    unique u_employee_empno(company_id, empno)," +
+                "    foreign key(company_id) references company(id)" +
+                ")";
         return stmt.executeUpdate(sql);
     }
 

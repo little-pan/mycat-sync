@@ -154,11 +154,11 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 			ServerConnection source = this.session.getSource();
 			OkPacket ok = new OkPacket();
 			ok.read(data);
-			// 判断是否是全局表，如果是，执行行数不做累加，以最后一次执行的为准。
-			if (!this.rrs.isGlobalTable()) {
-				this.affectedRows += ok.affectedRows;
+			// 判断是否是全局表，如果是，执行行数不做累加，以最后一次执行的为准
+			if (this.rrs.isGlobalTable()) {
+				this.affectedRows  = ok.affectedRows;
 			} else {
-				this.affectedRows = ok.affectedRows;
+				this.affectedRows += ok.affectedRows;
 			}
 			if (ok.insertId > 0) {
 				this.insertId = (insertId == 0) ? ok.insertId: Math.min(insertId, ok.insertId);

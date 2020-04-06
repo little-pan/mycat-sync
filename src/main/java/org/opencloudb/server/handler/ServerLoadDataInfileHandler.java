@@ -369,6 +369,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
                 rrsNodes[i] = rrNode;
             }
             rrs.setNodes(rrsNodes);
+            rrs.setGlobalTable(true);
         }
 
         if (!rrs.isEmpty()) {
@@ -530,6 +531,9 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         rrs.setStatement(srcStatement);
         rrs.setAutocommit(this.serverConnection.isAutocommit());
         rrs.setFinishedRoute(true);
+        if (this.routeResultset != null) {
+            rrs.setGlobalTable(this.routeResultset.isGlobalTable());
+        }
 
         int size = routeMap.size();
         int index = 0;

@@ -126,8 +126,8 @@ public class RouteService {
 			}
 		} else {
 			stmt = stmt.trim();
-			rrs = RouteStrategyFactory.getRouteStrategy().route(sysconf, schema, sqlType, stmt,
-					charset, sc, tableId2DataNodeCache);
+			RouteStrategy strategy = RouteStrategyFactory.getRouteStrategy();
+			rrs = strategy.route(sysconf, schema, sqlType, stmt, charset, sc, this.tableId2DataNodeCache);
 		}
 
 		if (rrs != null && sqlType == ServerParse.SELECT && rrs.isCacheAble()) {
