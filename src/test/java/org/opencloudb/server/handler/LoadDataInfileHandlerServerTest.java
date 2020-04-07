@@ -2,8 +2,10 @@ package org.opencloudb.server.handler;
 
 import org.opencloudb.BaseServerTest;
 import org.opencloudb.util.CsvUtil;
+import org.opencloudb.util.IoUtil;
 
 import java.io.File;
+import java.io.OutputStream;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -41,58 +43,122 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
             // 5s
             testDefaultNodeTablePerf(true, 1000000);
             testDefaultNodeTablePerf(false, 1000000);
+            // 15s: 3 nodes
+            testGlobalTablePerf(true, 1000000);
+            testGlobalTablePerf(false, 1000000);
             // 25s
             testDefaultNodeTablePerf(true, 5000000);
             testDefaultNodeTablePerf(false, 5000000);
+            testGlobalTablePerf(true, 5000000);
+            testGlobalTablePerf(false, 5000000);
             // 50s
             testDefaultNodeTablePerf(true, 10000000);
             testDefaultNodeTablePerf(false, 10000000);
+            testGlobalTablePerf(true, 10000000);
+            testGlobalTablePerf(false, 10000000);
         }
     }
 
     private void testDefaultNodeTablePerf(boolean isLocal, int rows) throws Exception {
+        String tag = "testDefaultNodeTablePerf";
         String table = "hotel";
-        debug("testDefaultNodeTablePerf: table '%s', local %s, rows %s",
-                table, isLocal, rows);
+        String[] columns = {"name", "address", "tel", "rooms"};
+        RowGenerator generator = new RowGenerator() {
+            @Override
+            public void generate(List<Object> row, int rowid, DateFormat dateFormat) {
+                row.add("Hotel-" + rowid);
+                row.add("Address-" + rowid);
+                row.add(10000000000L + rowid);
+                row.add(rowid % 10000);
+            }
+        };
 
-        prepare();
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
 
+            dropTable(stmt, table);
+            createTableHotel(stmt);
+        }
+        testPerf(tag, table, columns, generator, isLocal, rows);
+    }
+
+    private void testGlobalTablePerf(boolean isLocal, int rows) throws Exception {
+        String tag = "testGlobalTablePerf";
+        String table = "company";
+        String[] columns = {"id", "name", "address", "create_date"};
+        RowGenerator generator = new RowGenerator() {
+            @Override
+            public void generate(List<Object> row, int rowid, DateFormat dateFormat) {
+                row.add(rowid);
+                row.add("Company-" + rowid);
+                row.add("Address-" + rowid);
+                row.add(dateFormat.format(new Date()));
+            }
+        };
+
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+
+            dropTable(stmt, "employee");
+            dropTable(stmt, table);
+            createTableCompany(stmt);
+            createTableEmployee(stmt);
+        }
+        testPerf(tag, table, columns, generator, isLocal, rows);
+    }
+
+    private void testPerf(String tag, String table, String[] columns, RowGenerator rowGenerator,
+                          boolean isLocal, int rows) throws Exception {
+        debug(tag+": table '%s', local %s, rows %s", table, isLocal, rows);
+
+        final int cols = columns.length;
+        if (cols == 0) {
+            throw new IllegalArgumentException("columns count: " + cols);
+        }
         String name = table + "-perf-" + rows + ".csv";
         File csvFile = new File(DATA_DIR, name);
         if (!csvFile.isFile()) {
             info("'%s' not exists, create it", name);
+            DateFormat df = getDateFormat();
             int batchSize = 10000;
-            List<List<?>> hotels = new ArrayList<>(batchSize);
-            for (int i = 0; i < rows; ++i) {
-                List<Object> hotel = new ArrayList<>(4);
-                hotel.add("Hotel-" + i);
-                hotel.add("Address-" + i);
-                hotel.add(10000000000L + i);
-                hotel.add(i % batchSize);
-                hotels.add(hotel);
+            List<List<?>> batch = new ArrayList<>(batchSize);
+            try (OutputStream out = IoUtil.fileOutputStream(csvFile, true)) {
+                for (int i = 0; i < rows; ++i) {
+                    List<Object> row = new ArrayList<>(cols);
+                    rowGenerator.generate(row, i, df);
+                    batch.add(row);
 
-                if ((i + 1) % batchSize == 0 || i == rows -1) {
-                    CsvUtil.write(csvFile, true, table, hotels);
-                    hotels.clear();
+                    if ((i + 1) % batchSize == 0 || i == rows -1) {
+                        CsvUtil.write(out, batch);
+                        batch.clear();
+                    }
                 }
             }
+
             info("'%s' created", name);
         }
 
-        info("testDefaultNodeTablePerf: 'load data' start");
+        info(tag+": 'load data' start");
         try (Connection c = getConnection()) {
             Statement stmt = c.createStatement();
 
             String local = isLocal? "local": "";
             String file = csvFile + "";
+            String fields = "";
+            for (int i = 0; i < cols; ++i) {
+                if (i > 0) {
+                    fields += ",";
+                }
+                fields += columns[i];
+            }
             String sql = "load data %s infile '%s' into table %s " +
                     "fields terminated by ',' enclosed by '\\'' " +
-                    "(name, address, tel, rooms)";
+                    "(" + fields + ")";
             sql = format(sql, local, file, table);
             int n = stmt.executeUpdate(sql);
             assertTrue(n == rows, "'load data' result rows: " + n);
         }
-        info("testDefaultNodeTablePerf: 'load data' end");
+        info(tag+": 'load data' end");
     }
 
     private void testDefaultNodeTable(boolean isLocal, boolean tx, boolean commit)
@@ -228,6 +294,12 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
                 assertTrue(n == 0, "'load data' rows error after rollback: " + n);
             }
         }
+    }
+
+    interface RowGenerator {
+
+        void generate(List<Object> row, int rowid, DateFormat dateFormat);
+
     }
 
 }

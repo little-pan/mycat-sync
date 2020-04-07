@@ -46,7 +46,7 @@ public abstract class BaseServerTest {
     protected static String JDBC_PASSWORD = "123456";
     protected static String JDBC_URL = "jdbc:mysql://localhost:8066/test?" +
             "useUnicode=true&characterEncoding=UTF-8&" +
-            "connectTimeout=3000&socketTimeout="+ (TEST_PERF? 180000: 30000);
+            "connectTimeout=3000&socketTimeout="+ (TEST_PERF? 300000: 30000);
 
     static {
         // First boot MyCat server
@@ -158,7 +158,10 @@ public abstract class BaseServerTest {
     }
 
     protected static int countTable(Statement stmt, String table, String where) throws SQLException {
-        ResultSet rs = stmt.executeQuery("select count(*) from " + table + (where == null? "": " " + where));
+        if (where == null) {
+            where = "";
+        }
+        ResultSet rs = stmt.executeQuery("select count(*) from " + table + " " + where);
         rs.next();
         int n = rs.getInt(1);
         rs.close();

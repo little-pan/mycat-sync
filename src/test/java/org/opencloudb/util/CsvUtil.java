@@ -26,6 +26,7 @@ package org.opencloudb.util;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.List;
 
@@ -50,37 +51,47 @@ public final class CsvUtil {
         if (csvFile == null) {
             csvFile = File.createTempFile(table + "-", ".csv");
         }
-
-        charset = charset == null? "UTF-8": charset;
-
-        lineSeq = lineSeq == null? System.lineSeparator(): lineSeq;
-        final byte[] lineSeqBytes = lineSeq.getBytes(charset);
-
         try (FileOutputStream out = new FileOutputStream(csvFile, append)) {
-            for (Object row: rows) {
-                int i = 0;
-                for (Object val: (Collection<?>)row) {
-                    if (i > 0) {
-                        out.write(',');
-                    }
-                    final byte[] a;
-                    if (val == null) {
-                        a = "NULL".getBytes(charset);
-                    } else {
-                        String s = val + "";
-                        if (enclose != null) {
-                            s = enclose + s + enclose;
-                        }
-                        a = s.getBytes(charset);
-                    }
-                    out.write(a);
-                    ++i;
-                }
-                out.write(lineSeqBytes);
-            }
+            write(out, rows, enclose, lineSeq, charset);
         }
 
         return csvFile;
+    }
+
+    public static void write(OutputStream out, List<?> rows) throws IOException {
+        write(out, rows, "\'", null, null);
+    }
+
+    public static void write(OutputStream out, List<?> rows, String enclose,
+                             String lineSeq, String charset) throws IOException {
+
+        final byte[] lineSeqBytes;
+
+        charset = charset == null? "UTF-8": charset;
+        lineSeq = lineSeq == null? System.lineSeparator(): lineSeq;
+        lineSeqBytes = lineSeq.getBytes(charset);
+
+        for (Object row: rows) {
+            int i = 0;
+            for (Object val: (Collection<?>)row) {
+                if (i > 0) {
+                    out.write(',');
+                }
+                final byte[] a;
+                if (val == null) {
+                    a = "NULL".getBytes(charset);
+                } else {
+                    String s = val + "";
+                    if (enclose != null) {
+                        s = enclose + s + enclose;
+                    }
+                    a = s.getBytes(charset);
+                }
+                out.write(a);
+                ++i;
+            }
+            out.write(lineSeqBytes);
+        }
     }
 
 }
