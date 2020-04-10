@@ -27,6 +27,12 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         testDefaultNodeTable(false, false, false);
         testGlobalTable(true, false, false);
         testGlobalTable(false, false, false);
+        testShardTable(true, false, false, false, false);
+        testShardTable(false, false, false, false, false);
+        testShardTable(true, false, false, true, false);
+        testShardTable(false, false, false, true, false);
+        testShardTable(true, false, false, true, true);
+        testShardTable(false, false, false, false, true);
 
         // Tx test
         testDefaultNodeTable(true, true, false);
@@ -37,6 +43,16 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         testGlobalTable(false, true, false);
         testGlobalTable(true, true, true);
         testGlobalTable(false, true, true);
+        testShardTable(true, true, true, true, false);
+        testShardTable(true, true, true, false, false);
+        testShardTable(true, true, false, true, false);
+        testShardTable(true, true, false, false, false);
+        testShardTable(false, true, true, true, false);
+        testShardTable(false, true, true, false, false);
+        testShardTable(false, true, false, true, false);
+        testShardTable(false, true, false, false, false);
+        testShardTable(false, true, false, true, true);
+        testShardTable(false, true, false, false, true);
 
         // Perf test: 200k rows/s
         if (TEST_PERF) {
@@ -46,6 +62,13 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
             // 15s: 3 nodes
             testGlobalTablePerf(true, 1000000);
             testGlobalTablePerf(false, 1000000);
+            //
+            testShardTablePerf(true, 1000000, true, true);
+            testShardTablePerf(false, 1000000, true, true);
+            testShardTablePerf(true, 1000000, true, false);
+            testShardTablePerf(false, 1000000, true, false);
+            testShardTablePerf(true, 1000000, false, false);
+            testShardTablePerf(false, 1000000, false, false);
             // 25s
             testDefaultNodeTablePerf(true, 5000000);
             testDefaultNodeTablePerf(false, 5000000);
@@ -79,7 +102,7 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
             dropTable(stmt, table);
             createTableHotel(stmt);
         }
-        testPerf(tag, table, columns, generator, isLocal, rows);
+        testPerf(tag, table, columns, generator, isLocal, rows, null);
     }
 
     private void testGlobalTablePerf(boolean isLocal, int rows) throws Exception {
@@ -104,18 +127,63 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
             createTableCompany(stmt);
             createTableEmployee(stmt);
         }
-        testPerf(tag, table, columns, generator, isLocal, rows);
+        testPerf(tag, table, columns, generator, isLocal, rows, null);
+    }
+
+    private void testShardTablePerf(boolean isLocal, int rows, final boolean autoIncr,
+                                    final boolean noIdColumn) throws Exception {
+
+        String fileTag = (noIdColumn? "noIdColumn": "incIdColumn");
+        String tag = "testShardTablePerf.id-" + (autoIncr? "autoIncr": "assigned")
+                + "-" + fileTag;
+        String table = "employee";
+        String[] columns;
+        if (noIdColumn) {
+            columns = new String[]{"company_id", "empno", "name"};
+        } else {
+            columns = new String[]{"id", "company_id", "empno", "name"};
+        }
+        final long companyA = 1L, companyB = 2L;
+        RowGenerator generator = new RowGenerator() {
+            @Override
+            public void generate(List<Object> row, int rowid, DateFormat dateFormat) {
+                if (!noIdColumn) {
+                    row.add(autoIncr? null: rowid);
+                }
+                row.add(rowid % 2 == 0? companyA: companyB);
+                row.add("00" + rowid);
+                row.add("Employee-"+ rowid % 1000);
+            }
+        };
+
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+
+            dropTable(stmt, table);
+            dropTable(stmt, "company");
+            createTableCompany(stmt);
+            createTableEmployee(stmt);
+        }
+
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+
+            insertCompany(stmt, companyA, "Company-" + companyA);
+            insertCompany(stmt, companyB, "Company-" + companyB);
+        }
+
+        testPerf(tag, table, columns, generator, isLocal, rows, fileTag);
     }
 
     private void testPerf(String tag, String table, String[] columns, RowGenerator rowGenerator,
-                          boolean isLocal, int rows) throws Exception {
+                          boolean isLocal, int rows, String fileTag) throws Exception {
         debug(tag+": table '%s', local %s, rows %s", table, isLocal, rows);
 
         final int cols = columns.length;
         if (cols == 0) {
             throw new IllegalArgumentException("columns count: " + cols);
         }
-        String name = table + "-perf-" + rows + ".csv";
+        String name = table + "-perf-" + rows + (fileTag == null? "": "-"+fileTag) + ".csv";
         File csvFile = new File(DATA_DIR, name);
         if (!csvFile.isFile()) {
             info("'%s' not exists, create it", name);
@@ -289,6 +357,104 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
                     assertEquals(row.get(1), name);
                     assertEquals(row.get(2), address);
                     assertEquals(row.get(3), df.format(createDate));
+                }
+            } else {
+                assertTrue(n == 0, "'load data' rows error after rollback: " + n);
+            }
+        }
+    }
+
+    private void testShardTable(boolean isLocal, boolean tx, boolean commit, boolean autoIncr, boolean noIdColumn)
+            throws Exception {
+        String table = "employee";
+        debug("testShardTable: table '%s', local %s, tx %s, commit %s, autoIncr %s, noIdColumn %s",
+                table, isLocal, tx, commit, autoIncr, noIdColumn);
+
+        prepare();
+
+        long companyA = 1L, companyB = 2L;
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+
+            insertCompany(stmt, companyA, "Company-" + companyA);
+            insertCompany(stmt, companyB, "Company-" + companyB);
+        }
+
+        final List<?> rows;
+        if (noIdColumn) {
+            rows = Arrays.asList(
+                    // company_id, empno, name
+                    Arrays.asList(companyA, "001", "Employee-" + 1),
+                    Arrays.asList(companyA, "002", "Employee-" + 2),
+                    Arrays.asList(companyB, "001", "Employee-" + 1),
+                    Arrays.asList(companyB, "002", "Employee-" + 2),
+                    Arrays.asList(companyA, "003", "Employee-" + 3));
+        } else {
+            rows = Arrays.asList(
+                    // id, company_id, empno, name
+                    Arrays.asList(autoIncr? null: 1L, companyA, "001", "Employee-" + 1),
+                    Arrays.asList(autoIncr? null: 2L, companyA, "002", "Employee-" + 2),
+                    Arrays.asList(autoIncr? null: 3L, companyB, "001", "Employee-" + 1),
+                    Arrays.asList(autoIncr? null: 4L, companyB, "002", "Employee-" + 2),
+                    Arrays.asList(autoIncr? null: 5L, companyA, "003", "Employee-" + 3));
+        }
+
+        final int rowCount = rows.size();
+        File csvFile = CsvUtil.write(table, rows);
+
+
+
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+            if (tx) c.setAutoCommit(false);
+
+            String local = isLocal? "local": "";
+            String file = csvFile + "";
+            String sql = "load data %s infile '%s' into table %s " +
+                    "fields terminated by ',' enclosed by '\\'' " +
+                    "(" + (noIdColumn? "": "id, ") + "company_id, empno, name)";
+            sql = format(sql, local, file, table);
+            int n = stmt.executeUpdate(sql);
+            assertEquals(rowCount, n);
+            if (tx) {
+                if (commit) {
+                    c.commit();
+                } else {
+                    c.rollback();
+                }
+            }
+        }
+
+        // Check again by query
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+            int n = countTable(stmt, table);
+            if (!tx || commit) {
+                String sql;
+                assertTrue(n == rowCount, "'load data' rows error: " + n);
+                sql = "select id, company_id, empno, name from " + table + " order by id asc";
+                ResultSet rs  = stmt.executeQuery(sql);
+                for (int i = 0; i < n; ++i) {
+                    assertTrue(rs.next());
+
+                    long id = rs.getLong(1);
+                    boolean idNotNull = !rs.wasNull();
+                    long companyId = rs.getLong(2);
+                    String empno = rs.getString(3);
+                    String name = rs.getString(4);
+
+                    List<?> row = (List<?>)rows.get(i);
+                    assertTrue(idNotNull);
+                    int j = 0;
+                    if (!autoIncr && !noIdColumn) {
+                        assertEquals(row.get(j++), id);
+                    }
+                    if (autoIncr && !noIdColumn) {
+                        j++;
+                    }
+                    assertEquals(row.get(j++), companyId);
+                    assertEquals(row.get(j++), empno);
+                    assertEquals(row.get(j), name);
                 }
             } else {
                 assertTrue(n == 0, "'load data' rows error after rollback: " + n);

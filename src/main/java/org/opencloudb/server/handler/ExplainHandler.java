@@ -144,7 +144,7 @@ public class ExplainHandler {
                 return null;
             }
             SystemConfig system = server.getConfig().getSystem();
-            return server.getRouterservice()
+            return server.getRouterService()
 					.route(system,schema, sqlType, stmt, c.getCharset(), c);
 		} catch (Exception e) {
 			StringBuilder s = new StringBuilder();

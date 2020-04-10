@@ -23,7 +23,6 @@
  */
 package org.opencloudb.route;
 
-import org.opencloudb.mpp.LoadData;
 import org.opencloudb.server.parser.ServerParse;
 
 import java.io.Serializable;
@@ -46,7 +45,7 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 	private int limitSize;
 	private int totalNodeSize = 0; //方便后续jdbc批量获取扩展
 
-	private LoadData loadData;
+	private String loadFile;
 
 	public RouteResultsetNode(String name, int sqlType, String srcStatement) {
 		this.name = name;
@@ -121,19 +120,17 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 		return totalNodeSize;
 	}
 
-	public void setTotalNodeSize(int totalNodeSize)
-	{
+	public void setTotalNodeSize(int totalNodeSize) {
 		this.totalNodeSize = totalNodeSize;
 	}
 
-	public LoadData getLoadData()
+	public String getLoadFile()
 	{
-		return loadData;
+		return loadFile;
 	}
 
-	public void setLoadData(LoadData loadData)
-	{
-		this.loadData = loadData;
+	public void setLoadFile(String loadFile) {
+		this.loadFile = loadFile;
 	}
 
 	@Override

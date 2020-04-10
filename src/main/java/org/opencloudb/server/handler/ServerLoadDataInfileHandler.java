@@ -25,10 +25,12 @@ package org.opencloudb.server.handler;
 
 import com.alibaba.druid.sql.ast.SQLExpr;
 import com.alibaba.druid.sql.ast.expr.SQLCharExpr;
+import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
 import com.alibaba.druid.sql.ast.expr.SQLLiteralExpr;
 import com.alibaba.druid.sql.ast.expr.SQLTextLiteralExpr;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlLoadDataInFileStatement;
 import com.alibaba.druid.sql.parser.SQLStatementParser;
+import com.univocity.parsers.csv.CsvFormat;
 import com.univocity.parsers.csv.CsvParser;
 import com.univocity.parsers.csv.CsvParserSettings;
 import org.opencloudb.MycatServer;
@@ -39,21 +41,22 @@ import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.TableConfig;
 import org.opencloudb.mpp.LoadData;
 import org.opencloudb.net.FrontendException;
+import org.opencloudb.net.NioProcessor;
+import org.opencloudb.net.ResourceTask;
 import org.opencloudb.net.handler.LoadDataInfileHandler;
 import org.opencloudb.net.mysql.BinaryPacket;
 import org.opencloudb.net.mysql.RequestFilePacket;
 import org.opencloudb.parser.druid.DruidShardingParseInfo;
 import org.opencloudb.parser.druid.MycatStatementParser;
 import org.opencloudb.parser.druid.RouteCalculateUnit;
+import org.opencloudb.route.MyCATSequenceProcessor;
 import org.opencloudb.route.RouteResultset;
 import org.opencloudb.route.RouteResultsetNode;
 import org.opencloudb.route.util.RouterUtil;
 import org.opencloudb.server.ServerConnection;
 import org.opencloudb.server.ServerSession;
 import org.opencloudb.server.parser.ServerParse;
-import org.opencloudb.util.IoUtil;
-import org.opencloudb.util.ObjectUtil;
-import org.opencloudb.util.StringUtil;
+import org.opencloudb.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,20 +90,23 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
     private String fileName;
     private byte packID;
     private MySqlLoadDataInFileStatement statement;
+    private LoadData loadData;
 
-    private Map<String, LoadData> routeResultMap = new HashMap<>();
+    private Map<String, String> routeResultMap = new HashMap<>();
     private RouteResultset routeResultset;
     private boolean routeComplete;
 
     private Map<String, OutputStream> nodeOutFiles = new HashMap<>();
-    private LoadData loadData;
     private String tempPath;
     private String tempFile;
     private OutputStream tempOutFile;
 
     private String tableName;
     private TableConfig tableConfig;
+    private int autoIncrColumnIndex = -1;
     private int partitionColumnIndex = -1;
+    private IdFetcher idFetcher;
+
     private LayeredCachePool tableId2DataNodeCache;
     private SchemaConfig schema;
     private boolean isStartLoadData;
@@ -127,34 +133,6 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         return fileName;
     }
 
-    private void parseLoadDataParam() {
-        this.loadData = new LoadData();
-        SQLTextLiteralExpr rawLineEnd = (SQLTextLiteralExpr) statement.getLinesTerminatedBy();
-        String lineTerminatedBy = rawLineEnd == null ? "\n" : rawLineEnd.getText();
-        this.loadData.setLineTerminatedBy(lineTerminatedBy);
-
-        SQLTextLiteralExpr rawFieldEnd = (SQLTextLiteralExpr) statement.getColumnsTerminatedBy();
-        String fieldTerminatedBy = rawFieldEnd == null ? "\t" : rawFieldEnd.getText();
-        this.loadData.setFieldTerminatedBy(fieldTerminatedBy);
-
-        SQLTextLiteralExpr rawEnclosed = (SQLTextLiteralExpr) statement.getColumnsEnclosedBy();
-        String enclose = rawEnclosed == null ? null : rawEnclosed.getText();
-        this.loadData.setEnclose(enclose);
-
-        SQLTextLiteralExpr escapeExpr =  (SQLTextLiteralExpr)statement.getColumnsEscaped() ;
-         String escape = escapeExpr == null? "\\": escapeExpr.getText();
-        this.loadData.setEscape(escape);
-
-        String charset = this.statement.getCharset();
-        if (charset == null) {
-            charset = this.serverConnection.getCharset();
-        }
-        this.loadData.setCharset(charset);
-        this.loadData.setFileName(this.fileName);
-
-        log.debug("'load data' params: {}", this.loadData);
-    }
-
     @Override
     public void start(String sql) {
         SQLStatementParser parser;
@@ -169,8 +147,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         log.debug("'load data' sql: {}", this.statement);
         if (this.fileName == null) {
             String s = "File name is null!";
-            this.serverConnection.writeErrMessage(ErrorCode.ER_FILE_NOT_FOUND, s);
-            clear();
+            sendError(ErrorCode.ER_FILE_NOT_FOUND, s);
             return;
         }
 
@@ -181,6 +158,22 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
                 .getCachePool("TableID2DataNodeCache");
         this.tableName = this.statement.getTableName().getSimpleName().toUpperCase();
         this.tableConfig = this.schema.getTables().get(this.tableName);
+        List<SQLExpr> columns = this.statement.getColumns();
+        if (this.tableConfig != null && this.tableConfig.isAutoIncrement() && columns != null) {
+            String pk = this.tableConfig.getPrimaryKey();
+            int n = columns.size();
+            for (int i = 0; i < n; ++i) {
+                String c = columns.get(i).toString();
+                if (c.equalsIgnoreCase(pk)) {
+                    this.autoIncrColumnIndex = i;
+                    break;
+                }
+            }
+            if (this.autoIncrColumnIndex == -1) {
+                this.autoIncrColumnIndex = n; // add ID
+            }
+        }
+
         // tmp: $MYCAT_HOME/temp/SOURCE-ID/
         this.tempPath = SystemConfig.getHomePath() + File.separator + "temp"
                 + File.separator + this.serverConnection.getId() + File.separator;
@@ -190,7 +183,6 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         // can lead to data duplicated.
         clearTempFiles();
 
-        List<SQLExpr> columns = this.statement.getColumns();
         if(this.tableConfig != null) {
             String pColumn = getPartitionColumn();
             if (pColumn != null && columns != null && columns.size() > 0) {
@@ -201,13 +193,19 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
                         break;
                     }
                 }
+                if (this.partitionColumnIndex == -1 && this.autoIncrColumnIndex != -1) {
+                    String pk = this.tableConfig.getPrimaryKey();
+                    if (pk.equalsIgnoreCase(getPartitionColumn())) {
+                        this.partitionColumnIndex = this.autoIncrColumnIndex;
+                    }
+                }
             }
         }
 
-        parseLoadDataParam();
+        initLoadDataParams();
         routeByTable();
 
-        String charset = this.loadData.getCharset();
+        String charset = this.statement.getCharset();
         if (this.statement.isLocal()) {
             this.isStartLoadData = true;
             log.debug("request client's file '{}'", this.fileName);
@@ -224,27 +222,16 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         final File infile = new File(this.fileName);
         if (!infile.isFile()) {
             String s = "'" + this.fileName + "' is not found!";
-            this.serverConnection.writeErrMessage(ErrorCode.ER_FILE_NOT_FOUND, s);
-            clear();
+            sendError(ErrorCode.ER_FILE_NOT_FOUND, s);
             return;
         }
         if (!infile.canRead()) {
             String s = "'" + this.fileName + "' can't read!";
-            this.serverConnection.writeErrMessage(ErrorCode.ER_ERROR_ON_READ, s);
-            clear();
+            sendError(ErrorCode.ER_ERROR_ON_READ, s);
             return;
         }
 
-        // Do load
-        String lineSeq = this.loadData.getLineTerminatedBy();
-        if (!this.routeComplete) {
-            parseFileByLine(this.fileName, charset, lineSeq);
-        }
-        flushNodeFiles();
-        RouteResultset rrs = buildResultSet(this.routeResultMap);
-        ServerSession session = this.serverConnection.getSession();
-        this.isStartLoadData = false;
-        session.execute(rrs, ServerParse.LOAD_DATA_INFILE_SQL);
+        doLoad(this.fileName);
     }
 
     @Override
@@ -255,7 +242,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         try {
             if (this.sql == null) {
                 String s = "Unknown command";
-                this.serverConnection.writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, s);
+                sendError(ErrorCode.ER_UNKNOWN_COM_ERROR, s);
                 return;
             }
 
@@ -272,6 +259,85 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         }
 
         appendToTempFile(packet.data);
+    }
+
+    @Override
+    public void end(byte packID) {
+        // load in data EOF
+        this.isStartLoadData = false;
+        this.packID = packID;
+
+        flushTempFile();
+        doLoad(this.tempFile);
+    }
+
+    void doLoad(String fileName) {
+        if (this.routeComplete) {
+            execute(fileName);
+            return;
+        }
+
+        String charset = this.loadData.getCharset();
+        String lineSep = this.loadData.getLineTerminatedBy();
+        log.debug("parse file '{}'", fileName);
+        parseFileByLine(fileName, charset, lineSep);
+        if (this.idFetcher == null) {
+            execute(fileName);
+        }
+    }
+
+    void execute(String fileName) {
+        flushNodeFiles();
+        RouteResultset rrs = buildResultSet(fileName, this.routeResultMap);
+        ServerSession session = this.serverConnection.getSession();
+        this.isStartLoadData = false;
+        log.debug("loading data into backend nodes");
+        session.execute(rrs, ServerParse.LOAD_DATA_INFILE_SQL);
+    }
+
+    void sendError(Throwable cause) {
+        String s = ExceptionUtil.getClientMessage(cause);
+        sendError(s);
+    }
+
+    void sendError(String error) {
+        try {
+            this.serverConnection.writeErrMessage(ErrorCode.ER_YES, error);
+        } finally {
+            clear();
+        }
+    }
+
+    void sendError(int errno, String errmsg) {
+        try {
+            this.serverConnection.writeErrMessage(errno, errmsg);
+        } finally {
+            clear();
+        }
+    }
+
+    private void initLoadDataParams() {
+        this.loadData = new LoadData();
+        this.loadData.setFileName(this.fileName);
+
+        SQLTextLiteralExpr rawLineEnd = (SQLTextLiteralExpr) this.statement.getLinesTerminatedBy();
+        this.loadData.setLineTerminatedBy(rawLineEnd == null? "\n": rawLineEnd.getText());
+
+        SQLTextLiteralExpr rawFieldEnd = (SQLTextLiteralExpr) this.statement.getColumnsTerminatedBy();
+        this.loadData.setFieldTerminatedBy(rawFieldEnd == null? "\t": rawFieldEnd.getText());
+
+        SQLTextLiteralExpr escapeExpr =  (SQLTextLiteralExpr) this.statement.getColumnsEscaped();
+        this.loadData.setEscape(escapeExpr == null? "\\": escapeExpr.getText());
+
+        SQLTextLiteralExpr rawEnclosed = (SQLTextLiteralExpr) this.statement.getColumnsEnclosedBy();
+        this.loadData.setEnclose(rawEnclosed == null ? null : rawEnclosed.getText());
+
+        String charset = this.statement.getCharset();
+        if (charset == null) {
+            charset = this.serverConnection.getCharset();
+            this.statement.setCharset(charset);
+        }
+        this.loadData.setCharset(charset);
     }
 
     private void appendToTempFile(byte[] data) {
@@ -297,13 +363,14 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         this.tempOutFile = null;
     }
 
-    private RouteResultset routeByShardColumn(String sql, String[] values, int rowIndex) {
+    private RouteResultset routeByShardColumn(String sql, String[] values, int rowIndex, Long id) {
         final int sqlType = ServerParse.INSERT;
         RouteResultset rrs = new RouteResultset(sql, sqlType);
         rrs.setLoadData(true);
 
         // Route to specified dataNodes for shard table by partition rule
-        if (this.partitionColumnIndex == -1 || this.partitionColumnIndex >= values.length) {
+        int pi = this.partitionColumnIndex, ai = this.autoIncrColumnIndex;
+        if (pi == -1 || (pi >= values.length && pi != ai)) {
             String s = this.serverConnection.getSchema();
             s = String.format("No partition column in table '%s'.'%s'", s, this.tableName);
             SQLNonTransientException cause = new SQLNonTransientException(s);
@@ -311,10 +378,18 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         }
         DruidShardingParseInfo ctx = new DruidShardingParseInfo();
         ctx.addTable(this.tableName);
-        String value = values[this.partitionColumnIndex];
-        String column = getPartitionColumn();
+        String value, column;
+        if (id == null || pi != ai) {
+            value = values[this.partitionColumnIndex];
+            column = getPartitionColumn();
+        } else {
+            // Shard by ID
+            value = id + "";
+            column= this.tableConfig.getPrimaryKey();
+        }
         RouteCalculateUnit calcUnit = new RouteCalculateUnit();
-        value = parseFieldString(value, this.loadData.getEnclose());
+        String enclosed = this.loadData.getEnclose();
+        value = parseFieldString(value, enclosed);
         calcUnit.addShardingExpr(this.tableName, column, value);
         ctx.addRouteCalculateUnit(calcUnit);
         try {
@@ -373,16 +448,11 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         }
 
         if (!rrs.isEmpty()) {
-            String file;
+            String fileName = getLoadFileName();
 
-            if (this.statement.isLocal()) {
-                file = this.tempFile;
-            } else {
-                file = this.loadData.getFileName();
-            }
             for (RouteResultsetNode rrn: rrs.getNodes()) {
                 String node = rrn.getName();
-                initNodeData(node, file);
+                initNodeFile(node, fileName);
             }
             this.routeResultset = rrs;
             this.routeComplete = true;
@@ -393,12 +463,53 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         return rrs;
     }
 
-    private void parseOneLine(List<SQLExpr> columns, String tableName, String[] values,
-                              String lineSep, int rowIndex) {
+    String getLoadFileName() {
+        String fileName;
 
-        RouteResultset rrs = routeByShardColumn(this.sql, values, rowIndex);
+        if (this.statement.isLocal()) {
+            fileName = this.tempFile;
+        } else {
+            fileName = this.fileName;
+        }
+
+        return fileName;
+    }
+
+    private boolean parseOneLine(CsvParser parser, List<SQLExpr> columns, String tableName, String[] values,
+                                 String lineSep, int rowIndex) {
+
+        int i = this.autoIncrColumnIndex;
+        if (i != -1) {
+            String id = null;
+            if (i < values.length) {
+                id = values[i];
+            }
+            if (id == null) {
+                // First generate ID value before route
+                MycatServer server = MycatServer.getContextServer();
+                MyCATSequenceProcessor seqProcessor = server.getSequenceProcessor();
+                if (this.idFetcher == null) {
+                    log.debug("Auto increment ID not specified, so fetch it");
+                    ServerLoadDataInfileHandler handler = this;
+                    this.idFetcher = new IdFetcher(handler, parser, columns, tableName, values, lineSep, rowIndex);
+                } else {
+                    this.idFetcher.reset(values, rowIndex);
+                }
+                seqProcessor.nextValue(tableName, this.idFetcher);
+                return true;
+            }
+        }
+
+        routeByColumn(columns, tableName, values, lineSep, rowIndex, null);
+        return false;
+    }
+
+    private void routeByColumn(List<SQLExpr> columns, String tableName, String[] values,
+                              String lineSep, int rowIndex, Long id) {
+
+        RouteResultset rrs = routeByShardColumn(this.sql, values, rowIndex, id);
         if (rrs.isEmpty()) {
-            String insert = makeSimpleInsert(columns, values, tableName, true);
+            String insert = makeSimpleInsert(columns, values, tableName, true, id);
             rrs = this.serverConnection.routeSQL(insert, ServerParse.INSERT);
         }
         if (rrs == null || rrs.isEmpty()) {
@@ -406,35 +517,28 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
             return;
         }
 
-        for (RouteResultsetNode routeResultsetNode : rrs.getNodes()) {
-            String node = routeResultsetNode.getName();
-            LoadData data = initNodeData(node, null);
-            String row = joinValues(values, data) + lineSep;
-            appendToNodeFile(node, data, row);
+        for (RouteResultsetNode rrn : rrs.getNodes()) {
+            String node = rrn.getName();
+            String row = joinValues(values, id) + lineSep;
+            appendToNodeFile(node, row);
         }
     }
 
-    private LoadData initNodeData(String node, String fileName) {
-        LoadData data = this.routeResultMap.get(node);
+    private String initNodeFile(String node, String fileName) {
+        String dataFile = this.routeResultMap.get(node);
 
-        if (data == null) {
-            data = new LoadData();
-            data.setCharset(this.loadData.getCharset());
-            data.setEnclose(this.loadData.getEnclose());
-            data.setFieldTerminatedBy(this.loadData.getFieldTerminatedBy());
-            data.setLineTerminatedBy(this.loadData.getLineTerminatedBy());
-            data.setEscape(this.loadData.getEscape());
-            data.setFileName(fileName);
-            this.routeResultMap.put(node, data);
+        if (dataFile == null) {
+            this.routeResultMap.put(node, fileName);
+            return fileName;
+        } else {
+            return dataFile;
         }
-
-        return data;
     }
 
     private void flushNodeFiles() {
         IOException lastError = null;
 
-        for (Map.Entry<String, LoadData> it : this.routeResultMap.entrySet()) {
+        for (Map.Entry<String, String> it : this.routeResultMap.entrySet()) {
             String node = it.getKey();
             IOException error = flushNodeFile(node);
             if (error != null) {
@@ -464,22 +568,24 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         return null;
     }
 
-    private void appendToNodeFile(String node, LoadData data, String row) {
-        if (data.getFileName() == null) {
-            String dnPath = this.tempPath + node + ".txt";
-            data.setFileName(dnPath);
+    private void appendToNodeFile(String node, String row) {
+        String nodeFile = this.routeResultMap.get(node);
+        if (nodeFile == null) {
+            nodeFile = this.tempPath + node + ".txt";
+            this.routeResultMap.put(node, nodeFile);
+            log.debug("append data to node file '{}'", nodeFile);
         }
 
         OutputStream outFile = this.nodeOutFiles.get(node);
         boolean failed = true;
         try {
             if (outFile == null) {
-                File dnFile = new File(data.getFileName());
+                File dnFile = new File(nodeFile);
                 outFile = IoUtil.fileOutputStream(dnFile, true);
                 this.nodeOutFiles.put(node, outFile);
             }
 
-            Charset cs = Charset.forName(this.loadData.getCharset());
+            Charset cs = Charset.forName(this.statement.getCharset());
             byte[] rowData = row.getBytes(cs);
             outFile.write(rowData);
 
@@ -494,16 +600,22 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         }
     }
 
-    private String joinValues(String[] values, LoadData loadData) {
-        String fieldSep = loadData.getFieldTerminatedBy();
-        String enclose = loadData.getEnclose();
-        String rep = loadData.getEscape() + enclose;
+    private String joinValues(String[] values, Long id) {
+        String fieldSep = this.loadData.getFieldTerminatedBy();
+        String enclose = this.loadData.getEnclose();
+        String rep = this.loadData.getEscape() + enclose;
         StringBuilder sb = new StringBuilder();
 
-        for (int i = 0, n = values.length; i < n; i++) {
+        int n = values.length;
+        boolean prependId = false;
+        if (this.autoIncrColumnIndex >= n) {
+            sb.append(id);
+            prependId = true;
+        }
+        for (int i = 0; i < n; i++) {
             String s = values[i] != null? values[i]: "";
 
-            if(i > 0) {
+            if(i > 0 || prependId) {
                 sb.append(fieldSep);
             }
             if(enclose == null) {
@@ -517,13 +629,21 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         return sb.toString();
     }
 
-    private RouteResultset buildResultSet(Map<String, LoadData> routeMap) {
+    private RouteResultset buildResultSet(String fileName, Map<String, String> routeMap) {
         final int sqlType = ServerParse.LOAD_DATA_INFILE_SQL;
 
         this.statement.setLocal(true); // 强制local
         // 默认druid会过滤掉路径的分隔符，所以这里重新设置下
-        SQLLiteralExpr fn = new SQLCharExpr(this.fileName);
+        SQLLiteralExpr fn = new SQLCharExpr(fileName);
         this.statement.setFileName(fn);
+        List<SQLExpr> columns = this.statement.getColumns();
+        if (columns != null && this.autoIncrColumnIndex >= columns.size()) {
+            List<SQLExpr> newColumns = new ArrayList<>(columns.size() + 1);
+            // Prepend ID
+            newColumns.add(new SQLIdentifierExpr(this.tableConfig.getPrimaryKey()));
+            newColumns.addAll(columns);
+            this.statement.setColumns(newColumns);
+        }
 
         String srcStatement = this.statement.toString();
         RouteResultset rrs = new RouteResultset(srcStatement, sqlType);
@@ -539,21 +659,16 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         int index = 0;
         RouteResultsetNode[] rrsNodes = new RouteResultsetNode[size];
         for (String dn : routeMap.keySet()) {
-            RouteResultsetNode rrNode = new RouteResultsetNode(dn, sqlType, srcStatement);
-            rrNode.setTotalNodeSize(size);
-            rrNode.setStatement(srcStatement);
+            String nodeFile = routeMap.get(dn);
+            SQLCharExpr fnExpr = new SQLCharExpr(nodeFile);
+            this.statement.setFileName(fnExpr);
+            String nodeStmt = this.statement.toString();
 
-            LoadData newLoadData = new LoadData();
-            ObjectUtil.copyProperties(this.loadData, newLoadData);
-            newLoadData.setLocal(true);
-            LoadData mapData = routeMap.get(dn);
-            if (mapData.getFileName() != null) {
-                // 此处使用分库load的临时文件dn1.txt/dn2.txt，或者clientTemp.txt（全局表、默认节点表）
-                newLoadData.setFileName(mapData.getFileName());
-            }
-            rrNode.setLoadData(newLoadData);
+            RouteResultsetNode rrn = new RouteResultsetNode(dn, sqlType, nodeStmt);
+            rrn.setTotalNodeSize(size);
+            rrn.setLoadFile(nodeFile);
 
-            rrsNodes[index] = rrNode;
+            rrsNodes[index] = rrn;
             index++;
         }
         rrs.setNodes(rrsNodes);
@@ -562,7 +677,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
     }
 
     private String makeSimpleInsert(List<SQLExpr> columns, String[] values,
-                                    String table, boolean isAddEncose) {
+                                    String table, boolean isAddEncose, Long id) {
 
         StringBuilder sb = new StringBuilder()
         .append(LoadData.loadDataHint)
@@ -572,9 +687,14 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         if (columns != null && columns.size() > 0) {
             sb.append("(");
             int n = columns.size();
+            boolean prependId = false;
+            if (this.autoIncrColumnIndex >= n) {
+                sb.append(this.tableConfig.getPrimaryKey());
+                prependId = true;
+            }
             for (int i = 0; i < n; i++) {
                 SQLExpr column = columns.get(i);
-                if (i > 0) {
+                if (i > 0 || prependId) {
                     sb.append(",");
                 }
                 sb.append(column.toString());
@@ -585,9 +705,14 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         sb.append(" values(");
         String enclose = this.loadData.getEnclose();
         int n = values.length;
+        boolean prependId = false;
+        if (this.autoIncrColumnIndex >= n) {
+            sb.append(id);
+            prependId = true;
+        }
         for (int i = 0; i < n; i++) {
             String value = values[i];
-            if (i > 0) {
+            if (i > 0 || prependId) {
                 sb.append(",");
             }
             if (isAddEncose) {
@@ -608,49 +733,31 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         } else if (value.startsWith(enclose) && value.endsWith(enclose)) {
             int len = enclose.length();
             return value.substring(len - 1, value.length() - len);
+        } else {
+            return value;
         }
-
-        return value;
     }
 
-
-    @Override
-    public void end(byte packID) {
-        // load in data EOF
-        this.isStartLoadData = false;
-        this.packID = packID;
-        flushTempFile();
-
-        if (!this.routeComplete) {
-            String charset = this.loadData.getCharset();
-            String lineSep = this.loadData.getLineTerminatedBy();
-            log.debug("parse file '{}'", this.tempFile);
-            parseFileByLine(this.tempFile, charset, lineSep);
-            flushNodeFiles();
-        }
-        RouteResultset rrs = buildResultSet(this.routeResultMap);
-        ServerSession session = this.serverConnection.getSession();
-        session.execute(rrs, ServerParse.LOAD_DATA_INFILE_SQL);
-    }
-
-    private void parseFileByLine(String file, String encode, String split) {
-        String lineSeq = this.loadData.getLineTerminatedBy();
+    private void parseFileByLine(String file, String encode, String lineSep) {
         List<SQLExpr> columns = this.statement.getColumns();
         CsvParserSettings settings = new CsvParserSettings();
+        CsvFormat format = settings.getFormat();
 
-        settings.getFormat().setLineSeparator(lineSeq);
-        settings.getFormat().setDelimiter(this.loadData.getFieldTerminatedBy().charAt(0));
+        format.setLineSeparator(lineSep);
+        format.setDelimiter(this.loadData.getFieldTerminatedBy().charAt(0));
         if(this.loadData.getEnclose() != null) {
-            settings.getFormat().setQuote(this.loadData.getEnclose().charAt(0));
+            format.setQuote(this.loadData.getEnclose().charAt(0));
         }
         if(this.loadData.getEscape() != null) {
-            settings.getFormat().setQuoteEscape(this.loadData.getEscape().charAt(0));
+            format.setQuoteEscape(this.loadData.getEscape().charAt(0));
         }
-        settings.getFormat().setNormalizedNewline(lineSeq.charAt(0));
+        format.setNormalizedNewline(lineSep.charAt(0));
 
         CsvParser parser = new CsvParser(settings);
         InputStream in = null;
+        boolean failed = true;
         try {
+            String table = this.tableName;
             String[] row;
             int rowIndex = 0;
 
@@ -658,13 +765,21 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
             Reader reader = new InputStreamReader(in, encode);
             parser.beginParsing(reader);
             while ((row = parser.parseNext()) != null) {
-                parseOneLine(columns, this.tableName, row, lineSeq, ++rowIndex);
+                boolean genId = parseOneLine(parser, columns, table, row, lineSep, ++rowIndex);
+                if (genId) {
+                    failed = false;
+                    return;
+                }
             }
             parser.stopParsing();
+            failed = false;
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
-            IoUtil.close(in);
+            if (failed || this.idFetcher == null) {
+                IoUtil.close(in);
+                this.idFetcher = null;
+            }
         }
     }
 
@@ -682,6 +797,9 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         this.statement = null;
         this.routeResultset = null;
         this.routeComplete = false;
+
+        IoUtil.close(this.idFetcher);
+        this.idFetcher = null;
 
         clearTempFiles();
         this.routeResultMap.clear();
@@ -752,6 +870,99 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         }
 
         fileDirToDel.delete();
+    }
+
+    static class IdFetcher implements Callback<Long>, ResourceTask, AutoCloseable {
+        final ServerLoadDataInfileHandler handler;
+        final CsvParser parser;
+
+        final List<SQLExpr> columns;
+        final String table;
+        final String lineSeq;
+
+        String[] row;
+        int rowIndex;
+        int recurDepth;
+
+        public IdFetcher(ServerLoadDataInfileHandler handler, CsvParser parser,
+                         List<SQLExpr> columns, String table, String[] row, String lineSeq, int rowIndex) {
+            this.handler = handler;
+            this.parser = parser;
+            this.columns = columns;
+            this.table = table;
+            this.row = row;
+            this.lineSeq = lineSeq;
+            this.rowIndex = rowIndex;
+        }
+
+        public void reset(String[] row, int rowIndex) {
+            this.row = row;
+            this.rowIndex = rowIndex;
+        }
+
+        @Override
+        public void call(Long result, Throwable cause) {
+            boolean failed = true;
+            try {
+                this.recurDepth++;
+                if (cause != null) {
+                    handler.sendError(cause);
+                    return;
+                }
+
+                log.debug("ID {} fetched, then do route", result);
+                if (handler.autoIncrColumnIndex < this.row.length) {
+                    this.row[handler.autoIncrColumnIndex] = result + "";
+                }
+                handler.routeByColumn(this.columns, this.table, this.row, this.lineSeq, this.rowIndex, result);
+
+                if (this.recurDepth > 50) {
+                    log.debug("recursion depth exceeds {}: execute later", this.recurDepth);
+                    this.recurDepth = 0;
+                    NioProcessor processor = NioProcessor.ensureRunInProcessor();
+                    processor.executeLater(this);
+                } else {
+                    run();
+                }
+
+                failed = false;
+            } catch (Throwable e) {
+                handler.sendError(cause);
+            } finally {
+                if (failed) {
+                    this.parser.stopParsing();
+                }
+            }
+        }
+
+        @Override
+        public void release(String reason) {
+            close();
+            log.debug("stop csv parser: {}", reason);
+        }
+
+        @Override
+        public void run() {
+            // Next line
+            boolean genId;
+            do {
+                this.row = this.parser.parseNext();
+                if (this.row == null) {
+                    String fileName = this.handler.getLoadFileName();
+                    this.handler.execute(fileName);
+                    return;
+                }
+                this.rowIndex++;
+                genId = this.handler.parseOneLine(this.parser, this.columns,
+                        this.table, this.row, this.lineSeq, this.rowIndex);
+            } while (!genId);
+        }
+
+        @Override
+        public void close() {
+            this.parser.stopParsing();
+        }
+
     }
 
 }

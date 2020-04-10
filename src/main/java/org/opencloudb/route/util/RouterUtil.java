@@ -459,7 +459,7 @@ public final class RouterUtil {
 
 	public static void processSQL(ServerConnection sc, SchemaConfig schema, String sql, int sqlType) {
 		MycatServer server = MycatServer.getContextServer();
-		server.getSequnceProcessor().executeSQL(new SessionSQLPair(sc.getSession(), schema, sql, sqlType));
+		server.getSequenceProcessor().executeSQL(new SessionSQLPair(sc.getSession(), schema, sql, sqlType));
 	}
 
 	public static boolean processInsert(SchemaConfig schema, int sqlType,
@@ -869,30 +869,29 @@ public final class RouterUtil {
 
 		TableConfig tc = schema.getTables().get(tableName);
 		if(tc == null) {
-			String msg = "can't find table define in schema " + tableName + " schema:" + schema.getName();
+			String msg = "Can't find table '" + tableName + "' definition in schema '" + schema.getName() + "'";
 			log.warn(msg);
 			throw new SQLNonTransientException(msg);
 		}
 		
-		if(tc.isGlobalTable()) {//全局表
+		if (tc.isGlobalTable()) {// 全局表
 			if(isSelect) {
-				// global select ,not cache route result
+				// global select, not cache route result
 				rrs.setCacheAble(false);
 				return routeToSingleNode(rrs, tc.getRandomDataNode(),ctx.getSql());
-			} else {//insert into 全局表的记录
+			} else {// insert into 全局表的记录
 				return routeToMultiNode(false, rrs, tc.getDataNodes(), ctx.getSql(),true);
 			}
-		} else {//单表或者分库表
+		} else {// 单表或者分库表
 			if (!checkRuleRequired(schema, ctx, routeUnit, tc)) {
-				throw new IllegalArgumentException("route rule for table "
-						+ tc.getName() + " is required: " + ctx.getSql());
-
+				String s = "route rule for table '" + tc.getName() + "' is required: " + ctx.getSql();
+				throw new IllegalArgumentException(s);
 			}
-			if(tc.getPartitionColumn() == null && !tc.isSecondLevel()) {//单表且不是childTable
+			if(tc.getPartitionColumn() == null && !tc.isSecondLevel()) {// 单表且不是childTable
 				return routeToMultiNode(rrs.isCacheAble(), rrs, tc.getDataNodes(), ctx.getSql());
 			} else {
-				//每个表对应的路由映射
-				Map<String,Set<String>> tablesRouteMap = new HashMap<String,Set<String>>();
+				// 每个表对应的路由映射
+				Map<String, Set<String>> tablesRouteMap = new HashMap<>();
 				if(routeUnit.getTablesAndConditions() != null && routeUnit.getTablesAndConditions().size() > 0) {
 					RouterUtil.findRouteWithcConditionsForTables(schema, rrs,
 							routeUnit.getTablesAndConditions(), tablesRouteMap, ctx.getSql(), cachePool, isSelect);

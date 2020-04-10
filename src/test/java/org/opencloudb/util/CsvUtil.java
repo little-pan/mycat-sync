@@ -77,17 +77,14 @@ public final class CsvUtil {
                 if (i > 0) {
                     out.write(',');
                 }
-                final byte[] a;
-                if (val == null) {
-                    a = "NULL".getBytes(charset);
-                } else {
+                if (val != null) {
                     String s = val + "";
                     if (enclose != null) {
                         s = enclose + s + enclose;
                     }
-                    a = s.getBytes(charset);
+                    byte[] a = s.getBytes(charset);
+                    out.write(a);
                 }
-                out.write(a);
                 ++i;
             }
             out.write(lineSeqBytes);

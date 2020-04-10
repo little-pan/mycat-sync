@@ -65,7 +65,7 @@ public class MycatServer {
 	private final RouteService routerService;
 	private final CacheService cacheService;
 	private Properties dnIndexProperties;
-	private final MyCATSequenceProcessor sequnceProcessor = new MyCATSequenceProcessor();
+	private final MyCATSequenceProcessor sequenceProcessor = new MyCATSequenceProcessor();
 	private final DynaClassLoader catletClassLoader;
 	private final SQLInterceptor sqlInterceptor;
 	private BufferPool bufferPool;
@@ -459,8 +459,8 @@ public class MycatServer {
         return catletClassLoader;
     }
 
-    public MyCATSequenceProcessor getSequnceProcessor() {
-        return sequnceProcessor;
+    public MyCATSequenceProcessor getSequenceProcessor() {
+        return this.sequenceProcessor;
     }
 
     public SQLInterceptor getSqlInterceptor() {
@@ -473,10 +473,6 @@ public class MycatServer {
 
 	public CacheService getCacheService() {
 		return cacheService;
-	}
-
-	public RouteService getRouterservice() {
-		return routerService;
 	}
 
 	public ConnectionManager getConnectionManager() {

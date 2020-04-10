@@ -29,6 +29,7 @@ such as PostgreSQL and MySQL(native protocol implementation), not includes JDBC 
 * Keeps simple, stable and high performance
 * Supports the most important features of [MyCAT](https://github.com/MyCATApache/Mycat-Server) such as database shard
 and read/write separation
+* Support auto increment ID in "load data infile"
 
 ## Document
 

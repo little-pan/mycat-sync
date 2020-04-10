@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.opencloudb.MycatServer;
 import org.opencloudb.statistic.CommandCount;
+import org.opencloudb.util.ExceptionUtil;
 import org.opencloudb.util.IoUtil;
 import org.slf4j.*;
 
@@ -302,7 +303,8 @@ public final class NioProcessor extends AbstractProcessor {
 					if (cause == null) {
 						cause = e;
 					}
-					con.close("Process failed: " + cause);
+					String s = ExceptionUtil.getClientMessage(cause);
+					con.close("Process failed: " + s);
 				}
 			} // rof
 		} finally {

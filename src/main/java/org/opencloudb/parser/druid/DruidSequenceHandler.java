@@ -3,10 +3,7 @@ package org.opencloudb.parser.druid;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.opencloudb.config.model.SystemConfig;
-import org.opencloudb.sequence.handler.IncrSequenceTimeHandler;
-import org.opencloudb.sequence.handler.IncrSequenceMySQLHandler;
-import org.opencloudb.sequence.handler.IncrSequencePropHandler;
+import org.opencloudb.route.MyCATSequenceProcessor;
 import org.opencloudb.sequence.handler.SequenceHandler;
 import org.opencloudb.util.Callback;
 
@@ -25,19 +22,11 @@ public class DruidSequenceHandler {
 	private final SequenceHandler sequenceHandler;
 	
 	public DruidSequenceHandler(int seqHandlerType) {
-		switch(seqHandlerType){
-		case SystemConfig.SEQUENCEHANDLER_MYSQLDB:
-			this.sequenceHandler = IncrSequenceMySQLHandler.getInstance();
-			break;
-		case SystemConfig.SEQUENCEHANDLER_LOCALFILE:
-			this.sequenceHandler = IncrSequencePropHandler.getInstance();
-			break;
-		case SystemConfig.SEQUENCEHANDLER_LOCAL_TIME:
-			this.sequenceHandler = IncrSequenceTimeHandler.getInstance();
-			break;
-		default:
-			throw new IllegalArgumentException("Invalid sequence handler type: " + seqHandlerType);
-		}
+		this(MyCATSequenceProcessor.getSequenceHandler(seqHandlerType));
+	}
+
+	public DruidSequenceHandler(SequenceHandler handler) {
+		this.sequenceHandler = handler;
 	}
 
 	/**

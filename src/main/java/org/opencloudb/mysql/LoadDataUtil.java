@@ -3,7 +3,6 @@ package org.opencloudb.mysql;
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.net.BackendConnection;
-import org.opencloudb.mpp.LoadData;
 import org.opencloudb.net.NioProcessor;
 import org.opencloudb.net.ResourceTask;
 import org.opencloudb.net.mysql.BinaryPacket;
@@ -20,25 +19,28 @@ import java.io.*;
  */
 public class LoadDataUtil {
 
+    static final Logger log = LoggerFactory.getLogger(LoadDataUtil.class);
+
     static final String PROP_YIELD_SIZE = "org.opencloudb.mysql.loadData.yieldSize";
     static final int YIELD_SIZE = Integer.getInteger(PROP_YIELD_SIZE, 1 << 20);
 
     public static void requestFileDataResponse(byte[] data, BackendConnection conn) {
         byte packId = data[3];
         RouteResultsetNode rrn = (RouteResultsetNode) conn.getAttachment();
-        LoadData loadData = rrn.getLoadData();
+        String loadFile = rrn.getLoadFile();
 
-        writeToBackConnection(packId, loadData, conn);
+        writeToBackConnection(packId, loadFile, conn);
     }
 
-    static void writeToBackConnection(byte packID, LoadData loadData, BackendConnection conn) {
+    static void writeToBackConnection(byte packID, String loadFile, BackendConnection conn) {
         InputStream in = null;
         int packSize;
         LoadDataTask task;
 
         boolean failed = true;
         try {
-            File dataFile = new File(loadData.getFileName());
+            File dataFile = new File(loadFile);
+            log.debug("load data infile '{}' into backend {}", loadFile, conn);
             in = IoUtil.fileInputStream(dataFile);
 
             MycatServer server = MycatServer.getContextServer();
