@@ -22,8 +22,11 @@ Mycat sync使用第3种执行模型，可以保持少量的线程和大量的连
 ## Mycat sync的关键特性
 
 * 保持简单、稳定和高效
+* 为保持稳定性和性能，经过大量的严格测试
+* 前后端同步非阻塞执行模型
 * 支持[MyCAT](https://github.com/MyCATApache/Mycat-Server)最重要的特性，如分库分表、读写分离
 * "load data infile"支持自增ID
+* 非阻塞获取mycat序列号
 
 ## 文档
 

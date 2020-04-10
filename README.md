@@ -27,9 +27,12 @@ such as PostgreSQL and MySQL(native protocol implementation), not includes JDBC 
 ## Features
 
 * Keeps simple, stable and high performance
+* Do a lot of strict testing for stability and performance
+* Synchronous non-blocking execution mode from the frontend to the backend
 * Supports the most important features of [MyCAT](https://github.com/MyCATApache/Mycat-Server) such as database shard
 and read/write separation
 * Support auto increment ID in "load data infile"
+* Fetching mycat sequence is non-blocking
 
 ## Document
 
