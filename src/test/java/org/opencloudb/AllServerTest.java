@@ -39,8 +39,9 @@ public class AllServerTest extends BaseServerTest {
     protected void prepare() {
         super.prepare();
         // Add all here
-        add(new LoadDataInfileHandlerServerTest()).
-                add(new SequenceServerTest());
+        int rounds = 1;
+        add(new LoadDataInfileHandlerServerTest(rounds)).
+                add(new SequenceServerTest(rounds));
     }
 
     @Override

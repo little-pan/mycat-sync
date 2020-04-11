@@ -36,6 +36,14 @@ public class SequenceServerTest extends BaseServerTest {
         new SequenceServerTest().test();
     }
 
+    public SequenceServerTest() {
+
+    }
+
+    public SequenceServerTest(int rounds) {
+        super(rounds);
+    }
+
     @Override
     protected void doTest() throws Exception {
         testNextValue(2, false);
@@ -76,18 +84,21 @@ public class SequenceServerTest extends BaseServerTest {
         // Test abnormal conditions
         try {
             testNextValue(1, false, "g");
+            fail();
         } catch (SQLException e) {
             debug("Test undefined sequence in conf: %s", e);
             assertTrue(1003 == e.getErrorCode(), e + "");
         }
         try {
             testNextValue(2, true, "hotel");
+            fail();
         } catch (SQLException e) {
             debug("Test undefined sequence in db: %s", e);
             assertTrue(1003 == e.getErrorCode(), e + "");
         }
         try {
-            testNextValue(3, true, "customer");
+            testNextValue(3, true, "VIEWSPOT");
+            fail();
         } catch (SQLException e) {
             debug("Test sequence increment illegal in db: %s", e);
             assertTrue(1003 == e.getErrorCode(), e + "");
@@ -274,8 +285,8 @@ public class SequenceServerTest extends BaseServerTest {
         checkTxResult(tx, commit, 1, rows);
     }
 
-    private void testAutoIncrBatchInsert(final int rows, final boolean tx, final boolean commit, final int threadCount)
-            throws Exception {
+    private void testAutoIncrBatchInsert(final int rows, final boolean tx, final boolean commit,
+                                         final int threadCount) throws Exception {
         debug("testAutoIncrBatchInsert: rows %d, tx %s, commit %s, threadCount %d",
                 rows, tx, commit, threadCount);
 
@@ -350,6 +361,11 @@ public class SequenceServerTest extends BaseServerTest {
     }
 
     private void testNextValue(int n, final boolean tx, String seqName) throws Exception {
+        if (n >= 1000 && !TEST_PERF) {
+            return;
+        }
+        info("testNextValue: seqCount %s, seqName '%s'", n, seqName);
+
         String sql = "select NEXT VALUE FOR MYCATSEQ_"+seqName;
         try (Connection c = getConnection()) {
             Statement stmt = c.createStatement();
@@ -374,6 +390,11 @@ public class SequenceServerTest extends BaseServerTest {
 
     private void testNextValue(final int n, final ConcurrentMap<String, Long> dupMap,
                                int threadCount) throws Exception {
+        if (n >= 100 && threadCount >= 50 && !TEST_PERF) {
+            return;
+        }
+        info("testNextValue: seqCount %s, threadCount %s", n, threadCount);
+
         Thread[] threads = new Thread[threadCount];
         for (int i = 0; i < threadCount; ++i) {
             Thread t = new Thread(new Runnable() {
@@ -402,6 +423,11 @@ public class SequenceServerTest extends BaseServerTest {
 
     private void testMultiSeqNextValue(final int n, final ConcurrentMap<String, Long> dupMap,
                                int threadCount, String... seqList) throws Exception {
+        if (n >= 100 && threadCount >= 50 && !TEST_PERF) {
+            return;
+        }
+        info("testMultiSeqNextValue: seqCount %s, threadCount %s", n, threadCount);
+
         Thread[] threads = new Thread[threadCount];
         for (int i = 0; i < threadCount; ++i) {
             final String seqName = seqList[i % seqList.length];
@@ -426,6 +452,8 @@ public class SequenceServerTest extends BaseServerTest {
     }
 
     private void testNextValue(int n, ConcurrentMap<String, Long> dupMap, String seqName) throws Exception {
+        info("testNextValue: seqCount %s", n);
+
         String sql = "select NEXT VALUE FOR MYCATSEQ_" + seqName;
         try (Connection c = getConnection()) {
             Statement stmt = c.createStatement();

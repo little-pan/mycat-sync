@@ -16,8 +16,9 @@ CREATE TABLE MYCAT_SEQUENCE (
 -- Init some sequences for test
 -- INSERT INTO MYCAT_SEQUENCE(name, current_value, increment) VALUES ('COMPANY', 10000, 100);
 -- INSERT INTO MYCAT_SEQUENCE(name, current_value, increment) VALUES ('GLOBAL', 1, 50);
--- INSERT INTO MYCAT_SEQUENCE(name, current_value, increment) VALUES ('EMPLOYEE', 1, 20);
--- INSERT INTO MYCAT_SEQUENCE(name, current_value, increment) VALUES ('CUSTOMER', 1, 0);
+-- INSERT INTO MYCAT_SEQUENCE(name, current_value, increment) VALUES ('EMPLOYEE', 1, 100);
+-- INSERT INTO MYCAT_SEQUENCE(name, current_value, increment) VALUES ('CUSTOMER', 1, 100);
+-- INSERT INTO MYCAT_SEQUENCE(name, current_value, increment) VALUES ('VIEWSPOT', 1, 0);
 
 -- Related function
 -- Fetch current sequence value(current value, increment)

@@ -21,6 +21,14 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         new LoadDataInfileHandlerServerTest().test();
     }
 
+    public LoadDataInfileHandlerServerTest() {
+
+    }
+
+    public LoadDataInfileHandlerServerTest(int rounds) {
+        super(rounds);
+    }
+
     @Override
     protected void doTest() throws Exception {
         testDefaultTable(true, false, false);

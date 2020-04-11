@@ -84,16 +84,28 @@ public abstract class BaseServerTest {
         info("%s: %s", PROP_TEST_ER3TBL, TEST_ER3TBL);
     }
 
+    protected int round;
+    protected int rounds;
+
+    protected BaseServerTest() {
+        this(ROUNDS);
+    }
+
+    protected BaseServerTest(int rounds) {
+        this.rounds = rounds;
+    }
+
     public void test() throws Exception {
-        for (int i = 0; i < ROUNDS; ++i) {
+        for (int i = 0; i < this.rounds; ++i) {
+            this.round = i;
             prepare();
             try {
                 final long a = System.currentTimeMillis();
                 String testCase = getClass().getSimpleName();
-                info("r-%d >> %s", i, testCase);
+                info("r-%d >> %s", this.round, testCase);
                 doTest();
                 final long b = System.currentTimeMillis();
-                info("r-%d << %s: time %sms", i, testCase, b - a);
+                info("r-%d << %s: time %sms", this.round, testCase, b - a);
             } finally {
                 cleanup();
             }
