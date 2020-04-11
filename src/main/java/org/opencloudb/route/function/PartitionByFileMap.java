@@ -33,31 +33,32 @@ import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.rule.RuleAlgorithm;
 import org.opencloudb.util.IoUtil;
 
-/**
+/** Enumerate partitions by file config mapping of "column value" to "partition id".
  * 
  * @author mycat
  */
 public class PartitionByFileMap extends AbstractPartitionAlgorithm implements RuleAlgorithm {
 
+	/**
+	 * 默认节点在map中的key
+	 */
+	private static final String DEFAULT_NODE = "DEFAULT_NODE";
+
 	private String mapFile;
-	private Map<Object, Integer> app2Partition;
+	private Map<Object, Integer> partitions;
+
 	/**
 	 * Map<Object, Integer> app2Partition中key值的类型：默认值为0，0表示Integer，非零表示String
 	 */
 	private int type;
 	
 	/**
-	 * 默认节点在map中的key
-	 */
-	private static final String DEFAULT_NODE = "DEFAULT_NODE";
-	
-	/**
-	 * 默认节点:小于0表示不设置默认节点，大于等于0表示设置默认节点
+	 * 默认节点: 小于0表示不设置默认节点，大于等于0表示设置默认节点
 	 * 
 	 * 默认节点的作用：枚举分片时，如果碰到不识别的枚举值，就让它路由到默认节点
 	 *                如果不配置默认节点（defaultNode值小于0表示不配置默认节点），碰到
-	 *                不识别的枚举值就会报错，
-	 *                like this：can't find datanode for sharding column:column_name val:ffffffff    
+	 *                不识别的枚举值就报错,
+	 *                like this：can't find datanode for sharding column:column_name val:ffffffff
 	 */
 	private int defaultNode = -1;
 
@@ -81,17 +82,19 @@ public class PartitionByFileMap extends AbstractPartitionAlgorithm implements Ru
 	@Override
 	public Integer calculate(String columnValue) {
 		Object value = columnValue;
-		if(type == 0) {
+		if(this.type == 0) {
 			value = Integer.valueOf(columnValue);
 		}
-		Integer rst = null;
-		Integer pid = app2Partition.get(value);
+
+		final Integer res;
+		Integer pid = this.partitions.get(value);
 		if (pid != null) {
-			rst = pid;
+			res = pid;
 		} else {
-			rst =app2Partition.get(DEFAULT_NODE);
+			res = this.partitions.get(DEFAULT_NODE);
 		}
-		return rst;
+
+		return res;
 	}
 
 	private void initialize() {
@@ -99,29 +102,31 @@ public class PartitionByFileMap extends AbstractPartitionAlgorithm implements Ru
 		InputStream fin = getConfigFileStream(this.mapFile);
 		try {
 			in = new BufferedReader(new InputStreamReader(fin, SystemConfig.CHARSET));
-			app2Partition = new HashMap<>();
+			this.partitions = new HashMap<>();
 			
-			for (String line = null; (line = in.readLine()) != null;) {
+			for (String line; (line = in.readLine()) != null;) {
 				line = line.trim();
-				if (line.startsWith("#") || line.startsWith("//"))
+				if (line.startsWith("#") || line.startsWith("//")) {
 					continue;
+				}
 				int ind = line.indexOf('=');
-				if (ind < 0)
+				if (ind < 0) {
 					continue;
-				try {
-					String key = line.substring(0, ind).trim();
-					int pid = Integer.parseInt(line.substring(ind + 1).trim());
-					if(type == 0) {
-						app2Partition.put(Integer.parseInt(key), pid);
-					} else {
-						app2Partition.put(key, pid);
-					}
-				} catch (Exception e) {
+				}
+
+				String key = line.substring(0, ind).trim();
+				String val = line.substring(ind + 1).trim();
+				int pid = Integer.parseInt(val);
+				if(this.type == 0) {
+					this.partitions.put(Integer.parseInt(key), pid);
+				} else {
+					this.partitions.put(key, pid);
 				}
 			}
+
 			//设置默认节点
-			if(defaultNode >= 0) {
-				app2Partition.put(DEFAULT_NODE, defaultNode);
+			if(this.defaultNode >= 0) {
+				this.partitions.put(DEFAULT_NODE, this.defaultNode);
 			}
 		} catch (Exception e) {
 			if (e instanceof RuntimeException) {
@@ -134,4 +139,5 @@ public class PartitionByFileMap extends AbstractPartitionAlgorithm implements Ru
 			IoUtil.close(fin);
 		}
 	}
+
 }

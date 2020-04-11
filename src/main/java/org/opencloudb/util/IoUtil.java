@@ -38,7 +38,7 @@ public final class IoUtil {
     static final Logger log = LoggerFactory.getLogger(IoUtil.class);
 
     static final String PROP_BUFFER_SIZE = "org.opencloudb.util.ioBufferSize";
-    static final int BUFFER_SIZE = Integer.getInteger(PROP_BUFFER_SIZE, 4019);
+    static final int BUFFER_SIZE = Integer.getInteger(PROP_BUFFER_SIZE, 4 << 10);
 
     private IoUtil() {}
 
@@ -54,14 +54,27 @@ public final class IoUtil {
     }
 
     public static OutputStream fileOutputStream(File file) throws IOException {
-        return fileOutputStream(file, false, true);
+        return fileOutputStream(file, false, true, 0);
+    }
+
+    public static OutputStream fileOutputStream(File file, int bufferSize) throws IOException {
+        return fileOutputStream(file, false, true, bufferSize);
     }
 
     public static OutputStream fileOutputStream(File file, boolean append) throws IOException {
-        return fileOutputStream(file, append, true);
+        return fileOutputStream(file, append, true, 0);
+    }
+
+    public static OutputStream fileOutputStream(File file, boolean append, int bufferSize) throws IOException {
+        return fileOutputStream(file, append, true, bufferSize);
     }
 
     public static OutputStream fileOutputStream(File file, boolean append, boolean buffered)
+            throws IOException {
+        return fileOutputStream(file, append, buffered, 0);
+    }
+
+    public static OutputStream fileOutputStream(File file, boolean append, boolean buffered, int bufferSize)
             throws IOException {
 
         File parent = file.getParentFile();
@@ -74,7 +87,8 @@ public final class IoUtil {
             BufferedOutputStream bout;
             boolean failed = true;
             try {
-                bout = new BufferedOutputStream(out, BUFFER_SIZE);
+                bufferSize = bufferSize <= 0? BUFFER_SIZE: bufferSize;
+                bout = new BufferedOutputStream(out, bufferSize);
                 failed = false;
             } finally {
                 if (failed) {
@@ -88,10 +102,20 @@ public final class IoUtil {
     }
 
     public static InputStream fileInputStream(File file) throws IOException {
-        return fileInputStream(file, true);
+        return fileInputStream(file, true, 0);
+    }
+
+    public static InputStream fileInputStream(File file, int bufferSize) throws IOException {
+        return fileInputStream(file, true, bufferSize);
     }
 
     public static InputStream fileInputStream(File file, boolean buffered) throws IOException {
+        return fileInputStream(file, buffered, 0);
+    }
+
+    public static InputStream fileInputStream(File file, boolean buffered, int bufferSize)
+            throws IOException {
+
         File parent = file.getParentFile();
         if (!parent.isDirectory() && !parent.mkdirs()) {
             throw new IOException("Create directory failed: " + parent);
@@ -102,7 +126,8 @@ public final class IoUtil {
             BufferedInputStream bin;
             boolean failed = true;
             try {
-                bin = new BufferedInputStream(in, BUFFER_SIZE);
+                bufferSize = bufferSize <= 0? BUFFER_SIZE: bufferSize;
+                bin = new BufferedInputStream(in, bufferSize);
                 failed = false;
             } finally {
                 if (failed) {

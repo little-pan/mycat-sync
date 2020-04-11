@@ -23,8 +23,8 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
 
     @Override
     protected void doTest() throws Exception {
-        testDefaultNodeTable(true, false, false);
-        testDefaultNodeTable(false, false, false);
+        testDefaultTable(true, false, false);
+        testDefaultTable(false, false, false);
         testGlobalTable(true, false, false);
         testGlobalTable(false, false, false);
         testShardTable(true, false, false, false, false);
@@ -35,10 +35,10 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         testShardTable(false, false, false, false, true);
 
         // Tx test
-        testDefaultNodeTable(true, true, false);
-        testDefaultNodeTable(false, true, false);
-        testDefaultNodeTable(true, true, true);
-        testDefaultNodeTable(false, true, true);
+        testDefaultTable(true, true, false);
+        testDefaultTable(false, true, false);
+        testDefaultTable(true, true, true);
+        testDefaultTable(false, true, true);
         testGlobalTable(true, true, false);
         testGlobalTable(false, true, false);
         testGlobalTable(true, true, true);
@@ -55,35 +55,45 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         testShardTable(false, true, false, false, true);
 
         // Perf test: 200k rows/s
-        if (TEST_PERF) {
-            // 5s
-            testDefaultNodeTablePerf(true, 1000000);
-            testDefaultNodeTablePerf(false, 1000000);
-            // 15s: 3 nodes
-            testGlobalTablePerf(true, 1000000);
-            testGlobalTablePerf(false, 1000000);
-            //
-            testShardTablePerf(true, 1000000, true, true);
-            testShardTablePerf(false, 1000000, true, true);
-            testShardTablePerf(true, 1000000, true, false);
-            testShardTablePerf(false, 1000000, true, false);
-            testShardTablePerf(true, 1000000, false, false);
-            testShardTablePerf(false, 1000000, false, false);
-            // 25s
-            testDefaultNodeTablePerf(true, 5000000);
-            testDefaultNodeTablePerf(false, 5000000);
-            testGlobalTablePerf(true, 5000000);
-            testGlobalTablePerf(false, 5000000);
-            // 50s
-            testDefaultNodeTablePerf(true, 10000000);
-            testDefaultNodeTablePerf(false, 10000000);
-            testGlobalTablePerf(true, 10000000);
-            testGlobalTablePerf(false, 10000000);
-        }
+        // 5s
+        testDefaultTablePerf(true, 1000000);
+        testDefaultTablePerf(false, 1000000);
+        // 15s: 3 nodes
+        testGlobalTablePerf(true, 1000000);
+        testGlobalTablePerf(false, 1000000);
+        // 10s: 2 nodes, ID assigned
+        testShardTablePerf(true, 1000000, false, false);
+        // *ID generator of mycat db sequence*
+        // 170s: 2 nodes, ID auto increment(step  20)
+        //  80s: 2 nodes, ID auto increment(step  50)
+        //  46s: 2 nodes, ID auto increment(step 100)
+        testShardTablePerf(true, 1000000, true, true);
+        //  48s
+        testShardTablePerf(true, 1000000, true, false);
+        //  45s
+        testShardTablePerf(false, 1000000, true, true);
+        //  47s
+        testShardTablePerf(false, 1000000, true, false);
+        //  10s
+        testShardTablePerf(false, 1000000, false, false);
+        // 25s
+        testDefaultTablePerf(true, 5000000);
+        testDefaultTablePerf(false, 5000000);
+        testGlobalTablePerf(true, 5000000);
+        testGlobalTablePerf(false, 5000000);
+        // 50s
+        testDefaultTablePerf(true, 10000000);
+        testDefaultTablePerf(false, 10000000);
+        testGlobalTablePerf(true, 10000000);
+        testGlobalTablePerf(false, 10000000);
     }
 
-    private void testDefaultNodeTablePerf(boolean isLocal, int rows) throws Exception {
-        String tag = "testDefaultNodeTablePerf";
+    private void testDefaultTablePerf(boolean isLocal, int rows) throws Exception {
+        if (!TEST_PERF || !TEST_DTBL) {
+            return;
+        }
+
+        String tag = "testDefaultTablePerf";
         String table = "hotel";
         String[] columns = {"name", "address", "tel", "rooms"};
         RowGenerator generator = new RowGenerator() {
@@ -102,10 +112,14 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
             dropTable(stmt, table);
             createTableHotel(stmt);
         }
-        testPerf(tag, table, columns, generator, isLocal, rows, null);
+        testPerf(tag, table, columns, generator, isLocal, rows, null, false);
     }
 
     private void testGlobalTablePerf(boolean isLocal, int rows) throws Exception {
+        if (!TEST_PERF || !TEST_GTBL) {
+            return;
+        }
+
         String tag = "testGlobalTablePerf";
         String table = "company";
         String[] columns = {"id", "name", "address", "create_date"};
@@ -127,15 +141,20 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
             createTableCompany(stmt);
             createTableEmployee(stmt);
         }
-        testPerf(tag, table, columns, generator, isLocal, rows, null);
+        testPerf(tag, table, columns, generator, isLocal, rows, null, true);
     }
 
     private void testShardTablePerf(boolean isLocal, int rows, final boolean autoIncr,
                                     final boolean noIdColumn) throws Exception {
 
-        String fileTag = (noIdColumn? "noIdColumn": "incIdColumn");
-        String tag = "testShardTablePerf.id-" + (autoIncr? "autoIncr": "assigned")
-                + "-" + fileTag;
+        if (!TEST_PERF || !TEST_STBL) {
+            return;
+        }
+
+        String fileTag = (autoIncr? "id-autoIncr": "id-assigned");
+        fileTag += (noIdColumn? "-noIdColumn": "-incIdColumn");
+
+        String tag = "testShardTablePerf." + fileTag;
         String table = "employee";
         String[] columns;
         if (noIdColumn) {
@@ -144,6 +163,7 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
             columns = new String[]{"id", "company_id", "empno", "name"};
         }
         final long companyA = 1L, companyB = 2L;
+        boolean assignedId = !noIdColumn && !autoIncr;
         RowGenerator generator = new RowGenerator() {
             @Override
             public void generate(List<Object> row, int rowid, DateFormat dateFormat) {
@@ -172,11 +192,11 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
             insertCompany(stmt, companyB, "Company-" + companyB);
         }
 
-        testPerf(tag, table, columns, generator, isLocal, rows, fileTag);
+        testPerf(tag, table, columns, generator, isLocal, rows, fileTag, assignedId);
     }
 
     private void testPerf(String tag, String table, String[] columns, RowGenerator rowGenerator,
-                          boolean isLocal, int rows, String fileTag) throws Exception {
+                          boolean isLocal, int rows, String fileTag, boolean assignedId) throws Exception {
         debug(tag+": table '%s', local %s, rows %s", table, isLocal, rows);
 
         final int cols = columns.length;
@@ -193,7 +213,7 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
             try (OutputStream out = IoUtil.fileOutputStream(csvFile, true)) {
                 for (int i = 0; i < rows; ++i) {
                     List<Object> row = new ArrayList<>(cols);
-                    rowGenerator.generate(row, i, df);
+                    rowGenerator.generate(row, i + 1, df);
                     batch.add(row);
 
                     if ((i + 1) % batchSize == 0 || i == rows -1) {
@@ -225,14 +245,30 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
             sql = format(sql, local, file, table);
             int n = stmt.executeUpdate(sql);
             assertTrue(n == rows, "'load data' result rows: " + n);
+
+            if (assignedId) {
+                n = 3;
+                ResultSet rs = stmt.executeQuery("select " + fields + " from " + table
+                        + " order by " + columns[0] + " asc limit " + n);
+                for (int i = 0; i < n; ++i) {
+                    assertTrue(rs.next());
+                    long id = rs.getLong(1);
+                    long expected = i + 1;
+                    assertEquals(expected, id, "ID not assigned");
+                }
+            }
         }
         info(tag+": 'load data' end");
     }
 
-    private void testDefaultNodeTable(boolean isLocal, boolean tx, boolean commit)
+    private void testDefaultTable(boolean isLocal, boolean tx, boolean commit)
             throws Exception {
+        if (!TEST_DTBL) {
+            return;
+        }
+
         String table = "hotel";
-        debug("testDefaultNodeTable: table '%s', local %s, tx %s, commit %s",
+        debug("testDefaultTable: table '%s', local %s, tx %s, commit %s",
                 table, isLocal, tx, commit);
 
         List<?> hotels = Arrays.asList(
@@ -298,6 +334,10 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
 
     private void testGlobalTable(boolean isLocal, boolean tx, boolean commit)
             throws Exception {
+        if (!TEST_GTBL) {
+            return;
+        }
+
         String table = "company";
         debug("testGlobalTable: table '%s', local %s, tx %s, commit %s",
                 table, isLocal, tx, commit);
@@ -366,6 +406,10 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
 
     private void testShardTable(boolean isLocal, boolean tx, boolean commit, boolean autoIncr, boolean noIdColumn)
             throws Exception {
+        if (!TEST_STBL) {
+            return;
+        }
+
         String table = "employee";
         debug("testShardTable: table '%s', local %s, tx %s, commit %s, autoIncr %s, noIdColumn %s",
                 table, isLocal, tx, commit, autoIncr, noIdColumn);

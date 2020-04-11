@@ -111,16 +111,6 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
     private SchemaConfig schema;
     private boolean isStartLoadData;
 
-    public int getPackID()
-    {
-        return packID;
-    }
-
-    public void setPackID(byte packID)
-    {
-        this.packID = packID;
-    }
-
     public ServerLoadDataInfileHandler(ServerConnection serverConnection) {
         this.serverConnection = serverConnection;
     }
@@ -345,7 +335,8 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         try {
             if (this.tempOutFile == null) {
                 File file = new File(this.tempFile);
-                this.tempOutFile = IoUtil.fileOutputStream(file, true);
+                int bufferSize = LoadData.IO_BUFFER_SIZE;
+                this.tempOutFile = IoUtil.fileOutputStream(file, true, bufferSize);
             }
             this.tempOutFile.write(data);
             failed = false;
@@ -581,7 +572,8 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         try {
             if (outFile == null) {
                 File dnFile = new File(nodeFile);
-                outFile = IoUtil.fileOutputStream(dnFile, true);
+                int bufferSize = LoadData.IO_BUFFER_SIZE;
+                outFile = IoUtil.fileOutputStream(dnFile, true, bufferSize);
                 this.nodeOutFiles.put(node, outFile);
             }
 
@@ -761,7 +753,8 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
             String[] row;
             int rowIndex = 0;
 
-            in = IoUtil.fileInputStream(new File(file));
+            int bufferSize = LoadData.IO_BUFFER_SIZE;
+            in = IoUtil.fileInputStream(new File(file), bufferSize);
             Reader reader = new InputStreamReader(in, encode);
             parser.beginParsing(reader);
             while ((row = parser.parseNext()) != null) {
@@ -910,7 +903,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
                     return;
                 }
 
-                log.debug("ID {} fetched, then do route", result);
+                // ID fetched, then do route
                 if (handler.autoIncrColumnIndex < this.row.length) {
                     this.row[handler.autoIncrColumnIndex] = result + "";
                 }

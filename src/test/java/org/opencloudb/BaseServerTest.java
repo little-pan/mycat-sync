@@ -30,6 +30,8 @@ import java.util.Date;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 
+import static java.lang.Boolean.*;
+
 public abstract class BaseServerTest {
 
     protected static final String USER_DIR = System.getProperty("user.dir");
@@ -39,8 +41,24 @@ public abstract class BaseServerTest {
 
     static final int DEBUG = 1, INFO = 2, ERROR = 3;
     static final int LOG_LEVEL = Integer.getInteger("org.opencloudb.test.logLevel", DEBUG);
-    static final int ROUNDS = Integer.getInteger("org.opencloudb.test.rounds", 2);
-    protected static final boolean TEST_PERF = Boolean.getBoolean("org.opencloudb.test.perf");
+    static final String PROP_ROUNDS = "org.opencloudb.test.rounds";
+    static final int ROUNDS = Integer.getInteger(PROP_ROUNDS, 2);
+
+    // Test scopes
+    static final String PROP_TEST_ALL = "org.opencloudb.test.all";
+    protected static final boolean TEST_ALL = getBool(PROP_TEST_ALL, false);
+    static final String PROP_TEST_PERF = "org.opencloudb.test.perf";
+    protected static final boolean TEST_PERF = getBool(PROP_TEST_PERF, false) || TEST_ALL;
+    static final String PROP_TEST_DTBL = "org.opencloudb.test.defaultTable";
+    protected static final boolean TEST_DTBL = getBool(PROP_TEST_DTBL, true)  || TEST_ALL;
+    static final String PROP_TEST_GTBL = "org.opencloudb.test.globalTable";
+    protected static final boolean TEST_GTBL = getBool(PROP_TEST_GTBL, true)  || TEST_ALL;
+    static final String PROP_TEST_STBL = "org.opencloudb.test.shardTable";
+    protected static final boolean TEST_STBL = getBool(PROP_TEST_STBL, true)  || TEST_ALL;
+    static final String PROP_TEST_ER2TBL = "org.opencloudb.test.er2Table";
+    protected static final boolean TEST_ER2TBL = getBool(PROP_TEST_ER2TBL, true) || TEST_ALL;
+    static final String PROP_TEST_ER3TBL = "org.opencloudb.test.er3Table";
+    protected static final boolean TEST_ER3TBL = getBool(PROP_TEST_ER3TBL, true) || TEST_ALL;
 
     protected static String JDBC_USER = "root";
     protected static String JDBC_PASSWORD = "123456";
@@ -54,6 +72,16 @@ public abstract class BaseServerTest {
         trySetProperty("org.opencloudb.server.daemon", "true");
         String[] args = new String[]{};
         MycatStartup.main(args);
+
+        // Test information
+        info("%s: %s", PROP_ROUNDS, ROUNDS);
+        info("%s: %s", PROP_TEST_ALL, TEST_ALL);
+        info("%s: %s", PROP_TEST_PERF, TEST_PERF);
+        info("%s: %s", PROP_TEST_DTBL, TEST_DTBL);
+        info("%s: %s", PROP_TEST_GTBL, TEST_GTBL);
+        info("%s: %s", PROP_TEST_STBL, TEST_STBL);
+        info("%s: %s", PROP_TEST_ER2TBL, TEST_ER2TBL);
+        info("%s: %s", PROP_TEST_ER3TBL, TEST_ER3TBL);
     }
 
     public void test() throws Exception {
@@ -183,6 +211,15 @@ public abstract class BaseServerTest {
         return stmt.executeUpdate(sql);
     }
 
+    protected static boolean getBool(String prop, boolean def) {
+        String val = System.getProperty(prop);
+        if (val == null) {
+            return def;
+        } else {
+            return getBoolean(prop);
+        }
+    }
+
     protected static DateFormat getDateFormat() {
         return new SimpleDateFormat("yyyy-MM-dd");
     }
@@ -262,7 +299,7 @@ public abstract class BaseServerTest {
             return;
         }
         if (a == null || !a.equals(b)) {
-            throw new AssertionError(message);
+            throw new AssertionError("Expect " + a + ", but " + b + ": " + message);
         }
     }
 

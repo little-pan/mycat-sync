@@ -36,6 +36,14 @@ public class AllServerTest extends BaseServerTest {
     }
 
     @Override
+    protected void prepare() {
+        super.prepare();
+        // Add all here
+        add(new LoadDataInfileHandlerServerTest()).
+                add(new SequenceServerTest());
+    }
+
+    @Override
     public void doTest() throws Exception {
         int n = 0, total = this.tests.size();
         try {
@@ -47,14 +55,6 @@ public class AllServerTest extends BaseServerTest {
             String testCase = getClass().getSimpleName();
             info("%s: tested cases %s, total cases %s", testCase, n, total);
         }
-    }
-
-    @Override
-    protected void prepare() {
-        super.prepare();
-        // Add all here
-        add(new LoadDataInfileHandlerServerTest()).
-        add(new SequenceServerTest());
     }
 
     @Override

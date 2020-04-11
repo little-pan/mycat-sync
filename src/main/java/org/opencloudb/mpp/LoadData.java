@@ -1,11 +1,15 @@
 package org.opencloudb.mpp;
 
+import static java.lang.Integer.*;
+
 /**
  * Created by magicdoom on 2015/3/30.
  */
 public class LoadData {
 
-    public static final String loadDataHint="/*loaddata*/";
+    public static final String loadDataHint = "/*loaddata*/";
+    static final String PROP_IO_BUFFER_SIZE = "org.opencloudb.loadData.ioBufferSize";
+    public static final int IO_BUFFER_SIZE  = getInteger(PROP_IO_BUFFER_SIZE, 0/*default IO size*/);
 
     private boolean isLocal;
     private String fileName;

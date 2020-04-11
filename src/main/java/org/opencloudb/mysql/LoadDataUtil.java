@@ -2,6 +2,7 @@ package org.opencloudb.mysql;
 
 import org.opencloudb.MycatServer;
 import org.opencloudb.config.model.SystemConfig;
+import org.opencloudb.mpp.LoadData;
 import org.opencloudb.net.BackendConnection;
 import org.opencloudb.net.NioProcessor;
 import org.opencloudb.net.ResourceTask;
@@ -41,7 +42,8 @@ public class LoadDataUtil {
         try {
             File dataFile = new File(loadFile);
             log.debug("load data infile '{}' into backend {}", loadFile, conn);
-            in = IoUtil.fileInputStream(dataFile);
+            int bufferSize = LoadData.IO_BUFFER_SIZE;
+            in = IoUtil.fileInputStream(dataFile, bufferSize);
 
             MycatServer server = MycatServer.getContextServer();
             SystemConfig conf = server.getConfig().getSystem();
