@@ -208,8 +208,8 @@ public class SingleNodeHandler implements ResponseHandler, Terminatable, LoadDat
 
 	@Override
 	public void okResponse(byte[] data, BackendConnection conn) {        
-		boolean executeResponse = conn.syncAndExecute();
-		if (executeResponse) {			
+		boolean executed = conn.syncAndExecute();
+		if (executed) {
 			this.session.releaseConnectionIfSafe(conn);
 			endRunning();
 			ServerConnection source = this.session.getSource();

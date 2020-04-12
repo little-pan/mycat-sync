@@ -28,7 +28,7 @@ Mycat sync使用第3种执行模型，可以保持少量的线程和大量的连
 * "load data infile"支持自增ID
 * "load data infile"支持ER子表
 * 非阻塞获取mycat序列号
-* 非阻塞查询ER表的存储节点
+* 非阻塞并行查询ER表的存储节点
 
 ## 文档
 

@@ -43,7 +43,6 @@ import org.slf4j.*;
 import java.io.UnsupportedEncodingException;
 import java.nio.channels.SocketChannel;
 import java.security.NoSuchAlgorithmException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author mycat
@@ -274,76 +273,28 @@ public class MySQLConnection extends BackendConnection {
 		}
 	}
 
-	private static class StatusSync {
-		private final String schema;
-		private final Integer charsetIndex;
-		private final Integer txtIsolation;
-		private final Boolean autocommit;
-		private final AtomicInteger synCmdCount;
-		private final boolean xaStarted;
-
-		public StatusSync(boolean xaStarted, String schema,
-				Integer charsetIndex, Integer txtIsolation, Boolean autocommit,
-				int synCount) {
-			super();
-			this.xaStarted = xaStarted;
-			this.schema = schema;
-			this.charsetIndex = charsetIndex;
-			this.txtIsolation = txtIsolation;
-			this.autocommit = autocommit;
-			this.synCmdCount = new AtomicInteger(synCount);
-		}
-
-		public boolean synAndExecuted(MySQLConnection conn) {
-			int remains = synCmdCount.decrementAndGet();
-			if (remains == 0) {// syn command finished
-				this.updateConnectionInfo(conn);
-				conn.metaDataSyned = true;
-				return false;
-			} else if (remains < 0) {
-				return true;
-			}
-			return false;
-		}
-
-		private void updateConnectionInfo(MySQLConnection conn) {
-			conn.xaStatus = xaStarted? 1 : 0;
-			if (schema != null) {
-				conn.schema = schema;
-				conn.oldSchema = conn.schema;
-			}
-			if (charsetIndex != null) {
-				conn.setCharset(CharsetUtil.getCharset(charsetIndex));
-			}
-			if (txtIsolation != null) {
-				conn.txIsolation = txtIsolation;
-			}
-			if (autocommit != null) {
-				conn.autocommit = autocommit;
-			}
-		}
-	}
-
-	/**
-	 * @return if synchronization finished and execute-sql has already been sent before
+	/** Call this method in okResponse() of ResponseHandler.
+	 *
+	 * @return true if synchronization finished and execute-sql has already been executed
 	 */
 	@Override
 	public boolean syncAndExecute() {
 		StatusSync sync = this.statusSync;
+
 		if (sync == null) {
 			return true;
-		} else {
-			boolean executed = sync.synAndExecuted(this);
-			if (executed) {
-				statusSync = null;
-			}
-			return executed;
 		}
+
+		boolean executed = sync.synAndExecuted(this);
+		if (executed) {
+			this.statusSync = null;
+		}
+		return executed;
 	}
 
 	public void execute(RouteResultsetNode rrn, ServerConnection sc, boolean autocommit) {
-		if (!modifiedSQLExecuted && rrn.isModifySQL()) {
-			modifiedSQLExecuted = true;
+		if (!this.modifiedSQLExecuted && rrn.isModifySQL()) {
+			this.modifiedSQLExecuted = true;
 		}
 		String xaTXID = sc.getSession().getXaTXID();
 		synAndDoExecute(xaTXID, rrn, sc.getCharsetIndex(), sc.getTxIsolation(), autocommit);
@@ -351,18 +302,18 @@ public class MySQLConnection extends BackendConnection {
 
 	private void synAndDoExecute(String xaTxID, RouteResultsetNode rrn,
 			int clientCharSetIndex, int clientTxIsolation, boolean clientAutoCommit) {
-		String xaCmd = null;
 
+		String xaCmd = null;
 		boolean conAutoCommit = this.autocommit;
 		String conSchema = this.schema;
-		// never executed modify sql,so auto commit
-		boolean expectAutocommit = !modifiedSQLExecuted || isFromSlaveDB()
+		// never executed modify sql, so auto commit
+		boolean expectAutocommit = !this.modifiedSQLExecuted || isFromSlaveDB()
 				|| clientAutoCommit;
-		if (!expectAutocommit && xaTxID != null && xaStatus == 0) {
+		if (!expectAutocommit && xaTxID != null && this.xaStatus == 0) {
 			clientTxIsolation = Isolations.SERIALIZABLE;
 			xaCmd = "XA START " + xaTxID + ';';
 		}
-		int schemaSyn = conSchema.equals(oldSchema) ? 0 : 1;
+		int schemaSyn = conSchema.equals(this.oldSchema) ? 0 : 1;
 		int charsetSyn = 0;
 		if (this.charsetIndex != clientCharSetIndex) {
 			//need to syn the charset of connection.
@@ -371,7 +322,7 @@ public class MySQLConnection extends BackendConnection {
 			setCharset(CharsetUtil.getCharset(clientCharSetIndex));
 			charsetSyn = 1;
 		}
-		int txIsolationSync = (txIsolation == clientTxIsolation) ? 0 : 1;
+		int txIsolationSync = (this.txIsolation == clientTxIsolation) ? 0 : 1;
 		int autoCommitSyn = (conAutoCommit == expectAutocommit) ? 0 : 1;
 		int synCount = schemaSyn + charsetSyn + txIsolationSync + autoCommitSyn;
 		if (synCount == 0) {
@@ -379,12 +330,13 @@ public class MySQLConnection extends BackendConnection {
 			sendQueryCmd(rrn.getStatement());
 			return;
 		}
+
 		CommandPacket schemaCmd = null;
-		StringBuilder sb = new StringBuilder();
 		if (schemaSyn == 1) {
 			schemaCmd = getChangeSchemaCommand(conSchema);
 		}
 
+		StringBuilder sb = new StringBuilder();
 		if (charsetSyn == 1) {
 			getCharsetCommand(sb, clientCharSetIndex);
 		}
@@ -401,8 +353,9 @@ public class MySQLConnection extends BackendConnection {
 			log.debug("con need sync: total sync cmd {}, commands '{}', schema change {} in backend {}" ,
 					synCount, sb, schemaCmd != null, this);
 		}
-		metaDataSyned = false;
-		statusSync = new StatusSync(xaCmd != null, conSchema,
+
+		this.metaDataSyned = false;
+		this.statusSync = new StatusSync(xaCmd != null, conSchema,
 				clientCharSetIndex, clientTxIsolation, expectAutocommit,
 				synCount);
 		// syn schema
@@ -425,8 +378,9 @@ public class MySQLConnection extends BackendConnection {
 	}
 
 	/**
-	 * by wuzh ,execute a query and ignore transaction settings for performance
-	 * 
+	 * Execute a query and ignore transaction settings for performance
+	 *
+	 * @author wuzh
 	 * @param query
 	 */
 	public void query(String query) {
@@ -453,8 +407,7 @@ public class MySQLConnection extends BackendConnection {
 	}
 
 	public boolean batchCmdFinished() {
-		batchCmdCount--;
-		return (batchCmdCount == 0);
+		return (--this.batchCmdCount == 0);
 	}
 
 	public void execCmd(String cmd) {
@@ -489,7 +442,6 @@ public class MySQLConnection extends BackendConnection {
 			return;
 		}
 
-		this.metaDataSyned = true;
 		this.attachment = null;
 		this.statusSync = null;
 		this.modifiedSQLExecuted = false;
@@ -546,5 +498,55 @@ public class MySQLConnection extends BackendConnection {
 				+ statusSync + ", writeQueue=" + this.writeQueueSize
 				+ ", modifiedSQLExecuted=" + modifiedSQLExecuted + "]";
 	}
+
+	private static class StatusSync {
+
+		private final String schema;
+		private final Integer charsetIndex;
+		private final Integer txtIsolation;
+		private final Boolean autocommit;
+		private int synCmdCount;
+		private final boolean xaStarted;
+
+		public StatusSync(boolean xaStarted, String schema,
+						  Integer charsetIndex, Integer txtIsolation, Boolean autocommit,
+						  int synCount) {
+			this.xaStarted = xaStarted;
+			this.schema = schema;
+			this.charsetIndex = charsetIndex;
+			this.txtIsolation = txtIsolation;
+			this.autocommit = autocommit;
+			this.synCmdCount = synCount;
+		}
+
+		public boolean synAndExecuted(MySQLConnection conn) {
+			int remains = --this.synCmdCount;
+			if (remains == 0) {
+				// syn command finished
+				updateConnectionInfo(conn);
+				conn.metaDataSyned = true;
+				return false;
+			} else {
+				return remains < 0;
+			}
+		}
+
+		private void updateConnectionInfo(MySQLConnection conn) {
+			conn.xaStatus = this.xaStarted? 1 : 0;
+			if (this.schema != null) {
+				conn.schema = this.schema;
+				conn.oldSchema = conn.schema;
+			}
+			if (this.charsetIndex != null) {
+				conn.setCharset(CharsetUtil.getCharset(this.charsetIndex));
+			}
+			if (this.txtIsolation != null) {
+				conn.txIsolation = this.txtIsolation;
+			}
+			if (this.autocommit != null) {
+				conn.autocommit = this.autocommit;
+			}
+		}
+	} // StatusSync
 
 }

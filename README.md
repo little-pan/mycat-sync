@@ -33,8 +33,8 @@ such as PostgreSQL and MySQL(native protocol implementation), not includes JDBC 
 and read/write separation
 * Support auto increment ID in "load data infile"
 * Support ER child table in "load data infile"
-* Non-blocking fetch mycat sequence is 
-* Non-blocking fetch the store node of ER child table
+* Non-blocking fetch mycat sequence 
+* Non-blocking fetch the store node of ER child table in parallel
 
 ## Document
 

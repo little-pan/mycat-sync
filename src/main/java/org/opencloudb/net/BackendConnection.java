@@ -89,6 +89,10 @@ public abstract class BackendConnection extends AbstractConnection implements Cl
 
 	public abstract void query(String sql) throws UnsupportedOperationException;
 
+	/** Sync connection status and execute the given statement.
+	 *
+	 * @return true if statement executed
+	 */
 	public abstract boolean syncAndExecute();
 
 	public abstract void execute(RouteResultsetNode node, ServerConnection source, boolean autocommit);

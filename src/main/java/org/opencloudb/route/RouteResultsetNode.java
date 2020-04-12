@@ -66,10 +66,6 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 		this.canRunInReadDB = canRunInReadDB;
 	}
 
-	public boolean getCanRunInReadDB() {
-		return this.canRunInReadDB;
-	}
-
 	public void resetStatement() {
 		this.statement = srcStatement;
 	}
@@ -157,8 +153,8 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 	@Override
 	public String toString() {
 		StringBuilder s = new StringBuilder();
-		s.append(name);
-		s.append('{').append(statement).append('}');
+		s.append(this.name);
+		s.append('{').append(this.statement).append('}');
 		return s.toString();
 	}
 
@@ -170,7 +166,7 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 	}
 
 	public boolean isModifySQL() {
-		return !canRunInReadDB;
+		return !this.canRunInReadDB;
 	}
 
 	@Override
