@@ -249,7 +249,6 @@ public class XMLSchemaLoader implements SchemaLoader {
 		}				
 		return newTableName;		
 	}
-	
 
 	private Map<String, TableConfig> loadTables(Element node) {
 		// 支持表名中包含引号[`] BEN GONG
@@ -260,18 +259,20 @@ public class XMLSchemaLoader implements SchemaLoader {
 			Element tableElement = (Element) nodeList.item(i);
 			String tableNameElement = tableElement.getAttribute("name").toUpperCase();
 
-			//TODO:路由, 增加对动态日期表的支持
+			// TODO:路由, 增加对动态日期表的支持
 			String tableNameSuffixElement = tableElement.getAttribute("nameSuffix").toUpperCase();
 			if ( !"".equals( tableNameSuffixElement ) ) {
 				if( tableNameElement.split(",").length > 1 ) {
-					throw new ConfigException("nameSuffix " + tableNameSuffixElement + ", require name parameter cannot multiple breaks!");
+					throw new ConfigException("nameSuffix " + tableNameSuffixElement
+							+ ", require name parameter cannot multiple breaks!");
 				}
 				
 				tableNameElement = doTableNameSuffix(tableNameElement, tableNameSuffixElement);
 			}
 			
 			String[] tableNames = tableNameElement.split(",");
-			String primaryKey = tableElement.hasAttribute("primaryKey") ? tableElement.getAttribute("primaryKey").toUpperCase() : null;
+			String primaryKey = tableElement.hasAttribute("primaryKey") ?
+					tableElement.getAttribute("primaryKey").toUpperCase() : null;
 			boolean autoIncrement = false;
 			if (tableElement.hasAttribute("autoIncrement")) {
 				autoIncrement = Boolean.parseBoolean(tableElement.getAttribute("autoIncrement"));
@@ -280,7 +281,8 @@ public class XMLSchemaLoader implements SchemaLoader {
 			if (tableElement.hasAttribute("needAddLimit")) {
 				needAddLimit = Boolean.parseBoolean(tableElement.getAttribute("needAddLimit"));
 			}
-			String tableTypeStr = tableElement.hasAttribute("type") ? tableElement.getAttribute("type") : null;
+			String tableTypeStr = tableElement.hasAttribute("type") ?
+								tableElement.getAttribute("type") : null;
 			int tableType = TableConfig.TYPE_GLOBAL_DEFAULT;
 			if ("global".equalsIgnoreCase(tableTypeStr)) {
 				tableType = TableConfig.TYPE_GLOBAL_TABLE;
@@ -328,10 +330,11 @@ public class XMLSchemaLoader implements SchemaLoader {
 
 			if (tableNames.length == 1) {
 				TableConfig table = tables.get(tableNames[0]);
-				// process child tables
+				// Process child/er tables
 				processChildTables(tables, table, dataNode, tableElement);
 			}
 		}
+
 		return tables;
 	}
 
@@ -413,7 +416,8 @@ public class XMLSchemaLoader implements SchemaLoader {
 			Element childTbElement = (Element) theNode;
 
 			String cdTbName = childTbElement.getAttribute("name").toUpperCase();
-			String primaryKey = childTbElement.hasAttribute("primaryKey") ? childTbElement.getAttribute("primaryKey").toUpperCase() : null;
+			String primaryKey = childTbElement.hasAttribute("primaryKey") ?
+					childTbElement.getAttribute("primaryKey").toUpperCase() : null;
 
 			boolean autoIncrement = false;
 			if (childTbElement.hasAttribute("autoIncrement")) {
@@ -432,7 +436,7 @@ public class XMLSchemaLoader implements SchemaLoader {
 					joinKey, parentKey);
 			
 			if (tables.containsKey(table.getName())) {
-				throw new ConfigException("table " + table.getName() + " duplicated!");
+				throw new ConfigException("Table '" + table.getName() + "' duplicated!");
 			}
 			tables.put(table.getName(), table);
 			processChildTables(tables, table, dataNodes, childTbElement);

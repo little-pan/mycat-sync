@@ -142,7 +142,7 @@ public class MultiNodeQueryHandler extends MultiNodeHandler implements LoadDataR
 	@Override
 	public void okResponse(byte[] data, BackendConnection conn) {
 		boolean executeResponse = conn.syncAndExecute();
-		log.debug("received ok response, executeResponse: {} from backend {}", executeResponse, conn);
+		log.debug("received ok response: {} from backend {}", executeResponse, conn);
 		if (executeResponse) {
 			if (clearIfSessionClosed(this.session)) {
 				return;

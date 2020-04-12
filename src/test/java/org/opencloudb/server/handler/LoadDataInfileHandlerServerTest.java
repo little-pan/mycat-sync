@@ -41,6 +41,12 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         testShardTable(false, false, false, true, false);
         testShardTable(true, false, false, true, true);
         testShardTable(false, false, false, false, true);
+        testEr2LevelTable(true, false, false, false, false);
+        testEr2LevelTable(false, false, false, false, false);
+        testEr2LevelTable(true, false, false, true, false);
+        testEr2LevelTable(false, false, false, true, false);
+        testEr2LevelTable(true, false, false, true, true);
+        testEr2LevelTable(false, false, false, true, true);
 
         // Tx test
         testDefaultTable(true, true, false);
@@ -61,6 +67,12 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         testShardTable(false, true, false, false, false);
         testShardTable(false, true, false, true, true);
         testShardTable(false, true, false, false, true);
+        testEr2LevelTable(true, true, false, false, false);
+        testEr2LevelTable(false, true, false, false, false);
+        testEr2LevelTable(true, true, false, true, false);
+        testEr2LevelTable(false, true, false, true, false);
+        testEr2LevelTable(true, true, false, true, true);
+        testEr2LevelTable(false, true, false, true, true);
 
         // Perf test: 200k rows/s
         // 5s
@@ -454,8 +466,6 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         final int rowCount = rows.size();
         File csvFile = CsvUtil.write(table, rows);
 
-
-
         try (Connection c = getConnection()) {
             Statement stmt = c.createStatement();
             if (tx) c.setAutoCommit(false);
@@ -507,6 +517,108 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
                     assertEquals(row.get(j++), companyId);
                     assertEquals(row.get(j++), empno);
                     assertEquals(row.get(j), name);
+                }
+            } else {
+                assertTrue(n == 0, "'load data' rows error after rollback: " + n);
+            }
+        }
+    }
+
+    private void testEr2LevelTable(boolean isLocal, boolean tx, boolean commit, boolean autoIncr, boolean noIdColumn)
+            throws Exception {
+        if (!TEST_ER2TBL) {
+            return;
+        }
+
+        String table = "customer_addr";
+        debug("testEr2LevelTable: table '%s', local %s, tx %s, commit %s, autoIncr %s, noIdColumn %s",
+                table, isLocal, tx, commit, autoIncr, noIdColumn);
+
+        long customerA = 1L, customerB = 2L;
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+
+            dropTable(stmt, table);
+            dropTable(stmt, "customer");
+            createTableCustomer(stmt);
+            createTableCustomerAddr(stmt);
+        }
+
+        final List<?> rows;
+        if (noIdColumn) {
+            rows = Arrays.asList(
+                    // customer_id, address
+                    Arrays.asList(customerA, "Address-" + 1),
+                    Arrays.asList(customerA, "Address-" + 2),
+                    Arrays.asList(customerB, "Address-" + 1),
+                    Arrays.asList(customerB, "Address-" + 2),
+                    Arrays.asList(customerA, "Address-" + 3));
+        } else {
+            rows = Arrays.asList(
+                    // id, customer_id, address
+                    Arrays.asList(autoIncr? null: 1L, customerA, "Address-" + 1),
+                    Arrays.asList(autoIncr? null: 2L, customerA, "Address-" + 2),
+                    Arrays.asList(autoIncr? null: 3L, customerB, "Address-" + 1),
+                    Arrays.asList(autoIncr? null: 4L, customerB, "Address-" + 2),
+                    Arrays.asList(autoIncr? null: 5L, customerA, "Address-" + 3));
+        }
+
+        final int rowCount = rows.size();
+        File csvFile = CsvUtil.write(table, rows);
+
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+            if (tx) c.setAutoCommit(false);
+
+            insertCustomer(stmt, customerA, "Peter");
+            insertCustomer(stmt, customerB, "Tom");
+            assertEquals(2, countTable(stmt, "customer"));
+
+            String local = isLocal? "local": "";
+            String file = csvFile + "";
+            String sql = "load data %s infile '%s' into table %s " +
+                    "fields terminated by ',' enclosed by '\\'' " +
+                    "(" + (noIdColumn? "": "id, ") + "customer_id, address)";
+            sql = format(sql, local, file, table);
+            int n = stmt.executeUpdate(sql);
+            assertEquals(rowCount, n);
+            if (tx) {
+                if (commit) {
+                    c.commit();
+                } else {
+                    c.rollback();
+                }
+            }
+        }
+
+        // Check again by query
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+            int n = countTable(stmt, table);
+            if (!tx || commit) {
+                String sql;
+                assertTrue(n == rowCount, "'load data' rows error: " + n);
+                sql = "select id, customer_id, address from " + table + " order by id asc";
+                ResultSet rs  = stmt.executeQuery(sql);
+                for (int i = 0; i < n; ++i) {
+                    assertTrue(rs.next());
+
+                    long id = rs.getLong(1);
+                    boolean idNotNull = !rs.wasNull();
+                    long customerId = rs.getLong(2);
+                    String address = rs.getString(3);
+
+                    List<?> row = (List<?>)rows.get(i);
+                    assertTrue(idNotNull);
+                    int j = 0;
+                    if (!autoIncr && !noIdColumn) {
+                        assertEquals(row.get(j++), id);
+                    }
+                    if (autoIncr && !noIdColumn) {
+                        j++;
+                    }
+                    assertEquals(row.get(j++), customerId);
+                    assertEquals(row.get(j++), address);
                 }
             } else {
                 assertTrue(n == 0, "'load data' rows error after rollback: " + n);

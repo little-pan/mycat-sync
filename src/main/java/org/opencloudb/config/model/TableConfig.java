@@ -23,9 +23,7 @@
  */
 package org.opencloudb.config.model;
 
-import java.util.ArrayList;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 
 import org.opencloudb.config.model.rule.RuleConfig;
 import org.opencloudb.util.SplitUtil;
@@ -34,8 +32,10 @@ import org.opencloudb.util.SplitUtil;
  * @author mycat
  */
 public class TableConfig {
+
 	public static final int TYPE_GLOBAL_TABLE = 1;
 	public static final int TYPE_GLOBAL_DEFAULT = 0;
+
 	private final String name;
 	private final String primaryKey;
 	private final boolean autoIncrement;
@@ -51,56 +51,58 @@ public class TableConfig {
 	private final String joinKey;
 	private final String parentKey;
 	private final String locateRTableKeySql;
-	// only has one level of parent
+	// Only has one level of parent
 	private final boolean secondLevel;
-	private final boolean partionKeyIsPrimaryKey;
+	private final boolean partitionKeyIsPrimaryKey;
+	private final boolean joinKeyIsPartitionColumn;
 	private final Random rand = new Random();
 
 	public TableConfig(String name, String primaryKey, boolean autoIncrement,boolean needAddLimit, int tableType,
 			String dataNode,Set<String> dbType, RuleConfig rule, boolean ruleRequired,
 			TableConfig parentTC, boolean isChildTable, String joinKey,
-			String parentKey) {
+			String parentKey) throws IllegalArgumentException {
+
 		if (name == null) {
 			throw new IllegalArgumentException("table name is null");
-		} else if (dataNode == null) {
+		}
+		if (dataNode == null) {
 			throw new IllegalArgumentException("dataNode name is null");
 		}
-		this.primaryKey = primaryKey;
-		this.autoIncrement = autoIncrement;
-		this.needAddLimit=needAddLimit;
-		this.tableType = tableType;
-		this.dbTypes=dbType;
+		String[] dataNodes = SplitUtil.split(dataNode, ',', '$', '-');
+		if (dataNodes.length <= 0) {
+			throw new IllegalArgumentException("Invalid table dataNodes: " + dataNode);
+		}
 		if (ruleRequired && rule == null) {
 			throw new IllegalArgumentException("ruleRequired but rule is null");
 		}
 
+		this.primaryKey = primaryKey;
+		this.autoIncrement = autoIncrement;
+		this.needAddLimit = needAddLimit;
+		this.tableType = tableType;
+		this.dbTypes = dbType;
 		this.name = name.toUpperCase();
-		String theDataNodes[] = SplitUtil.split(dataNode, ',', '$', '-');
 
-
-		if (theDataNodes == null || theDataNodes.length <= 0) {
-			throw new IllegalArgumentException("invalid table dataNodes: "
-					+ dataNode);
-		}
-		dataNodes = new ArrayList<String>(theDataNodes.length);
-		for (String dn : theDataNodes) {
-			dataNodes.add(dn);
-		}
+		this.dataNodes = new ArrayList<>(dataNodes.length);
+		this.dataNodes.addAll(Arrays.asList(dataNodes));
+		this.ruleRequired = ruleRequired;
 		this.rule = rule;
 		this.partitionColumn = (rule == null) ? null : rule.getColumn();
-		partionKeyIsPrimaryKey=(partitionColumn==null)?primaryKey==null:partitionColumn.equals(primaryKey);
-		this.ruleRequired = ruleRequired;
+		this.partitionKeyIsPrimaryKey = Objects.equals(this.partitionColumn, primaryKey);
 		this.childTable = isChildTable;
 		this.parentTC = parentTC;
 		this.joinKey = joinKey;
 		this.parentKey = parentKey;
+
 		if (parentTC != null) {
-			locateRTableKeySql = genLocateRootParentSQL();
-			secondLevel = (parentTC.parentTC == null);
+			this.locateRTableKeySql = genLocateRootParentSQL();
+			this.secondLevel = (parentTC.parentTC == null);
 		} else {
-			locateRTableKeySql = null;
-			secondLevel = false;
+			this.locateRTableKeySql = null;
+			this.secondLevel = false;
 		}
+		this.joinKeyIsPartitionColumn = this.secondLevel
+				&& parentTC.getPartitionColumn().equals(parentKey);
 	}
 
 	public String getPrimaryKey() {
@@ -132,41 +134,6 @@ public class TableConfig {
 		return this.tableType == TableConfig.TYPE_GLOBAL_TABLE;
 	}
 
-	public String genLocateRootParentSQL() {
-		TableConfig tb = this;
-		StringBuilder tableSb = new StringBuilder();
-		StringBuilder condition = new StringBuilder();
-		TableConfig prevTC = null;
-		int level = 0;
-		String latestCond = null;
-		while (tb.parentTC != null) {
-			tableSb.append(tb.parentTC.name).append(',');
-			String relation = null;
-			if (level == 0) {
-				latestCond = " " + tb.parentTC.getName() + '.' + tb.parentKey
-						+ "=";
-			} else {
-				relation = tb.parentTC.getName() + '.' + tb.parentKey + '='
-						+ tb.name + '.' + tb.joinKey;
-				condition.append(relation).append(" AND ");
-			}
-			level++;
-			prevTC = tb;
-			tb = tb.parentTC;
-		}
-		String sql = "SELECT "
-				+ prevTC.parentTC.name
-				+ '.'
-				+ prevTC.parentKey
-				+ " FROM "
-				+ tableSb.substring(0, tableSb.length() - 1)
-				+ " WHERE "
-				+ ((level < 2) ? latestCond : condition.toString() + latestCond);
-		// System.out.println(this.name+" sql " + sql);
-		return sql;
-
-	}
-
 	public String getPartitionColumn() {
 		return partitionColumn;
 	}
@@ -175,31 +142,16 @@ public class TableConfig {
 		return tableType;
 	}
 
-	/**
-	 * get root parent
-	 *
-	 * @return
-	 */
-	public TableConfig getRootParent() {
-		if (parentTC == null) {
-			return null;
-		}
-		TableConfig preParent = parentTC;
-		TableConfig parent = preParent.getParentTC();
-
-		while (parent != null) {
-			preParent = parent;
-			parent = parent.getParentTC();
-		}
-		return preParent;
-	}
-
 	public TableConfig getParentTC() {
 		return parentTC;
 	}
 
 	public boolean isChildTable() {
 		return childTable;
+	}
+
+	public boolean isErTable() {
+		return isChildTable();
 	}
 
 	public String getJoinKey() {
@@ -222,8 +174,8 @@ public class TableConfig {
 	}
 
 	public String getRandomDataNode() {
-		int index = Math.abs(rand.nextInt()) % dataNodes.size();
-		return dataNodes.get(index);
+		int index = Math.abs(this.rand.nextInt()) % this.dataNodes.size();
+		return this.dataNodes.get(index);
 	}
 
 	public boolean isRuleRequired() {
@@ -234,8 +186,69 @@ public class TableConfig {
 		return rule;
 	}
 
-	public boolean primaryKeyIsPartionKey() {
-		return partionKeyIsPrimaryKey;
+	public boolean primaryKeyIsPartitionKey() {
+		return partitionKeyIsPrimaryKey;
+	}
+
+	public boolean joinKeyIsPartitionColumn() {
+		return this.joinKeyIsPartitionColumn;
+	}
+
+	/**
+	 * Get root parent config.
+	 *
+	 * @return The root parent of this table config
+	 */
+	public TableConfig getRootParent() {
+		TableConfig parent = this.parentTC;
+		TableConfig prev = parent;
+
+		while (parent != null) {
+			prev = parent;
+			parent = prev.getParentTC();
+		}
+
+		return prev;
+	}
+
+	private String genLocateRootParentSQL() {
+		TableConfig tc = this;
+		TableConfig pc = tc.parentTC;
+		if (pc == null) {
+			throw new IllegalStateException("Table '" + this.name + "' not an ER table");
+		}
+
+		StringBuilder tables = new StringBuilder();
+		StringBuilder conditions = new StringBuilder();
+		TableConfig prev = null;
+		String lastCond = "";
+		int level = 0;
+		while (pc != null) {
+			tables.append(level > 0? ',': "").append(pc.name);
+
+			if (level == 0) {
+				lastCond = pc.name + '.' + tc.parentKey + '=';
+			} else {
+				conditions
+						.append(pc.name).append('.').append(tc.parentKey)
+						.append('=')
+						.append(tc.name).append('.').append(tc.joinKey)
+						.append(" AND ");
+			}
+
+			level++;
+			prev = tc;
+			tc = pc;
+			pc = tc.parentTC;
+
+			if (pc == null) {
+				conditions.append(lastCond);
+			}
+		}
+
+		return "SELECT " + tc.name + '.' + prev.parentKey
+				+ " FROM "  + tables
+				+ " WHERE " + conditions;
 	}
 
 }

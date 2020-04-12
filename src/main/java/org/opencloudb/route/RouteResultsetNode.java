@@ -146,7 +146,7 @@ public final class RouteResultsetNode implements Serializable , Comparable<Route
 
 		if (o instanceof RouteResultsetNode) {
 			RouteResultsetNode rrn = (RouteResultsetNode) o;
-			if (equals(name, rrn.getName())) {
+			if (equals(this.name, rrn.getName())) {
 				return true;
 			}
 		}

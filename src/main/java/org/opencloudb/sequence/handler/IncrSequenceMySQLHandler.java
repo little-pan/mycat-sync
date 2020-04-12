@@ -337,15 +337,15 @@ class FetchMySQLSequenceHandler extends AbstractResponseHandler {
 	@Override
 	public void errorResponse(byte[] data, BackendConnection c) {
 		SequenceVal seqVal = (SequenceVal) c.getAttachment();
-		try {
-			ErrorPacket err = new ErrorPacket();
-			err.read(data);
-			String errMsg = new String(err.message);
-			seqVal.lastError = errMsg;
-			log.warn("Error response: errno {}, errmsg '{}'", err.errno, errMsg);
-		} finally {
-			c.release();
-		}
+		c.release();
+
+		ErrorPacket err = new ErrorPacket();
+		err.read(data);
+		String errMsg = err.errno + ": " + new String(err.message);
+		seqVal.lastError = errMsg;
+		log.warn("Error response: {}", errMsg);
+
+		seqVal.fetchComplete();
 	}
 
 	@Override

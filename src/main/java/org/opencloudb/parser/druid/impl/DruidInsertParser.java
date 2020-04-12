@@ -144,7 +144,7 @@ public class DruidInsertParser extends DefaultDruidParser {
 		log.debug("find root parent's node sql '{}'", findRootTBSql);
 		throw new SQLNonTransientException("'childTable' above level 2 isn't supported");
 		/*
-		FetchStoreNodeOfChildTableHandler fetchHandler = new FetchStoreNodeOfChildTableHandler();
+		FetchChildTableStoreNodeHandler fetchHandler = new FetchChildTableStoreNodeHandler();
 		String dn = fetchHandler.execute(schema.getName(),findRootTBSql, tc.getRootParent().getDataNodes());
 		if (dn == null) {
 			throw new SQLNonTransientException("can't find (root) parent sharding node for sql:"+ sql);

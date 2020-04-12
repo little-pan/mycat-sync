@@ -35,13 +35,17 @@ public final class ExceptionUtil {
     }
 
     public static String getClientMessage(Throwable cause) {
-        String s = cause.getMessage();
+        String s = cause.getMessage(), m;
 
         if (s == null) {
             Class<?> clazz = cause.getClass();
             return clazz.getSimpleName();
         } else {
-            return s;
+            Throwable parent = cause.getCause();
+            if (parent == null || (m = parent.getMessage()) == null) {
+                return s;
+            }
+            return s + ": " + m;
         }
     }
 

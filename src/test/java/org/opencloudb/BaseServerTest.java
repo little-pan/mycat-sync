@@ -144,7 +144,7 @@ public abstract class BaseServerTest {
         }
     }
 
-    protected static int createTableHotel(Statement stmt) throws SQLException {
+    protected static void createTableHotel(Statement stmt) throws SQLException {
         String sql = "create table if not exists hotel (" +
                 "    id bigint not null auto_increment," +
                 "    name varchar(20) not null," +
@@ -153,10 +153,10 @@ public abstract class BaseServerTest {
                 "    rooms int default 50 not null," +
                 "    primary key(id)" +
                 ")";
-        return stmt.executeUpdate(sql);
+        stmt.executeUpdate(sql);
     }
 
-    protected static int createTableCompany(Statement stmt) throws SQLException {
+    protected static void createTableCompany(Statement stmt) throws SQLException {
         String sql = "create table if not exists company (" +
                 "    id bigint not null primary key," +
                 "    name varchar(20) not null," +
@@ -164,10 +164,10 @@ public abstract class BaseServerTest {
                 "    create_date date not null," +
                 "    unique u_company_name(name)" +
                 ")";
-        return stmt.executeUpdate(sql);
+        stmt.executeUpdate(sql);
     }
 
-    protected static int createTableEmployee(Statement stmt) throws SQLException {
+    protected static void createTableEmployee(Statement stmt) throws SQLException {
         String sql = "create table if not exists employee (" +
                 "    id bigint not null primary key auto_increment," +
                 "    company_id bigint not null," +
@@ -180,17 +180,40 @@ public abstract class BaseServerTest {
                 "    unique u_employee_empno(company_id, empno)," +
                 "    foreign key(company_id) references company(id)" +
                 ")";
-        return stmt.executeUpdate(sql);
+        stmt.executeUpdate(sql);
     }
 
-    protected static int dropTable(Statement stmt, String table) throws SQLException {
+    protected static void createTableCustomer(Statement stmt) throws SQLException {
+        String sql = "create table customer (" +
+                "    id bigint not null auto_increment," +
+                "    sharding_id bigint not null," +
+                "    username varchar(50) not null," +
+                "    contact varchar(20)," +
+                "    primary key(id)," +
+                "    unique u_idx_customer_username(username)" +
+                ")";
+        stmt.executeUpdate(sql);
+    }
+
+    protected static void createTableCustomerAddr(Statement stmt) throws SQLException {
+        String sql = "create table customer_addr (" +
+                "    id bigint not null auto_increment," +
+                "    customer_id bigint not null," +
+                "    address varchar(250) not null," +
+                "    primary key(id)," +
+                "    foreign key(customer_id) references customer(id)" +
+                ")";
+        stmt.executeUpdate(sql);
+    }
+
+    protected static void dropTable(Statement stmt, String table) throws SQLException {
         String sql = "drop table if exists " + table;
-        return stmt.executeUpdate(sql);
+        stmt.executeUpdate(sql);
     }
 
 
-    protected static int deleteTable(Statement stmt, String table) throws SQLException {
-        return stmt.executeUpdate("delete from " + table);
+    protected static void deleteTable(Statement stmt, String table) throws SQLException {
+        stmt.executeUpdate("delete from " + table);
     }
 
     protected static int truncateTable(Statement stmt, String table) throws SQLException {
@@ -220,6 +243,16 @@ public abstract class BaseServerTest {
         DateFormat df = getDateFormat();
         String sql = format("insert into company(id, name, create_date)values(%d, '%s', '%s')",
                 id, name, df.format(new Date()));
+        return stmt.executeUpdate(sql);
+    }
+
+    protected static int insertCustomer(Statement stmt, long id, String username) throws SQLException {
+        if (username == null) {
+            throw new NullPointerException("username is null");
+        }
+
+        String sql = format("insert into customer(id, sharding_id, username)values(%d, %d, '%s')",
+                id, (id % 2 == 0)? 10000: 10010, username);
         return stmt.executeUpdate(sql);
     }
 

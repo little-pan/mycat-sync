@@ -33,22 +33,33 @@ import org.opencloudb.cache.CachePool;
 import org.opencloudb.net.mysql.ErrorPacket;
 import org.opencloudb.net.mysql.RowDataPacket;
 import org.opencloudb.route.RouteResultsetNode;
+import org.opencloudb.server.ServerConnection;
+import org.opencloudb.server.ServerSession;
 import org.opencloudb.server.parser.ServerParse;
 import org.opencloudb.util.Callback;
 import org.slf4j.*;
 
-/**
+/** <p>
  * "from company where id=(select company_id from customer where id=3);" the one which
  * return data (id) is the datanode to store child table's records
- * 
+ * </p>
  * @author wuzhih
- * 
+ *
+ * <p>
+ * 1. Support non-blocking fetching;
+ * 2. Support tx when the parent table row inserted in a tx, otherwise the data node can't be found.
+ *
+ * @since 1.5.1 2020-04-12
+ * @author little-pan
+ * </p>
  */
-public class FetchStoreNodeOfChildTableHandler extends AbstractResponseHandler {
+public class FetchChildTableStoreNodeHandler extends AbstractResponseHandler {
 
-	private static final Logger log = LoggerFactory.getLogger(FetchStoreNodeOfChildTableHandler.class);
+	static final Logger log = LoggerFactory.getLogger(FetchChildTableStoreNodeHandler.class);
 
+	final ServerConnection source;
 	private final Callback<String> callback;
+
 	private CachePool cache;
 	private MycatServer server;
 
@@ -60,11 +71,12 @@ public class FetchStoreNodeOfChildTableHandler extends AbstractResponseHandler {
 	private Throwable cause;
 	private String dataNode;
 
-	public FetchStoreNodeOfChildTableHandler(Callback<String> callback) {
+	public FetchChildTableStoreNodeHandler(ServerConnection source, Callback<String> callback) {
 		if (callback == null) {
 			throw new NullPointerException("callback is null");
 		}
 
+		this.source = source;
 		this.callback = callback;
 	}
 
@@ -80,6 +92,9 @@ public class FetchStoreNodeOfChildTableHandler extends AbstractResponseHandler {
 		this.sql = sql;
 		this.dataNodes = dataNodes;
 		this.curNodeIndex = 0;
+		this.result = null;
+		this.dataNode = null;
+		this.cause = null;
 		log.debug("Find child node with sql '{}'", this.sql);
 		fetch();
 	}
@@ -95,14 +110,26 @@ public class FetchStoreNodeOfChildTableHandler extends AbstractResponseHandler {
 			return;
 		}
 
-		MycatConfig conf = this.server.getConfig();
 		String dn = this.dataNodes.get(this.curNodeIndex++);
-		PhysicalDBNode mysqlDN = conf.getDataNodes().get(dn);
+		int sqlType = ServerParse.SELECT;
+		RouteResultsetNode rrn = new RouteResultsetNode(dn, sqlType, this.sql);
+		// First try to get a bound conn from current session for support tx
+		BackendConnection conn;
+		if (!this.source.isAutocommit()) {
+			ServerSession session = this.source.getSession();
+			conn = session.getTarget(rrn);
+			if (conn != null) {
+				log.debug("Find a bound backend {}", conn);
+				connectionAcquired(conn);
+				return;
+			}
+		}
+
 		try {
-			log.debug("execute in datanode '{}'", dn);
-			mysqlDN.getConnection(mysqlDN.getDatabase(), true,
-					new RouteResultsetNode(dn, ServerParse.SELECT, this.sql),
-					this, dn);
+			MycatConfig conf = this.server.getConfig();
+			PhysicalDBNode mysqlDN = conf.getDataNodes().get(dn);
+			String schema = mysqlDN.getDatabase();
+			mysqlDN.getConnection(schema, true, rrn, this, rrn);
 		} catch (Throwable cause) {
 			this.cause = cause;
 			fetch();
@@ -111,7 +138,10 @@ public class FetchStoreNodeOfChildTableHandler extends AbstractResponseHandler {
 
 	@Override
 	public void connectionAcquired(BackendConnection conn) {
+		ServerSession session = this.source.getSession();
 		try {
+			RouteResultsetNode rrn = (RouteResultsetNode)conn.getAttachment();
+			session.bindConnection(rrn, conn);
 			conn.setResponseHandler(this);
 			conn.query(this.sql);
 		} catch (Exception e) {
@@ -122,7 +152,9 @@ public class FetchStoreNodeOfChildTableHandler extends AbstractResponseHandler {
 	@Override
 	public void connectionError(Throwable e, BackendConnection conn) {
 		try {
-			if (conn != null) conn.close("connectionError " + e);
+			if (conn != null) {
+				conn.close("connection error: " + e);
+			}
 			log.warn("connection failed", e);
 		} finally {
 			fetch();
@@ -132,12 +164,15 @@ public class FetchStoreNodeOfChildTableHandler extends AbstractResponseHandler {
 	@Override
 	public void errorResponse(byte[] data, BackendConnection conn) {
 		try {
+			ServerSession session = this.source.getSession();
 			try {
 				ErrorPacket err = new ErrorPacket();
 				err.read(data);
-				log.warn("errorResponse: errno {}, errmsg {} ", err.errno, new String(err.message));
+				String s = err.errno + ": " + new String(err.message);
+				this.cause = new Exception(s);
+				log.warn("errorResponse: {}", s);
 			} finally {
-				conn.release();
+				session.releaseConnectionIfSafe(conn);
 			}
 		} finally {
 			fetch();
@@ -149,7 +184,8 @@ public class FetchStoreNodeOfChildTableHandler extends AbstractResponseHandler {
 		boolean executeResponse = conn.syncAndExecute();
 		try {
 			if (executeResponse) {
-				conn.release();
+				ServerSession session = this.source.getSession();
+				session.releaseConnectionIfSafe(conn);
 			}
 		} finally {
 			fetch();
@@ -162,8 +198,9 @@ public class FetchStoreNodeOfChildTableHandler extends AbstractResponseHandler {
 		log.debug("received rowResponse: response {} from backend {} ", res, conn);
 
 		if (this.result == null) {
+			RouteResultsetNode rrn = (RouteResultsetNode) conn.getAttachment();
 			this.result = res;
-			this.dataNode = (String) conn.getAttachment();
+			this.dataNode = rrn.getName();
 		} else {
 			log.warn("Find multi data nodes for child table store, sql is '{}'", this.sql);
 		}
@@ -179,10 +216,16 @@ public class FetchStoreNodeOfChildTableHandler extends AbstractResponseHandler {
 
 	@Override
 	public void rowEofResponse(byte[] eof, BackendConnection conn) {
+		ServerSession session = this.source.getSession();
+		boolean released = false;
 		try {
+			session.releaseConnectionIfSafe(conn);
+			released = true;
 			fetch();
 		} finally {
-			conn.release();
+			if (!released) {
+				session.releaseConnectionIfSafe(conn);
+			}
 		}
 	}
 
@@ -198,7 +241,7 @@ public class FetchStoreNodeOfChildTableHandler extends AbstractResponseHandler {
 
 	@Override
 	public void connectionClose(BackendConnection conn, String reason) {
-		log.debug("Connection closed, reason '{}' in backend {}", reason, conn);
+		log.debug("Connection closed: reason '{}' in backend {}", reason, conn);
 	}
 
 	@Override

@@ -32,7 +32,9 @@ such as PostgreSQL and MySQL(native protocol implementation), not includes JDBC 
 * Supports the most important features of [MyCAT](https://github.com/MyCATApache/Mycat-Server) such as database shard
 and read/write separation
 * Support auto increment ID in "load data infile"
-* Fetching mycat sequence is non-blocking
+* Support ER child table in "load data infile"
+* Non-blocking fetch mycat sequence is 
+* Non-blocking fetch the store node of ER child table
 
 ## Document
 

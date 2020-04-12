@@ -100,7 +100,7 @@ public class ServerSession implements Session {
 		// 检查路由结果是否为空
 		if (rrs.isEmpty()) {
 			String s = this.source.getSchema();
-			s = "No dataNode found, please check tables defined in schema '"+ s +"'";
+			s = "No data node found, please check tables defined in schema '"+ s +"'";
 			this.source.writeErrMessage(ErrorCode.ER_NO_DB_ERROR, s);
 			return;
 		}
@@ -184,10 +184,17 @@ public class ServerSession implements Session {
 		clearHandlesResources();
 	}
 
-	public void releaseConnectionIfSafe(BackendConnection conn) {
-		RouteResultsetNode node = (RouteResultsetNode) conn.getAttachment();
+	public void releaseConnectionIfSafe(final BackendConnection conn) {
 		if (this.source.isAutocommit() || conn.isFromSlaveDB() || !conn.isModifiedSQLExecuted()) {
-			if (node != null) releaseConnection(node);
+			RouteResultsetNode node = (RouteResultsetNode) conn.getAttachment();
+			final BackendConnection bound = getTarget(node);
+			if (bound == null || bound != conn) {
+				// Not a bound in some handlers, eg. FetchChildTableStoreNodeHandler
+				conn.setAttachment(null);
+				conn.release();
+			} else {
+				releaseConnection(node);
+			}
 		}
 	}
 
@@ -239,7 +246,14 @@ public class ServerSession implements Session {
 	 * @return previous bound connection
 	 */
 	public BackendConnection bindConnection(RouteResultsetNode key, BackendConnection conn) {
-		return this.target.put(key, conn);
+		BackendConnection bound = this.target.put(key, conn);
+
+		if (bound != null && bound != conn) {
+			String s = "Node '" + key.getName() + "' has a bound connection";
+			bound.close(s);
+			throw new IllegalStateException(s);
+		}
+		return bound;
 	}
 
 	public boolean tryExistsCon(final BackendConnection conn, RouteResultsetNode node) {

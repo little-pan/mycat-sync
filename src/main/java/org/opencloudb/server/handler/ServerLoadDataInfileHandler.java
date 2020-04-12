@@ -40,6 +40,7 @@ import org.opencloudb.config.model.SchemaConfig;
 import org.opencloudb.config.model.SystemConfig;
 import org.opencloudb.config.model.TableConfig;
 import org.opencloudb.mpp.LoadData;
+import org.opencloudb.mysql.handler.FetchChildTableStoreNodeHandler;
 import org.opencloudb.net.FrontendException;
 import org.opencloudb.net.NioProcessor;
 import org.opencloudb.net.ResourceTask;
@@ -73,7 +74,7 @@ import java.util.*;
  * </p>
  *
  * <p>
- * All data writen to disk for memory issue and simplicity. Here only sequential read/write,
+ * All data written to disk for memory issue and simplicity. Here only sequential read/write,
  * so it's very high efficient already, no need to be buffered in memory.
  *
  * @since 2020-04-06
@@ -105,7 +106,9 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
     private TableConfig tableConfig;
     private int autoIncrColumnIndex = -1;
     private int partitionColumnIndex = -1;
+    private int joinColumnIndex = -1;
     private IdFetcher idFetcher;
+    private StoreNodeFetcher storeNodeFetcher;
 
     private LayeredCachePool tableId2DataNodeCache;
     private SchemaConfig schema;
@@ -148,21 +151,6 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
                 .getCachePool("TableID2DataNodeCache");
         this.tableName = this.statement.getTableName().getSimpleName().toUpperCase();
         this.tableConfig = this.schema.getTables().get(this.tableName);
-        List<SQLExpr> columns = this.statement.getColumns();
-        if (this.tableConfig != null && this.tableConfig.isAutoIncrement() && columns != null) {
-            String pk = this.tableConfig.getPrimaryKey();
-            int n = columns.size();
-            for (int i = 0; i < n; ++i) {
-                String c = columns.get(i).toString();
-                if (c.equalsIgnoreCase(pk)) {
-                    this.autoIncrColumnIndex = i;
-                    break;
-                }
-            }
-            if (this.autoIncrColumnIndex == -1) {
-                this.autoIncrColumnIndex = n; // add ID
-            }
-        }
 
         // tmp: $MYCAT_HOME/temp/SOURCE-ID/
         this.tempPath = SystemConfig.getHomePath() + File.separator + "temp"
@@ -172,25 +160,6 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         // first clearing temp files after init temp directory, otherwise appending into old files
         // can lead to data duplicated.
         clearTempFiles();
-
-        if(this.tableConfig != null) {
-            String pColumn = getPartitionColumn();
-            if (pColumn != null && columns != null && columns.size() > 0) {
-                for (int i = 0, columnsSize = columns.size(); i < columnsSize; i++) {
-                    String column = StringUtil.removeBackquote(columns.get(i).toString());
-                    if (pColumn.equalsIgnoreCase(column)) {
-                        this.partitionColumnIndex = i;
-                        break;
-                    }
-                }
-                if (this.partitionColumnIndex == -1 && this.autoIncrColumnIndex != -1) {
-                    String pk = this.tableConfig.getPrimaryKey();
-                    if (pk.equalsIgnoreCase(getPartitionColumn())) {
-                        this.partitionColumnIndex = this.autoIncrColumnIndex;
-                    }
-                }
-            }
-        }
 
         initLoadDataParams();
         routeByTable();
@@ -271,7 +240,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         String lineSep = this.loadData.getLineTerminatedBy();
         log.debug("parse file '{}'", fileName);
         parseFileByLine(fileName, charset, lineSep);
-        if (this.idFetcher == null) {
+        if (this.idFetcher == null && this.storeNodeFetcher == null) {
             execute(fileName);
         }
     }
@@ -328,6 +297,39 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
             this.statement.setCharset(charset);
         }
         this.loadData.setCharset(charset);
+
+        // Parse columns info
+        List<SQLExpr> columns = this.statement.getColumns();
+        if(this.tableConfig != null && columns != null) {
+            String paColumn  = getPartitionColumn();
+            String pkColumn  = this.tableConfig.getPrimaryKey();
+            String joColumn  = this.tableConfig.getJoinKey();
+            boolean autoIncr = this.tableConfig.isAutoIncrement();
+            boolean erTable  = this.tableConfig.isErTable();
+            final int n = columns.size();
+
+            for (int i = 0; i < n; i++) {
+                String column = StringUtil.removeBackquote(columns.get(i).toString());
+                if (column.equalsIgnoreCase(paColumn)) {
+                    this.partitionColumnIndex = i;
+                }
+                if (autoIncr && column.equalsIgnoreCase(pkColumn)) {
+                    this.autoIncrColumnIndex = i;
+                }
+                if (erTable && column.equalsIgnoreCase(joColumn)) {
+                    this.joinColumnIndex = i;
+                }
+            }
+
+            if (autoIncr && this.autoIncrColumnIndex == -1) {
+                this.autoIncrColumnIndex = n; // add ID
+            }
+            if (this.partitionColumnIndex == -1 && this.autoIncrColumnIndex != -1) {
+                if (this.tableConfig.primaryKeyIsPartitionKey()) {
+                    this.partitionColumnIndex = this.autoIncrColumnIndex;
+                }
+            }
+        }
     }
 
     private void appendToTempFile(byte[] data) {
@@ -354,7 +356,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         this.tempOutFile = null;
     }
 
-    private RouteResultset routeByShardColumn(String sql, String[] values, int rowIndex, Long id) {
+    private RouteResultset routeByShardColumn(String sql, String[] values, int rowIndex, String id) {
         final int sqlType = ServerParse.INSERT;
         RouteResultset rrs = new RouteResultset(sql, sqlType);
         rrs.setLoadData(true);
@@ -375,7 +377,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
             column = getPartitionColumn();
         } else {
             // Shard by ID
-            value = id + "";
+            value = id;
             column= this.tableConfig.getPrimaryKey();
         }
         RouteCalculateUnit calcUnit = new RouteCalculateUnit();
@@ -467,11 +469,10 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
     }
 
     private boolean parseOneLine(CsvParser parser, List<SQLExpr> columns, String tableName, String[] values,
-                                 String lineSep, int rowIndex) {
+                                 String lineSep, int rowIndex, String id) {
 
         int i = this.autoIncrColumnIndex;
-        if (i != -1) {
-            String id = null;
+        if (id == null && i != -1) {
             if (i < values.length) {
                 id = values[i];
             }
@@ -491,21 +492,41 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
             }
         }
 
-        routeByColumn(columns, tableName, values, lineSep, rowIndex, null);
+        TableConfig tc = this.tableConfig;
+        if (tc.isErTable() && !tc.joinKeyIsPartitionColumn()) {
+            log.debug("route by fetching store node");
+            if (this.storeNodeFetcher == null) {
+                ServerLoadDataInfileHandler handler = this;
+                this.storeNodeFetcher = new StoreNodeFetcher(handler,
+                        parser, columns, tableName, values, lineSep, rowIndex, id);
+            } else {
+                this.storeNodeFetcher.reset(values, rowIndex, id);
+            }
+            this.storeNodeFetcher.fetch();
+            return true;
+        }
+
+        routeByColumn(columns, tableName, values, lineSep, rowIndex, id);
         return false;
     }
 
     private void routeByColumn(List<SQLExpr> columns, String tableName, String[] values,
-                              String lineSep, int rowIndex, Long id) {
+                              String lineSep, int rowIndex, String id) {
 
         RouteResultset rrs = routeByShardColumn(this.sql, values, rowIndex, id);
         if (rrs.isEmpty()) {
-            String insert = makeSimpleInsert(columns, values, tableName, true, id);
+            String insert = makeSimpleInsert(columns, values, tableName, id);
             rrs = this.serverConnection.routeSQL(insert, ServerParse.INSERT);
         }
+        handleRouteResultset(rrs, values, lineSep, rowIndex, id);
+    }
+
+    void handleRouteResultset(RouteResultset rrs, String[] values, String lineSep, int rowIndex, String id) {
         if (rrs == null || rrs.isEmpty()) {
-            // 路由已处理
-            return;
+            // Note: 'load data' shouldn't insert row data when route not completed. So here throws
+            // exception instead of ignore it.
+            int lineNum = rowIndex + 1;
+            throw new RuntimeException("Route failed: no data node found in line " + lineNum);
         }
 
         for (RouteResultsetNode rrn : rrs.getNodes()) {
@@ -592,7 +613,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         }
     }
 
-    private String joinValues(String[] values, Long id) {
+    private String joinValues(String[] values, String id) {
         String fieldSep = this.loadData.getFieldTerminatedBy();
         String enclose = this.loadData.getEnclose();
         String rep = this.loadData.getEscape() + enclose;
@@ -668,9 +689,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         return rrs;
     }
 
-    private String makeSimpleInsert(List<SQLExpr> columns, String[] values,
-                                    String table, boolean isAddEncose, Long id) {
-
+    private String makeSimpleInsert(List<SQLExpr> columns, String[] values, String table, String id) {
         StringBuilder sb = new StringBuilder()
         .append(LoadData.loadDataHint)
         .append("insert into ").append(table.toUpperCase());
@@ -707,7 +726,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
             if (i > 0 || prependId) {
                 sb.append(",");
             }
-            if (isAddEncose) {
+            if (enclose != null) {
                 value = parseFieldString(value, enclose);
                 sb.append("'").append(value).append("'");
             } else {
@@ -758,8 +777,8 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
             Reader reader = new InputStreamReader(in, encode);
             parser.beginParsing(reader);
             while ((row = parser.parseNext()) != null) {
-                boolean genId = parseOneLine(parser, columns, table, row, lineSep, ++rowIndex);
-                if (genId) {
+                boolean yield = parseOneLine(parser, columns, table, row, lineSep, ++rowIndex, null);
+                if (yield) {
                     failed = false;
                     return;
                 }
@@ -791,6 +810,8 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         this.routeResultset = null;
         this.routeComplete = false;
 
+        IoUtil.close(this.storeNodeFetcher);
+        this.storeNodeFetcher = null;
         IoUtil.close(this.idFetcher);
         this.idFetcher = null;
 
@@ -823,16 +844,12 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
 
     private String getPartitionColumn() {
         TableConfig tc = this.tableConfig;
-        String pColumn;
 
-        if (tc.isSecondLevel()
-                && tc.getParentTC().getPartitionColumn().equals(tc.getParentKey())) {
-            pColumn = tc.getJoinKey();
+        if (tc.joinKeyIsPartitionColumn()) {
+            return tc.getJoinKey();
         } else {
-            pColumn = tc.getPartitionColumn();
+            return tc.getPartitionColumn();
         }
-
-        return pColumn;
     }
 
     /**
@@ -865,20 +882,21 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         fileDirToDel.delete();
     }
 
-    static class IdFetcher implements Callback<Long>, ResourceTask, AutoCloseable {
-        final ServerLoadDataInfileHandler handler;
-        final CsvParser parser;
+    static abstract class Fetcher<T> implements Callback<T>, ResourceTask, AutoCloseable {
 
-        final List<SQLExpr> columns;
-        final String table;
-        final String lineSeq;
+        protected final ServerLoadDataInfileHandler handler;
+        protected final CsvParser parser;
 
-        String[] row;
-        int rowIndex;
-        int recurDepth;
+        protected final List<SQLExpr> columns;
+        protected final String table;
+        protected final String lineSeq;
 
-        public IdFetcher(ServerLoadDataInfileHandler handler, CsvParser parser,
-                         List<SQLExpr> columns, String table, String[] row, String lineSeq, int rowIndex) {
+        protected String[] row;
+        protected int rowIndex;
+        protected int recurDepth;
+
+        protected Fetcher(ServerLoadDataInfileHandler handler, CsvParser parser,
+                          List<SQLExpr> columns, String table, String[] row, String lineSeq, int rowIndex) {
             this.handler = handler;
             this.parser = parser;
             this.columns = columns;
@@ -888,26 +906,23 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
             this.rowIndex = rowIndex;
         }
 
-        public void reset(String[] row, int rowIndex) {
-            this.row = row;
-            this.rowIndex = rowIndex;
-        }
-
         @Override
-        public void call(Long result, Throwable cause) {
+        public void call(T result, Throwable cause) {
             boolean failed = true;
+            boolean sendCalled = false;
             try {
                 this.recurDepth++;
                 if (cause != null) {
-                    handler.sendError(cause);
+                    sendCalled = true;
+                    this.handler.sendError(cause);
                     return;
                 }
 
-                // ID fetched, then do route
-                if (handler.autoIncrColumnIndex < this.row.length) {
-                    this.row[handler.autoIncrColumnIndex] = result + "";
+                boolean yield = handle(result);
+                if (yield) {
+                    failed = false;
+                    return;
                 }
-                handler.routeByColumn(this.columns, this.table, this.row, this.lineSeq, this.rowIndex, result);
 
                 if (this.recurDepth > 50) {
                     log.debug("recursion depth exceeds {}: execute later", this.recurDepth);
@@ -920,13 +935,18 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
 
                 failed = false;
             } catch (Throwable e) {
-                handler.sendError(cause);
+                log.warn("'load data' fetch task error", e);
+                if (!sendCalled) {
+                    this.handler.sendError(e);
+                }
             } finally {
                 if (failed) {
                     this.parser.stopParsing();
                 }
             }
         }
+
+        protected abstract boolean handle(T result);
 
         @Override
         public void release(String reason) {
@@ -937,7 +957,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         @Override
         public void run() {
             // Next line
-            boolean genId;
+            boolean yield;
             do {
                 this.row = this.parser.parseNext();
                 if (this.row == null) {
@@ -946,14 +966,108 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
                     return;
                 }
                 this.rowIndex++;
-                genId = this.handler.parseOneLine(this.parser, this.columns,
-                        this.table, this.row, this.lineSeq, this.rowIndex);
-            } while (!genId);
+                yield = this.handler.parseOneLine(this.parser, this.columns,
+                        this.table, this.row, this.lineSeq, this.rowIndex, null);
+            } while (!yield);
         }
 
         @Override
         public void close() {
             this.parser.stopParsing();
+        }
+
+    }
+
+    // A fetcher for auto increment ID
+    static class IdFetcher extends Fetcher<Long> {
+
+        public IdFetcher(ServerLoadDataInfileHandler handler, CsvParser parser, List<SQLExpr> columns,
+                         String table, String[] row, String lineSeq, int rowIndex) {
+            super(handler, parser, columns, table, row, lineSeq, rowIndex);
+        }
+
+        public void reset(String[] row, int rowIndex) {
+            this.row = row;
+            this.rowIndex = rowIndex;
+        }
+
+        @Override
+        protected boolean handle(Long id) {
+            if (id == null) {
+                throw new RuntimeException("Fatal: can't fetch ID");
+            }
+
+            // ID fetched, then do route
+            String value = id + "";
+            if (handler.autoIncrColumnIndex < this.row.length) {
+                this.row[handler.autoIncrColumnIndex] = value;
+            }
+            return this.handler.parseOneLine(this.parser, this.columns,
+                    this.table, this.row, this.lineSeq, this.rowIndex, value);
+        }
+
+    }
+
+    // A data node fetcher for ER table, which joinKey not partition column
+    static class StoreNodeFetcher extends Fetcher<String> {
+
+        final FetchChildTableStoreNodeHandler fetchHandler;
+        final ServerConnection source;
+        final TableConfig rtTableConfig;
+
+        String id;
+
+        public StoreNodeFetcher(ServerLoadDataInfileHandler handler, CsvParser parser, List<SQLExpr> columns,
+                                String table, String[] row, String lineSeq, int rowIndex, String id) {
+            super(handler, parser, columns, table, row, lineSeq, rowIndex);
+            this.source = handler.serverConnection;
+            this.rtTableConfig = handler.tableConfig.getRootParent();
+            this.fetchHandler = new FetchChildTableStoreNodeHandler(this.source, this);
+            this.id = id;
+        }
+
+        public void reset(String[] row, int rowIndex, String id) {
+            this.row = row;
+            this.rowIndex = rowIndex;
+            this.id = id;
+        }
+
+        public void fetch() {
+            int i = this.handler.joinColumnIndex;
+
+            if (i == -1) {
+                throw new RuntimeException("No joinKey column in 'load data' statement");
+            }
+            String joinValue = this.row[i];
+            if (joinValue == null) {
+                throw new RuntimeException("No joinKey value in 'load data' infile");
+            }
+
+            String schema = this.source.getSchema();
+            List<String> dataNodes = this.rtTableConfig.getDataNodes();
+            TableConfig tableConfig = this.handler.tableConfig;
+            String sql = tableConfig.getLocateRTableKeySql() + joinValue;
+            this.fetchHandler.execute(schema, sql, dataNodes);
+        }
+
+        @Override
+        protected boolean handle(String node) {
+            if (node == null) {
+                int lineNum = this.rowIndex + 1;
+                throw new RuntimeException("Can't find data node in line " + lineNum);
+            }
+
+            // dataNode fetched, then route ok for current row
+            final int sqlType = ServerParse.INSERT;
+            String sql = this.handler.sql;
+            RouteResultset rrs = new RouteResultset(this.handler.sql, sqlType);
+            rrs.setLoadData(true);
+            RouteResultsetNode[] nodes = {new RouteResultsetNode(node, sqlType, sql)};
+            rrs.setNodes(nodes);
+            this.handler.handleRouteResultset(rrs, this.row, this.lineSeq, this.rowIndex, this.id);
+            this.id = null;
+
+            return false;
         }
 
     }

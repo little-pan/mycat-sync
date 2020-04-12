@@ -34,3 +34,21 @@ create table if not exists hotel (
     rooms int default 50 not null,
     primary key(id)
 );
+
+-- partition by file map
+create table customer (
+    id bigint not null auto_increment,
+    sharding_id bigint not null,
+    username varchar(50) not null,
+    contact varchar(20),
+    primary key(id),
+    unique u_idx_customer_username(username)
+);
+
+create table customer_addr (
+    id bigint not null auto_increment,
+    customer_id bigint not null,
+    address varchar(250) not null,
+    primary key(id),
+    foreign key(customer_id) references customer(id)
+);
