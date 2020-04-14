@@ -9,6 +9,7 @@ import java.io.OutputStream;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,19 +44,33 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         testShardTable(true, false, false, true, true);
         testShardTable(false, false, false, false, true);
 
-        testEr2LevelTable(true, false, false, false, false);
-        testEr2LevelTable(false, false, false, false, false);
-        testEr2LevelTable(true, false, false, true, false);
-        testEr2LevelTable(false, false, false, true, false);
-        testEr2LevelTable(true, false, false, true, true);
-        testEr2LevelTable(false, false, false, true, true);
+        testEr2LevelTableJoinKeyNotPartition(true, false, false, false, false);
+        testEr2LevelTableJoinKeyNotPartition(false, false, false, false, false);
+        testEr2LevelTableJoinKeyNotPartition(true, false, false, true, false);
+        testEr2LevelTableJoinKeyNotPartition(false, false, false, true, false);
+        testEr2LevelTableJoinKeyNotPartition(true, false, false, true, true);
+        testEr2LevelTableJoinKeyNotPartition(false, false, false, true, true);
 
-        testEr3LevelTable(true, false, false, false, false);
-        testEr3LevelTable(false, false, false, false, false);
-        testEr3LevelTable(true, false, false, true, false);
-        testEr3LevelTable(false, false, false, true, false);
-        testEr3LevelTable(true, false, false, true, true);
-        testEr3LevelTable(false, false, false, true, true);
+        testEr2LevelTableJoinKeyAsPartition(true, false, false, false, false);
+        testEr2LevelTableJoinKeyAsPartition(false, false, false, false, false);
+        testEr2LevelTableJoinKeyAsPartition(true, false, false, true, false);
+        testEr2LevelTableJoinKeyAsPartition(false, false, false, true, false);
+        testEr2LevelTableJoinKeyAsPartition(true, false, false, true, true);
+        testEr2LevelTableJoinKeyAsPartition(false, false, false, true, true);
+
+        testEr3LevelTable2LevelJoinKeyNotPartition(true, false, false, false, false);
+        testEr3LevelTable2LevelJoinKeyNotPartition(false, false, false, false, false);
+        testEr3LevelTable2LevelJoinKeyNotPartition(true, false, false, true, false);
+        testEr3LevelTable2LevelJoinKeyNotPartition(false, false, false, true, false);
+        testEr3LevelTable2LevelJoinKeyNotPartition(true, false, false, true, true);
+        testEr3LevelTable2LevelJoinKeyNotPartition(false, false, false, true, true);
+
+        testEr3LevelTable2LevelJoinKeyAsPartition(true, false, false, false, false);
+        testEr3LevelTable2LevelJoinKeyAsPartition(false, false, false, false, false);
+        testEr3LevelTable2LevelJoinKeyAsPartition(true, false, false, true, false);
+        testEr3LevelTable2LevelJoinKeyAsPartition(false, false, false, true, false);
+        testEr3LevelTable2LevelJoinKeyAsPartition(true, false, false, true, true);
+        testEr3LevelTable2LevelJoinKeyAsPartition(false, false, false, true, true);
 
         // Tx test
         testDefaultTable(true, true, false);
@@ -79,31 +94,57 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         testShardTable(false, true, false, true, true);
         testShardTable(false, true, false, false, true);
 
-        testEr2LevelTable(true, true, false, false, false);
-        testEr2LevelTable(false, true, false, false, false);
-        testEr2LevelTable(true, true, false, true, false);
-        testEr2LevelTable(false, true, false, true, false);
-        testEr2LevelTable(true, true, false, true, true);
-        testEr2LevelTable(false, true, false, true, true);
-        testEr2LevelTable(true, true, true, false, false);
-        testEr2LevelTable(false, true, true, false, false);
-        testEr2LevelTable(true, true, true, true, false);
-        testEr2LevelTable(false, true, true, true, false);
-        testEr2LevelTable(true, true, true, true, true);
-        testEr2LevelTable(false, true, true, true, true);
+        testEr2LevelTableJoinKeyNotPartition(true, true, false, false, false);
+        testEr2LevelTableJoinKeyNotPartition(false, true, false, false, false);
+        testEr2LevelTableJoinKeyNotPartition(true, true, false, true, false);
+        testEr2LevelTableJoinKeyNotPartition(false, true, false, true, false);
+        testEr2LevelTableJoinKeyNotPartition(true, true, false, true, true);
+        testEr2LevelTableJoinKeyNotPartition(false, true, false, true, true);
+        testEr2LevelTableJoinKeyNotPartition(true, true, true, false, false);
+        testEr2LevelTableJoinKeyNotPartition(false, true, true, false, false);
+        testEr2LevelTableJoinKeyNotPartition(true, true, true, true, false);
+        testEr2LevelTableJoinKeyNotPartition(false, true, true, true, false);
+        testEr2LevelTableJoinKeyNotPartition(true, true, true, true, true);
+        testEr2LevelTableJoinKeyNotPartition(false, true, true, true, true);
 
-        testEr3LevelTable(true, true, false, false, false);
-        testEr3LevelTable(false, true, false, false, false);
-        testEr3LevelTable(true, true, false, true, false);
-        testEr3LevelTable(false, true, false, true, false);
-        testEr3LevelTable(true, true, false, true, true);
-        testEr3LevelTable(false, true, false, true, true);
-        testEr3LevelTable(true, true, true, false, false);
-        testEr3LevelTable(false, true, true, false, false);
-        testEr3LevelTable(true, true, true, true, false);
-        testEr3LevelTable(false, true, true, true, false);
-        testEr3LevelTable(true, true, true, true, true);
-        testEr3LevelTable(false, true, true, true, true);
+        testEr2LevelTableJoinKeyAsPartition(true, true, false, false, false);
+        testEr2LevelTableJoinKeyAsPartition(false, true, false, false, false);
+        testEr2LevelTableJoinKeyAsPartition(true, true, false, true, false);
+        testEr2LevelTableJoinKeyAsPartition(false, true, false, true, false);
+        testEr2LevelTableJoinKeyAsPartition(true, true, false, true, true);
+        testEr2LevelTableJoinKeyAsPartition(false, true, false, true, true);
+        testEr2LevelTableJoinKeyAsPartition(true, true, true, false, false);
+        testEr2LevelTableJoinKeyAsPartition(false, true, true, false, false);
+        testEr2LevelTableJoinKeyAsPartition(true, true, true, true, false);
+        testEr2LevelTableJoinKeyAsPartition(false, true, true, true, false);
+        testEr2LevelTableJoinKeyAsPartition(true, true, true, true, true);
+        testEr2LevelTableJoinKeyAsPartition(false, true, true, true, true);
+
+        testEr3LevelTable2LevelJoinKeyNotPartition(true, true, false, false, false);
+        testEr3LevelTable2LevelJoinKeyNotPartition(false, true, false, false, false);
+        testEr3LevelTable2LevelJoinKeyNotPartition(true, true, false, true, false);
+        testEr3LevelTable2LevelJoinKeyNotPartition(false, true, false, true, false);
+        testEr3LevelTable2LevelJoinKeyNotPartition(true, true, false, true, true);
+        testEr3LevelTable2LevelJoinKeyNotPartition(false, true, false, true, true);
+        testEr3LevelTable2LevelJoinKeyNotPartition(true, true, true, false, false);
+        testEr3LevelTable2LevelJoinKeyNotPartition(false, true, true, false, false);
+        testEr3LevelTable2LevelJoinKeyNotPartition(true, true, true, true, false);
+        testEr3LevelTable2LevelJoinKeyNotPartition(false, true, true, true, false);
+        testEr3LevelTable2LevelJoinKeyNotPartition(true, true, true, true, true);
+        testEr3LevelTable2LevelJoinKeyNotPartition(false, true, true, true, true);
+
+        testEr3LevelTable2LevelJoinKeyAsPartition(true, true, false, false, false);
+        testEr3LevelTable2LevelJoinKeyAsPartition(false, true, false, false, false);
+        testEr3LevelTable2LevelJoinKeyAsPartition(true, true, false, true, false);
+        testEr3LevelTable2LevelJoinKeyAsPartition(false, true, false, true, false);
+        testEr3LevelTable2LevelJoinKeyAsPartition(true, true, false, true, true);
+        testEr3LevelTable2LevelJoinKeyAsPartition(false, true, false, true, true);
+        testEr3LevelTable2LevelJoinKeyAsPartition(true, true, true, false, false);
+        testEr3LevelTable2LevelJoinKeyAsPartition(false, true, true, false, false);
+        testEr3LevelTable2LevelJoinKeyAsPartition(true, true, true, true, false);
+        testEr3LevelTable2LevelJoinKeyAsPartition(false, true, true, true, false);
+        testEr3LevelTable2LevelJoinKeyAsPartition(true, true, true, true, true);
+        testEr3LevelTable2LevelJoinKeyAsPartition(false, true, true, true, true);
 
         // Perf test: 200k rows/s
         // 5s
@@ -555,14 +596,14 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         }
     }
 
-    private void testEr2LevelTable(boolean isLocal, boolean tx, boolean commit, boolean autoIncr, boolean noIdColumn)
-            throws Exception {
+    private void testEr2LevelTableJoinKeyNotPartition(boolean isLocal, boolean tx, boolean commit,
+                                                      boolean autoIncr, boolean noIdColumn) throws Exception {
         if (!TEST_ER2TBL) {
             return;
         }
 
         String table = "customer_addr";
-        debug("testEr2LevelTable: table '%s', local %s, tx %s, commit %s, autoIncr %s, noIdColumn %s",
+        debug("testEr2LevelTableJoinKeyNotPartition: table '%s', local %s, tx %s, commit %s, autoIncr %s, noIdColumn %s",
                 table, isLocal, tx, commit, autoIncr, noIdColumn);
 
         long customerA = 1L, customerB = 2L;
@@ -656,15 +697,117 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         }
     }
 
-    private void testEr3LevelTable(boolean isLocal, boolean tx, boolean commit, boolean autoIncr, boolean noIdColumn)
-            throws Exception {
+    private void testEr2LevelTableJoinKeyAsPartition(boolean isLocal, boolean tx, boolean commit,
+                                                      boolean autoIncr, boolean noIdColumn) throws Exception {
+        if (!TEST_ER2TBL) {
+            return;
+        }
+
+        String table = "track";
+        debug("testEr2LevelTableJoinKeyAsPartition: table '%s', local %s, tx %s, commit %s, autoIncr %s, noIdColumn %s",
+                table, isLocal, tx, commit, autoIncr, noIdColumn);
+
+        long artistA = 1L, artistB = 2L;
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+
+            dropTable(stmt, "artist");
+            createTableArtist(stmt);
+            createTableTrack(stmt);
+        }
+
+        final List<?> rows;
+        if (noIdColumn) {
+            rows = Arrays.asList(
+                    // track: artist_id, name
+                    Arrays.asList(artistA, "Track-" + 1),
+                    Arrays.asList(artistA, "Track-" + 2),
+                    Arrays.asList(artistB, "Track-" + 1),
+                    Arrays.asList(artistB, "Track-" + 2),
+                    Arrays.asList(artistA, "Track-" + 3));
+        } else {
+            rows = Arrays.asList(
+                    // track: id, artist_id, name
+                    Arrays.asList(autoIncr? null: 1L, artistA, "Track-" + 1),
+                    Arrays.asList(autoIncr? null: 2L, artistA, "Track-" + 2),
+                    Arrays.asList(autoIncr? null: 3L, artistB, "Track-" + 1),
+                    Arrays.asList(autoIncr? null: 4L, artistB, "Track-" + 2),
+                    Arrays.asList(autoIncr? null: 5L, artistA, "Track-" + 3));
+        }
+
+        final int rowCount = rows.size();
+        File csvFile = CsvUtil.write(table, rows);
+
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+            if (tx) c.setAutoCommit(false);
+
+            insertArtist(stmt, artistA, "Haydn");
+            insertArtist(stmt, artistB, "Beethoven");
+            assertEquals(2, countTable(stmt, "artist"));
+
+            String local = isLocal? "local": "";
+            String file = csvFile + "";
+            String sql = "load data %s infile '%s' into table %s " +
+                    "fields terminated by ',' enclosed by '\\'' " +
+                    "(" + (noIdColumn? "": "id, ") + "artist_id, name)";
+            sql = format(sql, local, file, table);
+            int n = stmt.executeUpdate(sql);
+            assertEquals(rowCount, n);
+            if (tx) {
+                if (commit) {
+                    c.commit();
+                } else {
+                    c.rollback();
+                }
+            }
+        }
+
+        // Check again by query
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+            int n = countTable(stmt, table);
+            if (!tx || commit) {
+                String sql;
+                assertTrue(n == rowCount, "'load data' rows error: " + n);
+                sql = "select id, artist_id, name from " + table + " order by id asc";
+                ResultSet rs  = stmt.executeQuery(sql);
+                for (int i = 0; i < n; ++i) {
+                    assertTrue(rs.next());
+
+                    long id = rs.getLong(1);
+                    boolean idNotNull = !rs.wasNull();
+                    long artistId = rs.getLong(2);
+                    String name = rs.getString(3);
+
+                    List<?> row = (List<?>)rows.get(i);
+                    assertTrue(idNotNull);
+                    int j = 0;
+                    if (!autoIncr && !noIdColumn) {
+                        assertEquals(row.get(j++), id);
+                    }
+                    if (autoIncr && !noIdColumn) {
+                        j++;
+                    }
+                    assertEquals(row.get(j++), artistId);
+                    assertEquals(row.get(j), name);
+                }
+            } else {
+                assertTrue(n == 0, "'load data' rows error after rollback: " + n);
+            }
+        }
+    }
+
+    private void testEr3LevelTable2LevelJoinKeyNotPartition(boolean isLocal, boolean tx, boolean commit,
+                                                            boolean autoIncr, boolean noIdColumn) throws Exception {
         if (!TEST_ER3TBL) {
             return;
         }
 
         // order_item -> order -> customer
         String table = "order_item";
-        debug("testEr3LevelTable: table '%s', local %s, tx %s, commit %s, autoIncr %s, noIdColumn %s",
+        debug("testEr3LevelTable2LevelJoinKeyNotPartition: " +
+                        "table '%s', local %s, tx %s, commit %s, autoIncr %s, noIdColumn %s",
                 table, isLocal, tx, commit, autoIncr, noIdColumn);
 
         final long companyA = 1, companyB = 2;
@@ -782,6 +925,127 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
                     assertEquals(row.get(j++), goodsName);
                     assertEquals(row.get(j++), quantity);
                     assertEquals(row.get(j), price);
+                }
+            } else {
+                assertTrue(n == 0, "'load data' rows error after rollback: " + n);
+            }
+        }
+    }
+
+    private void testEr3LevelTable2LevelJoinKeyAsPartition(boolean isLocal, boolean tx, boolean commit,
+                                                            boolean autoIncr, boolean noIdColumn) throws Exception {
+        if (!TEST_ER3TBL) {
+            return;
+        }
+
+        // play_record -> track -> artist
+        String table = "play_record";
+        debug("testEr3LevelTable2LevelJoinKeyAsPartition: " +
+                        "table '%s', local %s, tx %s, commit %s, autoIncr %s, noIdColumn %s",
+                table, isLocal, tx, commit, autoIncr, noIdColumn);
+
+        final long artistA = 1, artistB = 2;
+        final long customerA = 1, customerB = 2;
+        final long trackA = 1, trackB = 2, trackC = 3;
+        // init
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+
+            dropTable(stmt, "artist");
+
+            createTableArtist(stmt);
+            createTableTrack(stmt);
+            createTablePlayRecord(stmt);
+        }
+
+        final List<?> rows;
+        final DateFormat df = getTimestampFormat();
+        String playTime = df.format(new Date());
+        if (noIdColumn) {
+            rows = Arrays.asList(
+                    // play_record: track_id, customer_id, play_time, duration
+                    Arrays.asList(trackA, customerA, playTime, 3),
+                    Arrays.asList(trackA, customerB, playTime, 5),
+                    Arrays.asList(trackB, customerA, playTime, 3),
+                    Arrays.asList(trackB, customerB, playTime, 5),
+                    Arrays.asList(trackC, customerA, playTime, 6));
+        } else {
+            rows = Arrays.asList(
+                    // play_record: id, track_id, customer_id, play_time, duration
+                    Arrays.asList(autoIncr? null: 1L, trackA, customerA, playTime, 3),
+                    Arrays.asList(autoIncr? null: 2L, trackA, customerB, playTime, 5),
+                    Arrays.asList(autoIncr? null: 3L, trackB, customerA, playTime, 3),
+                    Arrays.asList(autoIncr? null: 4L, trackB, customerB, playTime, 5),
+                    Arrays.asList(autoIncr? null: 5L, trackC, customerA, playTime, 6));
+        }
+
+        final int rowCount = rows.size();
+        File csvFile = CsvUtil.write(table, rows);
+
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+            if (tx) c.setAutoCommit(false);
+
+            insertArtist(stmt, artistA, "Artist-"+artistA);
+            insertArtist(stmt, artistB, "Artist-"+artistB);
+            assertEquals(2, countTable(stmt, "artist"));
+
+            insertTrack(stmt, trackA, artistA, "Track-"+trackA);
+            insertTrack(stmt, trackB, artistB, "Track-"+trackB);
+            insertTrack(stmt, trackC, artistA, "Track-"+trackC);
+            assertEquals(3, countTable(stmt, "track"));
+
+            String local = isLocal? "local": "";
+            String file = csvFile + "";
+            String sql = "load data %s infile '%s' into table %s " +
+                    "fields terminated by ',' enclosed by '\\'' " +
+                    "(" + (noIdColumn? "": "id, ") + "track_id, customer_id, play_time, duration)";
+            sql = format(sql, local, file, table);
+            int n = stmt.executeUpdate(sql);
+            assertEquals(rowCount, n);
+            if (tx) {
+                if (commit) {
+                    c.commit();
+                } else {
+                    c.rollback();
+                }
+            }
+        }
+
+        // Check again by query
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+            int n = countTable(stmt, table);
+            if (!tx || commit) {
+                String sql;
+                assertTrue(n == rowCount, "'load data' rows error: " + n);
+                sql = "select id, track_id, customer_id, play_time, duration " +
+                        " from " + table +
+                        " order by id asc";
+                ResultSet rs  = stmt.executeQuery(sql);
+                for (int i = 0; i < n; ++i) {
+                    assertTrue(rs.next());
+
+                    long id = rs.getLong(1);
+                    boolean idNotNull = !rs.wasNull();
+                    long trackId = rs.getLong(2);
+                    long customerId = rs.getLong(3);
+                    Timestamp ptime = rs.getTimestamp(4);
+                    int duration = rs.getInt(5);
+
+                    List<?> row = (List<?>)rows.get(i);
+                    assertTrue(idNotNull);
+                    int j = 0;
+                    if (!autoIncr && !noIdColumn) {
+                        assertEquals(row.get(j++), id);
+                    }
+                    if (autoIncr && !noIdColumn) {
+                        j++;
+                    }
+                    assertEquals(row.get(j++), trackId, " at row id " + id);
+                    assertEquals(row.get(j++), customerId);
+                    assertEquals(row.get(j++), df.format(ptime));
+                    assertEquals(row.get(j), duration);
                 }
             } else {
                 assertTrue(n == 0, "'load data' rows error after rollback: " + n);

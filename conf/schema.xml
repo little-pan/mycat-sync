@@ -17,8 +17,17 @@
 		<table name="employee" primaryKey="ID" autoIncrement="true"
 			   dataNode="dn1,dn2" rule="mod-long-2" />
 
-		<table name="customer" primaryKey="ID" autoIncrement="true" dataNode="dn1,dn2"
-			   rule="sharding-by-intfile">
+		<!-- Case-1. ER-table joinKey is partition column -->
+		<table name="artist" primaryKey="ID" autoIncrement="true" dataNode="dn1,dn2" rule="mod-long-2">
+			<childTable name="track" primaryKey="ID" autoIncrement="true"
+						joinKey="artist_id" parentKey="id">
+				<childTable name="play_record" primaryKey="ID" autoIncrement="true"
+							joinKey="track_id" parentKey="id" />
+			</childTable>
+		</table>
+
+		<!-- Case-2. ER-table joinKey not partition column -->
+		<table name="customer" primaryKey="ID" autoIncrement="true" dataNode="dn1,dn2" rule="sharding-by-intfile">
 			<childTable name="order" primaryKey="ID" joinKey="customer_id" parentKey="id">
 				<childTable name="order_item" primaryKey="ID" autoIncrement="true"
 							joinKey="order_id" parentKey="id" />

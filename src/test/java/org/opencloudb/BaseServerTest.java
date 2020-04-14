@@ -208,6 +208,39 @@ public abstract class BaseServerTest {
         stmt.executeUpdate(sql);
     }
 
+    protected static void createTableArtist(Statement stmt) throws SQLException {
+        String sql = "create table artist (" +
+                "    id bigint not null auto_increment," +
+                "    name varchar(50) not null," +
+                "    primary key(id)" +
+                ")";
+        stmt.executeUpdate(sql);
+    }
+
+    protected static void createTableTrack(Statement stmt) throws SQLException {
+        String sql = "create table track (" +
+                "    id bigint not null auto_increment," +
+                "    artist_id bigint not null," +
+                "    name varchar(50) not null," +
+                "    primary key(id)," +
+                "    foreign key(artist_id) references artist(id)" +
+                ")";
+        stmt.executeUpdate(sql);
+    }
+
+    protected static void createTablePlayRecord(Statement stmt) throws SQLException {
+        String sql = "create table play_record (" +
+                "    id bigint not null auto_increment," +
+                "    track_id bigint not null," +
+                "    customer_id bigint not null," +
+                "    play_time datetime not null," +
+                "    duration int not null," +
+                "    primary key(id)," +
+                "    foreign key(track_id) references track(id)" +
+                ")";
+        stmt.executeUpdate(sql);
+    }
+
     protected static void createTableGoods(Statement stmt) throws SQLException {
         String sql = "create table goods (" +
                 "    id bigint not null auto_increment," +
@@ -254,6 +287,10 @@ public abstract class BaseServerTest {
 
     protected static void dropTable(Statement stmt, String table) throws SQLException {
         switch (table.toLowerCase()) {
+            case "artist":
+                dropTable(stmt, "play_record");
+                dropTable(stmt, "track");
+                break;
             case "customer":
                 dropTable(stmt, "customer_addr");
                 dropTable(stmt, "order_item");
@@ -293,6 +330,24 @@ public abstract class BaseServerTest {
 
     protected static int countTable(Statement stmt, String table) throws SQLException {
         return countTable(stmt, table, null);
+    }
+
+    protected static int insertArtist(Statement stmt, long id, String name) throws SQLException {
+        if (name == null) {
+            throw new NullPointerException("name is null");
+        }
+
+        String sql = format("insert into artist(id, name)values(%d, '%s')", id, name);
+        return stmt.executeUpdate(sql);
+    }
+
+    protected static int insertTrack(Statement stmt, long id, long artistId, String name) throws SQLException {
+        if (name == null) {
+            throw new NullPointerException("name is null");
+        }
+
+        String sql = format("insert into track(id, artist_id, name)values(%d, %d, '%s')", id, artistId, name);
+        return stmt.executeUpdate(sql);
     }
 
     protected static int insertCompany(Statement stmt, long id, String name) throws SQLException {

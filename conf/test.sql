@@ -11,6 +11,8 @@
 -- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('goods', 1, 100);
 -- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('order', 1, 100);
 -- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('order_item', 1, 100);
+-- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('track', 1, 100);
+-- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('play_record', 1, 100);
 -- illegal config test
 -- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('VIEWSPOT', 1, 0);
 
@@ -76,6 +78,7 @@ create table goods (
     foreign key(company_id) references company(id)
 );
 
+-- ER 2 level table with joinKey not partition column
 create table `order` (
     id bigint not null auto_increment,
     customer_id bigint not null,
@@ -88,6 +91,7 @@ create table `order` (
     foreign key(customer_id) references customer(id)
 );
 
+-- ER 3 level table with joinKey not partition column
 create table order_item (
     id bigint not null auto_increment,
     order_id bigint not null,
@@ -98,4 +102,30 @@ create table order_item (
     primary key(id),
     foreign key(order_id) references `order`(id),
     foreign key(goods_id) references goods(id)
+);
+
+create table artist (
+    id bigint not null auto_increment,
+    name varchar(50) not null,
+    primary key(id)
+);
+
+-- ER 2 level table with joinKey as partition column
+create table track (
+    id bigint not null auto_increment,
+    artist_id bigint not null,
+    name varchar(50) not null,
+    primary key(id),
+    foreign key(artist_id) references artist(id)
+);
+
+-- ER 3 level table with joinKey not partition column
+create table play_record (
+    id bigint not null auto_increment,
+    track_id bigint not null,
+    customer_id bigint not null,
+    play_time datetime not null,
+    duration int not null,
+    primary key(id),
+    foreign key(track_id) references track(id)
 );
