@@ -35,12 +35,14 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         testDefaultTable(false, false, false);
         testGlobalTable(true, false, false);
         testGlobalTable(false, false, false);
+
         testShardTable(true, false, false, false, false);
         testShardTable(false, false, false, false, false);
         testShardTable(true, false, false, true, false);
         testShardTable(false, false, false, true, false);
         testShardTable(true, false, false, true, true);
         testShardTable(false, false, false, false, true);
+
         testEr2LevelTable(true, false, false, false, false);
         testEr2LevelTable(false, false, false, false, false);
         testEr2LevelTable(true, false, false, true, false);
@@ -48,15 +50,24 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         testEr2LevelTable(true, false, false, true, true);
         testEr2LevelTable(false, false, false, true, true);
 
+        testEr3LevelTable(true, false, false, false, false);
+        testEr3LevelTable(false, false, false, false, false);
+        testEr3LevelTable(true, false, false, true, false);
+        testEr3LevelTable(false, false, false, true, false);
+        testEr3LevelTable(true, false, false, true, true);
+        testEr3LevelTable(false, false, false, true, true);
+
         // Tx test
         testDefaultTable(true, true, false);
         testDefaultTable(false, true, false);
         testDefaultTable(true, true, true);
         testDefaultTable(false, true, true);
+
         testGlobalTable(true, true, false);
         testGlobalTable(false, true, false);
         testGlobalTable(true, true, true);
         testGlobalTable(false, true, true);
+
         testShardTable(true, true, true, true, false);
         testShardTable(true, true, true, false, false);
         testShardTable(true, true, false, true, false);
@@ -67,12 +78,32 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         testShardTable(false, true, false, false, false);
         testShardTable(false, true, false, true, true);
         testShardTable(false, true, false, false, true);
+
         testEr2LevelTable(true, true, false, false, false);
         testEr2LevelTable(false, true, false, false, false);
         testEr2LevelTable(true, true, false, true, false);
         testEr2LevelTable(false, true, false, true, false);
         testEr2LevelTable(true, true, false, true, true);
         testEr2LevelTable(false, true, false, true, true);
+        testEr2LevelTable(true, true, true, false, false);
+        testEr2LevelTable(false, true, true, false, false);
+        testEr2LevelTable(true, true, true, true, false);
+        testEr2LevelTable(false, true, true, true, false);
+        testEr2LevelTable(true, true, true, true, true);
+        testEr2LevelTable(false, true, true, true, true);
+
+        testEr3LevelTable(true, true, false, false, false);
+        testEr3LevelTable(false, true, false, false, false);
+        testEr3LevelTable(true, true, false, true, false);
+        testEr3LevelTable(false, true, false, true, false);
+        testEr3LevelTable(true, true, false, true, true);
+        testEr3LevelTable(false, true, false, true, true);
+        testEr3LevelTable(true, true, true, false, false);
+        testEr3LevelTable(false, true, true, false, false);
+        testEr3LevelTable(true, true, true, true, false);
+        testEr3LevelTable(false, true, true, true, false);
+        testEr3LevelTable(true, true, true, true, true);
+        testEr3LevelTable(false, true, true, true, true);
 
         // Perf test: 200k rows/s
         // 5s
@@ -538,7 +569,6 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
         try (Connection c = getConnection()) {
             Statement stmt = c.createStatement();
 
-            dropTable(stmt, table);
             dropTable(stmt, "customer");
             createTableCustomer(stmt);
             createTableCustomerAddr(stmt);
@@ -619,6 +649,139 @@ public class LoadDataInfileHandlerServerTest extends BaseServerTest {
                     }
                     assertEquals(row.get(j++), customerId);
                     assertEquals(row.get(j++), address);
+                }
+            } else {
+                assertTrue(n == 0, "'load data' rows error after rollback: " + n);
+            }
+        }
+    }
+
+    private void testEr3LevelTable(boolean isLocal, boolean tx, boolean commit, boolean autoIncr, boolean noIdColumn)
+            throws Exception {
+        if (!TEST_ER3TBL) {
+            return;
+        }
+
+        // order_item -> order -> customer
+        String table = "order_item";
+        debug("testEr3LevelTable: table '%s', local %s, tx %s, commit %s, autoIncr %s, noIdColumn %s",
+                table, isLocal, tx, commit, autoIncr, noIdColumn);
+
+        final long companyA = 1, companyB = 2;
+        final long goodsA = 1, goodsB = 2;
+        final long customerA = 1, customerB = 2;
+        final long orderA = 1, orderB = 2, orderC = 3;
+        // init
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+
+            dropTable(stmt, "customer");
+            dropTable(stmt, "company");
+
+            createTableCompany(stmt);
+            createTableGoods(stmt);
+            createTableCustomer(stmt);
+            createTableOrder(stmt);
+            createTableOrderItem(stmt);
+            createTableCustomerAddr(stmt);
+        }
+
+        final List<?> rows;
+        if (noIdColumn) {
+            rows = Arrays.asList(
+                    // order_item: order_id, goods_id, goods_name, quantity, price
+                    Arrays.asList(orderA, goodsA, "Goods-"+goodsA, 1, 100.0),
+                    Arrays.asList(orderA, goodsB, "Goods-"+goodsB, 2, 50.0),
+                    Arrays.asList(orderB, goodsA, "Goods-"+goodsA, 1, 100.0),
+                    Arrays.asList(orderB, goodsB, "Goods-"+goodsB, 2, 50.0),
+                    Arrays.asList(orderC, goodsA, "Goods-"+goodsA, 1, 100.0));
+        } else {
+            rows = Arrays.asList(
+                    // order_item: id, order_id, goods_id, goods_name, quantity, price
+                    Arrays.asList(autoIncr? null: 1L, orderA, goodsA, "Goods-"+goodsA, 1, 100.0),
+                    Arrays.asList(autoIncr? null: 2L, orderA, goodsB, "Goods-"+goodsB, 2, 50.0),
+                    Arrays.asList(autoIncr? null: 3L, orderB, goodsA, "Goods-"+goodsA, 1, 100.0),
+                    Arrays.asList(autoIncr? null: 4L, orderB, goodsB, "Goods-"+goodsB, 2, 50.0),
+                    Arrays.asList(autoIncr? null: 5L, orderC, goodsA, "Goods-"+goodsA, 1, 100.0));
+        }
+
+        final int rowCount = rows.size();
+        File csvFile = CsvUtil.write(table, rows);
+
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+            if (tx) c.setAutoCommit(false);
+
+            insertCompany(stmt, companyA, "Company-"+companyA);
+            insertCompany(stmt, companyB, "Company-"+companyB);
+            assertEquals(2, countTable(stmt, "company"));
+
+            insertGoods(stmt, goodsA, companyA, "Goods-"+goodsA, 100, 20);
+            insertGoods(stmt, goodsB, companyB, "Goods-"+goodsB, 50,  10);
+            assertEquals(2, countTable(stmt, "goods"));
+
+            insertCustomer(stmt, customerA, "Peter");
+            insertCustomer(stmt, customerB, "Tom");
+            assertEquals(2, countTable(stmt, "customer"));
+
+            insertOrder(stmt, orderA, customerA, 3, 200, 1);
+            insertOrder(stmt, orderB, customerB, 3, 200, 1);
+            insertOrder(stmt, orderC, customerA, 1, 100, 1);
+            assertEquals(3, countTable(stmt, "`order`"));
+
+            String local = isLocal? "local": "";
+            String file = csvFile + "";
+            String sql = "load data %s infile '%s' into table %s " +
+                    "fields terminated by ',' enclosed by '\\'' " +
+                    "(" + (noIdColumn? "": "id, ") + "order_id, goods_id, goods_name, quantity, price)";
+            sql = format(sql, local, file, table);
+            int n = stmt.executeUpdate(sql);
+            assertEquals(rowCount, n);
+            if (tx) {
+                if (commit) {
+                    c.commit();
+                } else {
+                    c.rollback();
+                }
+            }
+        }
+
+        // Check again by query
+        try (Connection c = getConnection()) {
+            Statement stmt = c.createStatement();
+            int n = countTable(stmt, table);
+            if (!tx || commit) {
+                String sql;
+                assertTrue(n == rowCount, "'load data' rows error: " + n);
+                sql = "select id, order_id, goods_id, goods_name, quantity, price " +
+                        " from " + table +
+                        " order by id asc";
+                ResultSet rs  = stmt.executeQuery(sql);
+                for (int i = 0; i < n; ++i) {
+                    assertTrue(rs.next());
+
+                    long id = rs.getLong(1);
+                    boolean idNotNull = !rs.wasNull();
+                    long orderId = rs.getLong(2);
+                    long goodsId = rs.getLong(3);
+                    String goodsName = rs.getString(4);
+                    int quantity = rs.getInt(5);
+                    double price = rs.getDouble(6);
+
+                    List<?> row = (List<?>)rows.get(i);
+                    assertTrue(idNotNull);
+                    int j = 0;
+                    if (!autoIncr && !noIdColumn) {
+                        assertEquals(row.get(j++), id);
+                    }
+                    if (autoIncr && !noIdColumn) {
+                        j++;
+                    }
+                    assertEquals(row.get(j++), orderId, " at row id " + id);
+                    assertEquals(row.get(j++), goodsId);
+                    assertEquals(row.get(j++), goodsName);
+                    assertEquals(row.get(j++), quantity);
+                    assertEquals(row.get(j), price);
                 }
             } else {
                 assertTrue(n == 0, "'load data' rows error after rollback: " + n);

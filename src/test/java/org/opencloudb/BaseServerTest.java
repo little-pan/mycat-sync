@@ -25,6 +25,7 @@ package org.opencloudb;
 
 import java.io.File;
 import java.io.PrintStream;
+import java.math.BigDecimal;
 import java.sql.*;
 import java.util.Date;
 import java.text.DateFormat;
@@ -118,6 +119,7 @@ public abstract class BaseServerTest {
 
             dropTable(stmt, "hotel");
             dropTable(stmt, "employee");
+            dropTable(stmt, "goods");
             dropTable(stmt, "company");
 
             createTableCompany(stmt);
@@ -206,7 +208,65 @@ public abstract class BaseServerTest {
         stmt.executeUpdate(sql);
     }
 
+    protected static void createTableGoods(Statement stmt) throws SQLException {
+        String sql = "create table goods (" +
+                "    id bigint not null auto_increment," +
+                "    company_id bigint not null," +
+                "    name varchar(50) not null," +
+                "    price decimal(7, 2) not null," +
+                "    stock int not null," +
+                "    primary key(id)," +
+                "    foreign key(company_id) references company(id)" +
+                ")";
+        stmt.executeUpdate(sql);
+    }
+
+    protected static void createTableOrder(Statement stmt) throws SQLException {
+        String sql = "create table `order` (" +
+                "    id bigint not null auto_increment," +
+                "    customer_id bigint not null," +
+                "    quantity int not null," +
+                "    amount decimal(12, 2) not null," +
+                "    status int not null " +
+                "      comment '1-Unpaid, 2-Paid, 3-Delivered, 4-Received, 5-Canceled, 6-Closed, 7-Deleted'," +
+                "    create_time datetime not null," +
+                "    pay_time datetime," +
+                "    primary key(id)," +
+                "    foreign key(customer_id) references customer(id)" +
+                ")";
+        stmt.executeUpdate(sql);
+    }
+
+    protected static void createTableOrderItem(Statement stmt) throws SQLException {
+        String sql = "create table order_item (" +
+                "    id bigint not null auto_increment," +
+                "    order_id bigint not null," +
+                "    goods_id bigint not null," +
+                "    goods_name varchar(50) not null," +
+                "    quantity int not null," +
+                "    price decimal(7, 2) not null," +
+                "    primary key(id)," +
+                "    foreign key(order_id) references `order`(id)," +
+                "    foreign key(goods_id) references goods(id)" +
+                ")";
+        stmt.executeUpdate(sql);
+    }
+
     protected static void dropTable(Statement stmt, String table) throws SQLException {
+        switch (table.toLowerCase()) {
+            case "customer":
+                dropTable(stmt, "customer_addr");
+                dropTable(stmt, "order_item");
+                dropTable(stmt, "`order`");
+                break;
+            case "company":
+                dropTable(stmt, "employee");
+                dropTable(stmt, "goods");
+            case "goods":
+            case "order":
+                dropTable(stmt, "order_item");
+                break;
+        }
         String sql = "drop table if exists " + table;
         stmt.executeUpdate(sql);
     }
@@ -246,6 +306,17 @@ public abstract class BaseServerTest {
         return stmt.executeUpdate(sql);
     }
 
+    protected static int insertGoods(Statement stmt, long id, long companyId,
+                                     String name, double price, int stock) throws SQLException {
+        if (name == null) {
+            throw new NullPointerException("name is null");
+        }
+
+        String sql = format("insert into goods(id, company_id, name, price, stock)" +
+                        "values(%d, %d, '%s', %f, %d)", id, companyId, name, price, stock);
+        return stmt.executeUpdate(sql);
+    }
+
     protected static int insertCustomer(Statement stmt, long id, String username) throws SQLException {
         if (username == null) {
             throw new NullPointerException("username is null");
@@ -253,6 +324,15 @@ public abstract class BaseServerTest {
 
         String sql = format("insert into customer(id, sharding_id, username)values(%d, %d, '%s')",
                 id, (id % 2 == 0)? 10000: 10010, username);
+        return stmt.executeUpdate(sql);
+    }
+
+    protected static int insertOrder(Statement stmt, long id, long customerId,
+                                     int quantity, double amount, int status) throws SQLException {
+
+        String time = getTimestampFormat().format(new Date());
+        String sql = format("insert into `order`(id, customer_id, quantity, amount, status, create_time)" +
+                        "values(%d, %d, %d, %f, %d, '%s')", id, customerId, quantity, amount, status, time);
         return stmt.executeUpdate(sql);
     }
 

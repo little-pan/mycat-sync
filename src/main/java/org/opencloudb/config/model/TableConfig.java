@@ -63,17 +63,17 @@ public class TableConfig {
 			String parentKey) throws IllegalArgumentException {
 
 		if (name == null) {
-			throw new IllegalArgumentException("table name is null");
+			throw new IllegalArgumentException("Table name is null");
 		}
 		if (dataNode == null) {
-			throw new IllegalArgumentException("dataNode name is null");
+			throw new IllegalArgumentException("DataNode name is null");
 		}
 		String[] dataNodes = SplitUtil.split(dataNode, ',', '$', '-');
 		if (dataNodes.length <= 0) {
 			throw new IllegalArgumentException("Invalid table dataNodes: " + dataNode);
 		}
 		if (ruleRequired && rule == null) {
-			throw new IllegalArgumentException("ruleRequired but rule is null");
+			throw new IllegalArgumentException("Rule required but rule is null");
 		}
 
 		this.primaryKey = primaryKey;
@@ -224,15 +224,15 @@ public class TableConfig {
 		String lastCond = "";
 		int level = 0;
 		while (pc != null) {
-			tables.append(level > 0? ',': "").append(pc.name);
+			tables.append(level > 0? ',': "").append('`').append(pc.name).append('`');
 
 			if (level == 0) {
-				lastCond = pc.name + '.' + tc.parentKey + '=';
+				lastCond = '`' + pc.name + '`' + '.' + tc.parentKey + '=';
 			} else {
 				conditions
-						.append(pc.name).append('.').append(tc.parentKey)
+						.append('`').append(pc.name).append('`').append('.').append(tc.parentKey)
 						.append('=')
-						.append(tc.name).append('.').append(tc.joinKey)
+						.append('`').append(tc.name).append('`').append('.').append(tc.joinKey)
 						.append(" AND ");
 			}
 
@@ -246,7 +246,7 @@ public class TableConfig {
 			}
 		}
 
-		return "SELECT " + tc.name + '.' + prev.parentKey
+		return "SELECT `" + tc.name + "`." + prev.parentKey
 				+ " FROM "  + tables
 				+ " WHERE " + conditions;
 	}

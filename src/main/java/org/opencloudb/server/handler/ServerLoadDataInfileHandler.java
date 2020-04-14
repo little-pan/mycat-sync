@@ -113,6 +113,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
     private LayeredCachePool tableId2DataNodeCache;
     private SchemaConfig schema;
     private boolean isStartLoadData;
+    private boolean errorSent;
 
     public ServerLoadDataInfileHandler(ServerConnection serverConnection) {
         this.serverConnection = serverConnection;
@@ -131,6 +132,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         SQLStatementParser parser;
 
         clear();
+        this.errorSent = false;
         this.sql = sql;
 
         parser = new MycatStatementParser(sql);
@@ -240,7 +242,9 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
         String lineSep = this.loadData.getLineTerminatedBy();
         log.debug("parse file '{}'", fileName);
         parseFileByLine(fileName, charset, lineSep);
-        if (this.idFetcher == null && this.storeNodeFetcher == null) {
+        if (!this.errorSent
+                && this.idFetcher == null
+                && this.storeNodeFetcher == null) {
             execute(fileName);
         }
     }
@@ -261,6 +265,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
 
     void sendError(String error) {
         try {
+            this.errorSent = true;
             this.serverConnection.writeErrMessage(ErrorCode.ER_YES, error);
         } finally {
             clear();
@@ -269,6 +274,7 @@ public final class ServerLoadDataInfileHandler implements LoadDataInfileHandler 
 
     void sendError(int errno, String errmsg) {
         try {
+            this.errorSent = true;
             this.serverConnection.writeErrMessage(errno, errmsg);
         } finally {
             clear();

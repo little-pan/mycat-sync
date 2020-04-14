@@ -1,6 +1,19 @@
 -- test schema since 2020-03-24
 --
 -- mysql
+--
+-- Init some sequences for test
+-- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('COMPANY', 10000, 100);
+-- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('GLOBAL', 1, 50);
+-- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('EMPLOYEE', 1, 100);
+-- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('CUSTOMER', 1, 100);
+-- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('CUSTOMER_ADDR', 1, 100);
+-- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('goods', 1, 100);
+-- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('order', 1, 100);
+-- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('order_item', 1, 100);
+-- illegal config test
+-- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('VIEWSPOT', 1, 0);
+
 create table company (
     id bigint not null primary key,
     name varchar(20) not null,
@@ -51,4 +64,38 @@ create table customer_addr (
     address varchar(250) not null,
     primary key(id),
     foreign key(customer_id) references customer(id)
+);
+
+create table goods (
+    id bigint not null auto_increment,
+    company_id bigint not null,
+    name varchar(50) not null,
+    price decimal(7, 2) not null,
+    stock int not null,
+    primary key(id),
+    foreign key(company_id) references company(id)
+);
+
+create table `order` (
+    id bigint not null auto_increment,
+    customer_id bigint not null,
+    quantity int not null,
+    amount decimal(12, 2) not null,
+    status int not null comment '1-Unpaid, 2-Paid, 3-Delivered, 4-Received, 5-Canceled, 6-Closed, 7-Deleted',
+    create_time datetime not null,
+    pay_time datetime,
+    primary key(id),
+    foreign key(customer_id) references customer(id)
+);
+
+create table order_item (
+    id bigint not null auto_increment,
+    order_id bigint not null,
+    goods_id bigint not null,
+    goods_name varchar(50) not null,
+    quantity int not null,
+    price decimal(7, 2) not null,
+    primary key(id),
+    foreign key(order_id) references `order`(id),
+    foreign key(goods_id) references goods(id)
 );

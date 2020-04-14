@@ -13,15 +13,6 @@ CREATE TABLE mycat_sequence (
   PRIMARY KEY(name)
 )ENGINE=InnoDB;
 
--- Init some sequences for test
--- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('COMPANY', 10000, 100);
--- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('GLOBAL', 1, 50);
--- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('EMPLOYEE', 1, 100);
--- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('CUSTOMER', 1, 100);
--- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('CUSTOMER_ADDR', 1, 100);
--- illegal config test
--- INSERT INTO mycat_sequence(name, current_value, increment) VALUES ('VIEWSPOT', 1, 0);
-
 -- Related function
 -- Fetch current sequence value(current value, increment)
 DROP FUNCTION IF EXISTS mycat_seq_currval;

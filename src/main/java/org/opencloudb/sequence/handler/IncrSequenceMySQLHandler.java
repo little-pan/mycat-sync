@@ -65,21 +65,32 @@ public class IncrSequenceMySQLHandler implements SequenceHandler {
 
 	private Properties loadProps() {
 		String propsFile = SEQUENCE_DB_PROPS;
-		final InputStream in = SystemConfig.getConfigFileStream(propsFile);
 		final Properties props = new Properties();
 
+		final InputStream in = SystemConfig.getConfigFileStream(propsFile);
 		try {
 			props.load(in);
-			return props;
 		} catch (IOException e) {
 			throw new IllegalStateException("Load file '"+propsFile+"' error", e);
 		} finally {
 			IoUtil.close(in);
 		}
+
+		// Case-insensitive sequence name
+		final Properties copy = new Properties();
+		for (Map.Entry<Object, Object> it: props.entrySet()) {
+			String prop = (String)it.getKey();
+			Object val = it.getValue();
+			copy.put(seqName(prop), val);
+		}
+
+		return copy;
 	}
 
 	private void removeDesertedSequenceVals(Properties props) {
-		Iterator<Map.Entry<String, SequenceVal>> it = this.seqValueMap.entrySet().iterator();
+		Set<Map.Entry<String, SequenceVal>> seqSet = this.seqValueMap.entrySet();
+		Iterator<Map.Entry<String, SequenceVal>> it = seqSet.iterator();
+
 		while (it.hasNext()) {
 			Map.Entry<String, SequenceVal> entry = it.next();
 			if (!props.containsKey(entry.getKey())) {
@@ -102,9 +113,13 @@ public class IncrSequenceMySQLHandler implements SequenceHandler {
 		}
 	}
 
+	static String seqName(String seqName) {
+		return seqName.toLowerCase();
+	}
+
 	@Override
 	public void nextId(String seqName, Callback<Long> seqCallback) {
-		final SequenceVal seqVal = this.seqValueMap.get(seqName);
+		final SequenceVal seqVal = this.seqValueMap.get(seqName(seqName));
 
 		if (seqVal == null) {
 			String errmsg = "Sequence '" + seqName +"' doesn't exist in " + SEQUENCE_DB_PROPS;

@@ -20,7 +20,8 @@
 		<table name="customer" primaryKey="ID" autoIncrement="true" dataNode="dn1,dn2"
 			   rule="sharding-by-intfile">
 			<childTable name="order" primaryKey="ID" joinKey="customer_id" parentKey="id">
-				<childTable name="order_item" joinKey="order_id" parentKey="id" />
+				<childTable name="order_item" primaryKey="ID" autoIncrement="true"
+							joinKey="order_id" parentKey="id" />
 			</childTable>
 			<childTable name="customer_addr" primaryKey="ID" autoIncrement="true"
 						joinKey="customer_id" parentKey="id" />
